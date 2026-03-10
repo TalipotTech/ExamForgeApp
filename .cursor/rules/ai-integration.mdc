@@ -1,0 +1,33 @@
+---
+description: AI integration patterns for question generation and processing
+globs:
+  - "apps/api/src/ai/**/*.ts"
+  - "apps/api/src/workers/**/*.ts"
+alwaysApply: false
+---
+
+# AI Integration Code Rules
+
+## Provider Routing
+All AI calls go through `ai-router.ts`. Route by task:
+- Quality generation → Claude (claude-sonnet-4-20250514)
+- Bulk generation → Mistral (mistral-large)
+- Video/long docs → Gemini (gemini-2.0-flash)
+- Web search → Perplexity (sonar-pro)
+- Embeddings → OpenAI (text-embedding-3-small)
+
+## Structured Output (MANDATORY)
+Every LLM response MUST be validated via Instructor.js + Zod schema before DB write.
+```typescript
+const result = await instructor.chat.completions.create({
+  model: "claude-sonnet-4-20250514",
+  response_model: { schema: QuestionSchema, name: "Question" },
+  messages: [{ role: "user", content: prompt }],
+});
+```
+
+## Cost Control
+- Check Redis cache before any AI call
+- Log: provider, model, input_tokens, output_tokens, latency_ms, cost_usd
+- Use Anthropic batch API for scraping jobs (50% discount)
+- Gemini free tier first for video processing

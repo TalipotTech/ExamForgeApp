@@ -1,0 +1,51 @@
+# ──── Dependencies ────
+node_modules/
+.pnpm-store/
+
+# ──── Build outputs ────
+dist/
+.next/
+.turbo/
+out/
+build/
+
+# ──── Environment ────
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ──── IDE ────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ──── OS ────
+.DS_Store
+Thumbs.db
+*.log
+
+# ──── Testing ────
+coverage/
+playwright-report/
+test-results/
+
+# ──── AWS CDK ────
+infra/cdk.out/
+infra/node_modules/
+
+# ──── Docker ────
+docker-compose.override.yml
+
+# ──── Database ────
+*.sql.bak
+
+# ──── Misc ────
+*.tsbuildinfo
+.eslintcache
+
+# ──── Claude Code auto-memory (personal) ────
+CLAUDE.local.md
+.claude/memory/

@@ -1,0 +1,50 @@
+# ExamForge — Local Development Stack
+# Usage: docker compose up -d postgres redis
+# Then: pnpm dev (runs Next.js + Fastify locally)
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: examforge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: examforge
+      POSTGRES_PASSWORD: examforge_dev
+      POSTGRES_DB: examforge_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U examforge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: examforge-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: PostHog for local analytics testing
+  # posthog:
+  #   image: posthog/posthog:latest
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     DATABASE_URL: postgresql://examforge:examforge_dev@postgres:5432/posthog
+  #     REDIS_URL: redis://redis:6379/1
+
+volumes:
+  postgres_data:
+  redis_data:

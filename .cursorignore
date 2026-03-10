@@ -1,0 +1,10 @@
+# Exclude from Cursor indexing (saves context tokens)
+node_modules/
+.next/
+dist/
+.turbo/
+coverage/
+playwright-report/
+infra/cdk.out/
+*.log
+.git/

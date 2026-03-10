@@ -1,0 +1,24 @@
+# Personal Claude Code Preferences (NOT committed to git)
+# Copy this to CLAUDE.local.md and customize
+
+# Response style
+- Respond in English
+- Be concise — skip explanations I didn't ask for
+- When writing code, add brief inline comments for complex logic only
+- Show me the full file when creating new files, diffs when editing
+
+# Dev environment
+- I use pnpm (not npm or yarn)
+- I use VS Code / Cursor as my primary editor
+- My terminal is iTerm2 / Windows Terminal
+- Docker Desktop is running for local Postgres and Redis
+
+# Testing preference
+- Write tests alongside the implementation, not separately
+- Use descriptive test names: "should [expected behavior] when [condition]"
+- Prefer integration tests over mocking everything
+
+# Git preference
+- Create small, focused commits
+- Use conventional commit messages
+- I'll review the diff before committing

@@ -1,0 +1,41 @@
+---
+description: ExamForge project context and coding standards
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+alwaysApply: true
+---
+
+# ExamForge — AI Exam Prep Platform (India)
+
+## Project Context
+Monorepo: Next.js 15 + Fastify 5 + PostgreSQL 17 + AWS (App Runner + RDS + ElastiCache).
+Target exams: BPharm Asst Prof, NEET, GPAT, UPSC, Kerala PSC, GATE.
+
+## TypeScript Rules
+- Strict mode, no `any`, no `as` type assertions unless justified with comment
+- Named exports, ES modules only, 2-space indent
+- Explicit return types on all exported functions
+- Use `satisfies` operator over `as` for type narrowing
+- Prefer `const` assertions for literal types
+
+## React / Next.js Rules
+- Server Components by default, add `"use client"` only when needed
+- Use `useActionState` for form handling (React 19)
+- Data fetching: TanStack Query for client, server actions for mutations
+- No `useEffect` for data fetching — use TanStack Query or RSC
+- Tailwind v4 utility classes only, no custom CSS unless absolutely necessary
+- shadcn/ui components — never build custom UI primitives
+
+## API Rules
+- tRPC routers in `apps/api/src/routers/`
+- Zod validation on every input
+- Return `{ success, data?, error? }` pattern
+- Auth middleware: verify session on all protected routes
+- Rate limit AI-related endpoints (10 req/min per user)
+
+## Error Handling
+- Use early returns (guard clauses)
+- Custom `AppError` class with code, message, statusCode
+- Never swallow errors silently — log with structured JSON
+- AI calls: retry 3x with exponential backoff, then queue for later

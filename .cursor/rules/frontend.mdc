@@ -1,0 +1,41 @@
+---
+description: Frontend component patterns for Next.js 15 + shadcn/ui
+globs:
+  - "apps/web/src/**/*.tsx"
+  - "apps/web/src/**/*.ts"
+alwaysApply: false
+---
+
+# Frontend Component Rules
+
+## Component Pattern
+- Server Components by default
+- Add "use client" ONLY for: event handlers, hooks, browser APIs
+- Co-locate: component.tsx, component.test.tsx in same directory
+- One component per file, named export matching filename
+
+## Data Fetching
+- RSC: fetch data in Server Components, pass as props
+- Client: TanStack Query with tRPC for dynamic data
+- NEVER useEffect for data fetching
+- Prefetch in RSC: `queryClient.prefetchQuery()`
+
+## Forms
+- Use React 19 useActionState + server actions
+- Validate with Zod on both client AND server
+- Show inline validation errors, not alerts
+- Disable submit button while pending
+
+## Styling
+- Tailwind v4 utility classes only
+- shadcn/ui for all UI primitives (Button, Input, Card, Dialog, etc.)
+- Use `cn()` utility for conditional classes
+- Mobile-first: design for 360px+ first, then scale up
+- Dark mode: use CSS variables from shadcn theme
+
+## Accessibility
+- All interactive elements must be keyboard accessible
+- Use semantic HTML (button, nav, main, section, article)
+- All images need alt text
+- Form inputs need labels (visually hidden is OK)
+- Exam interface: support keyboard shortcuts (A-D for options, arrows for nav)
