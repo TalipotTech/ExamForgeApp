@@ -69,8 +69,6 @@ sequenceDiagram
     FA-->>U: Redirect to /results/[sessionId]
 ```
 
-
-
 ---
 
 ## Phase 1: Basic Auth (NextAuth v5 + JWT)
@@ -92,8 +90,8 @@ Since the API runs on a **separate Fastify server**, we use JWT strategy so the 
   - For dev: seed a test user in `local-setup.sql`
 - **[apps/web/src/app/api/auth/[...nextauth]/route.ts](apps/web/src/app/api/auth/[...nextauth]/route.ts)** -- NextAuth route handler (`export { GET, POST } from auth`)
 - **[apps/web/src/middleware.ts](apps/web/src/middleware.ts)** -- Protect routes
-  - Public: `/`, `/auth/login`, `/api/auth/`*
-  - Protected: everything else (`/questions`, `/take/`*, `/results/*`, etc.)
+  - Public: `/`, `/auth/login`, `/api/auth/`\*
+  - Protected: everything else (`/questions`, `/take/`_, `/results/`_, etc.)
 - **[apps/web/src/app/auth/login/page.tsx](apps/web/src/app/auth/login/page.tsx)** -- Login page with email + password form, shadcn UI
 
 ### Files to Modify
@@ -101,7 +99,7 @@ Since the API runs on a **separate Fastify server**, we use JWT strategy so the 
 - **[apps/web/src/components/providers.tsx](apps/web/src/components/providers.tsx)** -- Wrap with `SessionProvider`, pass JWT in tRPC `httpBatchLink` headers via `Authorization: Bearer <token>`
 - **[apps/api/src/trpc/context.ts](apps/api/src/trpc/context.ts)** -- Decode JWT from `Authorization` header using `NEXTAUTH_SECRET` (via `jose` library), set `userId` and `role` on context
 - **[apps/api/src/trpc/trpc.ts](apps/api/src/trpc/trpc.ts)** -- Add `protectedProcedure` middleware that asserts `ctx.userId` exists
-- **[apps/web/src/app/(dashboard)/layout.tsx](apps/web/src/app/(dashboard)/layout.tsx)** -- Add user avatar/name and logout button in header, add "Start Exam" nav link
+- **[apps/web/src/app/(dashboard)/layout.tsx](<apps/web/src/app/(dashboard)/layout.tsx>)** -- Add user avatar/name and logout button in header, add "Start Exam" nav link
 - **[scripts/local-setup.sql](scripts/local-setup.sql)** -- Add a seeded dev user with hashed password
 
 ### New Dependency (apps/api)
@@ -116,7 +114,6 @@ Since the API runs on a **separate Fastify server**, we use JWT strategy so the 
 
 - **[apps/api/src/trpc/routers/exam-session.ts](apps/api/src/trpc/routers/exam-session.ts)** -- All procedures use `protectedProcedure`
 
-
 | Procedure     | Type     | Input                                          | Description                                                                                            |
 | ------------- | -------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `start`       | Mutation | `{ examId, totalQuestions, durationMinutes? }` | Pick N random questions from DB, create `exam_sessions` row, return `{ sessionId }`                    |
@@ -124,7 +121,6 @@ Since the API runs on a **separate Fastify server**, we use JWT strategy so the 
 | `saveAnswers` | Mutation | `{ sessionId, answers, flagged? }`             | Update answers JSONB, update `updatedAt`                                                               |
 | `submit`      | Mutation | `{ sessionId, answers }`                       | Calculate score by comparing with correct answers, set `completedAt`, `score`, `timeTakenSeconds`      |
 | `getResults`  | Query    | `{ sessionId }`                                | Return full results: score, time, per-question breakdown with user answer, correct answer, explanation |
-
 
 **Key design decisions:**
 
@@ -186,10 +182,10 @@ interface ExamState {
 
 ### Layout and Pages
 
-- **[apps/web/src/app/(exam)/layout.tsx](apps/web/src/app/(exam)/layout.tsx)** -- Full-screen layout, no header/nav, just a minimal top bar with exam name + timer + exit button. Registers `beforeunload` warning.
-- **[apps/web/src/app/(exam)/take/[sessionId]/page.tsx](apps/web/src/app/(exam)/take/[sessionId]/page.tsx)** -- Main exam page (client component). Fetches session via `trpc.examSession.getSession`, initializes Zustand store, renders exam UI. Registers keyboard shortcuts and auto-save interval.
-- **[apps/web/src/app/(dashboard)/exams/start/page.tsx](apps/web/src/app/(dashboard)/exams/start/page.tsx)** -- Exam start page: select exam, choose number of questions, optional time limit. Calls `trpc.examSession.start`, then `router.push(/take/[sessionId])`.
-- **[apps/web/src/app/(dashboard)/results/[sessionId]/page.tsx](apps/web/src/app/(dashboard)/results/[sessionId]/page.tsx)** -- Results page: score card, time taken, per-question breakdown with correct answer highlight and explanation. Reuses question display patterns from `question-card.tsx`.
+- **[apps/web/src/app/(exam)/layout.tsx](<apps/web/src/app/(exam)/layout.tsx>)** -- Full-screen layout, no header/nav, just a minimal top bar with exam name + timer + exit button. Registers `beforeunload` warning.
+- **[apps/web/src/app/(exam)/take/[sessionId]/page.tsx](<apps/web/src/app/(exam)/take/[sessionId]/page.tsx>)** -- Main exam page (client component). Fetches session via `trpc.examSession.getSession`, initializes Zustand store, renders exam UI. Registers keyboard shortcuts and auto-save interval.
+- **[apps/web/src/app/(dashboard)/exams/start/page.tsx](<apps/web/src/app/(dashboard)/exams/start/page.tsx>)** -- Exam start page: select exam, choose number of questions, optional time limit. Calls `trpc.examSession.start`, then `router.push(/take/[sessionId])`.
+- **[apps/web/src/app/(dashboard)/results/[sessionId]/page.tsx](<apps/web/src/app/(dashboard)/results/[sessionId]/page.tsx>)** -- Results page: score card, time taken, per-question breakdown with correct answer highlight and explanation. Reuses question display patterns from `question-card.tsx`.
 
 ### Exam Components
 
@@ -210,12 +206,9 @@ interface ExamState {
 
 ## File Change Summary
 
-
 | Category   | New Files                                          | Modified Files                                                  |
 | ---------- | -------------------------------------------------- | --------------------------------------------------------------- |
 | Auth       | 3 (auth config, API route, login page, middleware) | 4 (providers, context, trpc, dashboard layout, local-setup.sql) |
 | API Router | 1 (exam-session router)                            | 2 (trpc index, validators)                                      |
 | Frontend   | 10 (store, layout, 3 pages, 5 components)          | 1 (dashboard layout nav)                                        |
 | **Total**  | **14 new**                                         | **~7 modified**                                                 |
-
-

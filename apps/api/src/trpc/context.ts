@@ -12,15 +12,9 @@ export type Context = {
   orgId: string | null;
 };
 
-function getDerivedEncryptionKey(secret: string, salt: string): Uint8Array {
+function getDerivedEncryptionKey(secret: string, salt: string, keyLength: number): Uint8Array {
   return new Uint8Array(
-    hkdfSync(
-      "sha256",
-      secret,
-      salt,
-      `Auth.js Generated Encryption Key (${salt})`,
-      32,
-    ),
+    hkdfSync("sha256", secret, salt, `Auth.js Generated Encryption Key (${salt})`, keyLength),
   );
 }
 
@@ -30,11 +24,14 @@ async function decryptSessionToken(
   cookieName: string,
 ): Promise<{ userId: string; role: string; orgId: string | null } | null> {
   try {
-    const key = getDerivedEncryptionKey(secret, cookieName);
+    const jweHeader = JSON.parse(Buffer.from(token.split(".")[0], "base64url").toString());
+    const enc = jweHeader.enc ?? "A256CBC-HS512";
+    const keyLength = enc === "A256CBC-HS512" ? 64 : 32;
+    const key = getDerivedEncryptionKey(secret, cookieName, keyLength);
     const { payload } = await jwtDecrypt(token, key, {
       clockTolerance: 15,
       keyManagementAlgorithms: ["dir"],
-      contentEncryptionAlgorithms: ["A256GCM"],
+      contentEncryptionAlgorithms: [enc],
     });
 
     return {
@@ -50,10 +47,7 @@ async function decryptSessionToken(
 export function createContextFactory(db: Database) {
   const secret = process.env.NEXTAUTH_SECRET;
 
-  return async function createContext({
-    req,
-    res,
-  }: CreateFastifyContextOptions): Promise<Context> {
+  return async function createContext({ req, res }: CreateFastifyContextOptions): Promise<Context> {
     let userId: string | null = null;
     let userRole: string | null = null;
     let orgId: string | null = null;

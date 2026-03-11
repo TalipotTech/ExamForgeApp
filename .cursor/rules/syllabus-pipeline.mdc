@@ -1,0 +1,52 @@
+---
+description: Syllabus pipeline UI - upload, tree viewer, tutorials, MCQs
+globs:
+  - "apps/web/src/app/(dashboard)/syllabus/**/*.tsx"
+  - "apps/web/src/components/ai-provider-selector.tsx"
+  - "apps/web/src/components/syllabus/**/*.tsx"
+alwaysApply: false
+---
+
+# Syllabus Pipeline UI Rules
+
+## Feature Context
+PDF upload → tree viewer → tutorial generation → MCQ generation → exam builder.
+User selects AI providers (single or multi-agent) at each generation step.
+Spec: @docs/features/SYLLABUS_PIPELINE.md
+
+## AI Provider Selector (Reusable Component)
+- MUST be reusable across syllabus, question generator, and future AI features
+- Two modes: single-select (RadioGroup) and multi-select (Checkbox)
+- "Use All" toggle selects all providers simultaneously
+- Show estimated cost per provider (from constants, not API call)
+- Persist user's last selection in TanStack Query cache
+- Props: `mode`, `onSelect`, `defaultProviders`, `compact`
+
+## Tree Viewer Pattern
+- Use recursive component for rendering tree nodes
+- State in Zustand: expandedNodes (Set<string>), selectedNodes (Set<string>)
+- Fetch full tree in one call (getTree), build hierarchy client-side
+- Virtualize if tree has 200+ nodes (@tanstack/react-virtual)
+- Keyboard nav: arrow keys to navigate, Enter to expand/collapse, Space to select
+
+## Status Tracking UX
+- Poll `getStatus` during processing (refetchInterval: 2000)
+- Show step-by-step progress: uploaded → extracting → parsing → done
+- On "generating" states: show provider-specific progress if multi-agent
+- Optimistic updates: mark node as "generating" immediately on button click
+
+## Tutorial Display
+- Render structured JSONB content as rich formatted sections
+- Definitions: highlighted card with term in bold
+- Formulas: rendered in monospace or MathJax if available
+- Mnemonics: distinctive styling (callout box)
+- Provider attribution: subtle tag on sections in multi-agent mode
+- "Regenerate" button to create new version (preserves old)
+
+## MCQ Review Flow
+- Generated MCQs appear in a review list
+- Each question: accept (✓), reject (✗), edit (✏) buttons
+- Edit opens inline form with all fields editable
+- Bulk actions: "Accept All", "Reject All"
+- Save accepted → creates entries in questions + tutorial_questions tables
+- Toast on save success with count

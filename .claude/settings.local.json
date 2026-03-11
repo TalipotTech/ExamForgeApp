@@ -13,7 +13,10 @@
       "Bash(pnpm --filter @examforge/infra type-check)",
       "Bash(pnpm build)",
       "Bash(pnpm db:generate)",
-      "Bash(node -e \"const p = require\\(''./package.json''\\); console.log\\(''type:'', p.type\\)\")"
+      "Bash(node -e \"const p = require\\(''./package.json''\\); console.log\\(''type:'', p.type\\)\")",
+      "Bash(pnpm --filter @examforge/api add ai @ai-sdk/anthropic @ai-sdk/openai @ai-sdk/google @ai-sdk/mistral)",
+      "Bash(grep '\"\"version\"\"')",
+      "Bash(pnpm --filter @examforge/api build)"
     ]
   }
 }

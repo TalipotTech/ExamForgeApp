@@ -16,9 +16,14 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.58",
+    "@ai-sdk/google": "^3.0.43",
+    "@ai-sdk/mistral": "^3.0.24",
+    "@ai-sdk/openai": "^3.0.41",
     "@examforge/shared": "workspace:*",
     "@fastify/cors": "^10.0.0",
     "@trpc/server": "^11.0.0",
+    "ai": "^6.0.116",
     "bullmq": "^5.0.0",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.38.0",
