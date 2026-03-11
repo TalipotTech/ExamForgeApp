@@ -15,6 +15,20 @@
       "when": 1773169833476,
       "tag": "0001_perpetual_stepford_cuckoos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773226072984,
+      "tag": "0002_living_invaders",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773249148437,
+      "tag": "0003_married_blob",
+      "breakpoints": true
     }
   ]
 }

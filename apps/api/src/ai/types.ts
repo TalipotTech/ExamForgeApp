@@ -14,7 +14,10 @@ export type AITask =
   | "classify_difficulty"
   | "extract_syllabus"
   | "generate_tutorial"
-  | "generate_mcq_from_tutorial";
+  | "generate_mcq_from_tutorial"
+  | "extract_questions_from_web"
+  | "discover_exams"
+  | "analyze_source";
 
 export type ProviderMapping = {
   primary: AiProvider;

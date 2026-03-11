@@ -1,3 +1,6 @@
+export { EXAM_PORTALS } from "./portals";
+export type { PortalConfig } from "./portals";
+
 export const EXAM_CATEGORIES = {
   bpharm_asst_prof: "BPharm Assistant Professor",
   neet: "NEET",

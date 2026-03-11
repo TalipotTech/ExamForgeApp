@@ -42,3 +42,44 @@ export type {
   GeneratedQuestion,
   GeneratedQuestionsResponse,
 } from "./ai-generate";
+
+export {
+  scrapeJobDataSchema,
+  extractedQuestionSchema,
+  extractedQuestionsResponseSchema,
+  scrapeProgressSchema,
+} from "./scrape";
+export type {
+  ScrapeJobData,
+  ExtractedQuestion,
+  ExtractedQuestionsResponse,
+  ScrapeProgress,
+} from "./scrape";
+
+export {
+  createScrapeSourceSchema,
+  updateScrapeSourceSchema,
+  scrapeSourceFilterSchema,
+} from "./scrape-source";
+export type { CreateScrapeSource, UpdateScrapeSource, ScrapeSourceFilter } from "./scrape-source";
+
+export {
+  examListingFilterSchema,
+  updateExamAdminSchema,
+  examNotificationSchema,
+  discoveredExamSchema,
+  discoveredNotificationSchema,
+  discoveryAgentResponseSchema,
+  sourceAnalysisResponseSchema,
+  runDiscoveryInputSchema,
+} from "./exam-listing";
+export type {
+  ExamListingFilter,
+  UpdateExamAdmin,
+  ExamNotification,
+  DiscoveredExam,
+  DiscoveredNotification,
+  DiscoveryAgentResponse,
+  SourceAnalysisResponse,
+  RunDiscoveryInput,
+} from "./exam-listing";

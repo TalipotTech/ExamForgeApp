@@ -57,9 +57,7 @@ export const useExamStore = create<ExamState>((set, get) => ({
   isSubmitted: false,
 
   setSession: (data) => {
-    const elapsed = Math.floor(
-      (Date.now() - new Date(data.startedAt).getTime()) / 1000,
-    );
+    const elapsed = Math.floor((Date.now() - new Date(data.startedAt).getTime()) / 1000);
     const totalSeconds = data.durationMinutes * 60;
     const remaining = Math.max(0, totalSeconds - elapsed);
 
@@ -86,8 +84,9 @@ export const useExamStore = create<ExamState>((set, get) => ({
 
   clearAnswer: (questionId) => {
     set((state) => {
-      const { [questionId]: _, ...rest } = state.answers;
-      return { answers: rest };
+      const newAnswers = { ...state.answers };
+      delete newAnswers[questionId];
+      return { answers: newAnswers };
     });
   },
 

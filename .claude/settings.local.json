@@ -16,7 +16,21 @@
       "Bash(node -e \"const p = require\\(''./package.json''\\); console.log\\(''type:'', p.type\\)\")",
       "Bash(pnpm --filter @examforge/api add ai @ai-sdk/anthropic @ai-sdk/openai @ai-sdk/google @ai-sdk/mistral)",
       "Bash(grep '\"\"version\"\"')",
-      "Bash(pnpm --filter @examforge/api build)"
+      "Bash(pnpm --filter @examforge/api build)",
+      "Bash(xargs ls -la)",
+      "Bash(xargs grep -l \"scrape\\\\|syllabus\")",
+      "Bash(xargs grep -l \"Queue\\\\|Worker\\\\|Job\")",
+      "Bash(pnpm --filter @examforge/api add crawlee @crawlee/playwright playwright)",
+      "Bash(ls \"E:\\\\DEVELOPMENT\\\\WEBSITE\\\\ENSATE\\\\INHOUSE\\\\ExamForge\\\\ExamForgeApp\\\\apps\\\\web\\\\src\\\\app\\\\\\(dashboard\\)\"\")",
+      "Bash(ls \"E:/DEVELOPMENT/WEBSITE/ENSATE/INHOUSE/ExamForge/ExamForgeApp/apps/web/src/app/\\(dashboard\\)/\")",
+      "Bash(npx shadcn@latest add table dropdown-menu -y)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:4000/health)",
+      "Bash(curl -sI http://localhost:4000/health)",
+      "Bash(netstat -ano)",
+      "Bash(ls \"E:\\\\DEVELOPMENT\\\\WEBSITE\\\\ENSATE\\\\INHOUSE\\\\ExamForge\\\\ExamForgeApp\\\\apps\\\\web\\\\src\\\\app\\\\\\(dashboard\\)\\\\scraper\")",
+      "Bash(dir \"E:\\\\DEVELOPMENT\\\\WEBSITE\\\\ENSATE\\\\INHOUSE\\\\ExamForge\\\\ExamForgeApp\\\\apps\\\\web\\\\src\\\\app\\\\\\(dashboard\\)\\\\scraper\")",
+      "Bash(pnpm db:migrate)",
+      "Bash(npx playwright install chromium)"
     ]
   }
 }

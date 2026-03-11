@@ -2,20 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   CheckCircle,
   XCircle,
@@ -33,7 +24,7 @@ type QuestionResult = {
   content: Record<string, unknown>;
   subject: string;
   topic: string | null;
-  correctAnswer: unknown;
+  correctAnswer?: unknown;
   explanation: string;
 };
 
@@ -61,11 +52,7 @@ function formatDuration(seconds: number): string {
   return parts.join(" ");
 }
 
-export function ExamResults({
-  data,
-}: {
-  data: ResultsData;
-}): React.ReactElement {
+export function ExamResults({ data }: { data: ResultsData }): React.ReactElement {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -85,9 +72,7 @@ export function ExamResults({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Score
-            </CardTitle>
+            <CardTitle className="text-muted-foreground text-sm font-medium">Score</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -101,9 +86,7 @@ export function ExamResults({
                       : "text-red-500",
                 )}
               />
-              <span className="text-3xl font-bold">
-                {Math.round(data.score)}%
-              </span>
+              <span className="text-3xl font-bold">{Math.round(data.score)}%</span>
             </div>
             <Progress value={data.score} className="mt-2" />
           </CardContent>
@@ -111,35 +94,27 @@ export function ExamResults({
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Correct
-            </CardTitle>
+            <CardTitle className="text-muted-foreground text-sm font-medium">Correct</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <CheckCircle className="size-5 text-green-500" />
               <span className="text-3xl font-bold">{data.correct}</span>
-              <span className="text-sm text-muted-foreground">
-                / {data.totalQuestions}
-              </span>
+              <span className="text-muted-foreground text-sm">/ {data.totalQuestions}</span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Incorrect
-            </CardTitle>
+            <CardTitle className="text-muted-foreground text-sm font-medium">Incorrect</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <XCircle className="size-5 text-red-500" />
               <span className="text-3xl font-bold">{data.incorrect}</span>
               {data.unanswered > 0 && (
-                <span className="text-sm text-muted-foreground">
-                  + {data.unanswered} skipped
-                </span>
+                <span className="text-muted-foreground text-sm">+ {data.unanswered} skipped</span>
               )}
             </div>
           </CardContent>
@@ -147,16 +122,12 @@ export function ExamResults({
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Time Taken
-            </CardTitle>
+            <CardTitle className="text-muted-foreground text-sm font-medium">Time Taken</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <Clock className="size-5 text-blue-500" />
-              <span className="text-3xl font-bold">
-                {formatDuration(data.timeTakenSeconds)}
-              </span>
+              <span className="text-3xl font-bold">{formatDuration(data.timeTakenSeconds)}</span>
             </div>
           </CardContent>
         </Card>
@@ -189,15 +160,10 @@ function QuestionBreakdown({
 }): React.ReactElement {
   const [open, setOpen] = useState(false);
 
-  const isCorrect =
-    userAnswer !== undefined && userAnswer === question.correctAnswer;
+  const isCorrect = userAnswer !== undefined && userAnswer === question.correctAnswer;
   const isUnanswered = userAnswer === undefined;
 
-  const StatusIcon = isUnanswered
-    ? MinusCircle
-    : isCorrect
-      ? CheckCircle
-      : XCircle;
+  const StatusIcon = isUnanswered ? MinusCircle : isCorrect ? CheckCircle : XCircle;
   const statusColor = isUnanswered
     ? "text-muted-foreground"
     : isCorrect
@@ -210,12 +176,12 @@ function QuestionBreakdown({
         <button
           type="button"
           className={cn(
-            "flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-accent",
+            "hover:bg-accent flex w-full items-center gap-3 rounded-lg border p-4 text-left transition-colors",
             open && "rounded-b-none",
           )}
         >
           <StatusIcon className={cn("size-5 shrink-0", statusColor)} />
-          <span className="min-w-[2rem] text-sm font-medium text-muted-foreground">
+          <span className="text-muted-foreground min-w-[2rem] text-sm font-medium">
             Q{index + 1}
           </span>
           <span className="flex-1 truncate text-sm">
@@ -228,63 +194,53 @@ function QuestionBreakdown({
           </Badge>
           <ChevronDown
             className={cn(
-              "size-4 shrink-0 text-muted-foreground transition-transform",
+              "text-muted-foreground size-4 shrink-0 transition-transform",
               open && "rotate-180",
             )}
           />
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="flex flex-col gap-3 rounded-b-lg border border-t-0 bg-muted/30 p-4">
+        <div className="bg-muted/30 flex flex-col gap-3 rounded-b-lg border border-t-0 p-4">
           {/* Question text */}
           {question.type === "assertion" ? (
             <div className="flex flex-col gap-1 text-sm">
               <p>
-                <strong>Assertion:</strong>{" "}
-                {question.content.assertion as string}
+                <strong>Assertion:</strong> {question.content.assertion as string}
               </p>
               <p>
                 <strong>Reason:</strong> {question.content.reason as string}
               </p>
             </div>
           ) : (
-            <p className="text-sm font-medium">
-              {question.content.question as string}
-            </p>
+            <p className="text-sm font-medium">{question.content.question as string}</p>
           )}
 
           {/* Options with correct/incorrect highlights */}
           {question.type === "mcq" &&
-            (question.content.options as string[]).map(
-              (opt: string, i: number) => {
-                const isCorrectOption =
-                  i === (question.correctAnswer as number);
-                const isUserChoice = i === userAnswer;
-                return (
-                  <div
-                    key={i}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md border px-3 py-2 text-sm",
-                      isCorrectOption && "border-green-500 bg-green-50 dark:bg-green-950/20",
-                      isUserChoice &&
-                        !isCorrectOption &&
-                        "border-red-500 bg-red-50 dark:bg-red-950/20",
-                    )}
-                  >
-                    <span className="font-semibold">
-                      {String.fromCharCode(65 + i)}.
-                    </span>
-                    {opt}
-                    {isCorrectOption && (
-                      <CheckCircle className="ml-auto size-4 text-green-500" />
-                    )}
-                    {isUserChoice && !isCorrectOption && (
-                      <XCircle className="ml-auto size-4 text-red-500" />
-                    )}
-                  </div>
-                );
-              },
-            )}
+            (question.content.options as string[]).map((opt: string, i: number) => {
+              const isCorrectOption = i === (question.correctAnswer as number);
+              const isUserChoice = i === userAnswer;
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md border px-3 py-2 text-sm",
+                    isCorrectOption && "border-green-500 bg-green-50 dark:bg-green-950/20",
+                    isUserChoice &&
+                      !isCorrectOption &&
+                      "border-red-500 bg-red-50 dark:bg-red-950/20",
+                  )}
+                >
+                  <span className="font-semibold">{String.fromCharCode(65 + i)}.</span>
+                  {opt}
+                  {isCorrectOption && <CheckCircle className="ml-auto size-4 text-green-500" />}
+                  {isUserChoice && !isCorrectOption && (
+                    <XCircle className="ml-auto size-4 text-red-500" />
+                  )}
+                </div>
+              );
+            })}
 
           {question.type === "true_false" && (
             <div className="flex gap-4 text-sm">
@@ -314,17 +270,13 @@ function QuestionBreakdown({
           {/* Explanation */}
           {question.explanation && (
             <div className="rounded-md bg-blue-50 p-3 text-sm dark:bg-blue-950/20">
-              <p className="mb-1 font-semibold text-blue-700 dark:text-blue-400">
-                Explanation
-              </p>
-              <p className="text-blue-900 dark:text-blue-300">
-                {question.explanation}
-              </p>
+              <p className="mb-1 font-semibold text-blue-700 dark:text-blue-400">Explanation</p>
+              <p className="text-blue-900 dark:text-blue-300">{question.explanation}</p>
             </div>
           )}
 
           {/* Status */}
-          <div className="text-xs text-muted-foreground">
+          <div className="text-muted-foreground text-xs">
             {isUnanswered
               ? "Not answered"
               : isCorrect

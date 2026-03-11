@@ -10,6 +10,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   const isPublic =
     PUBLIC_PATHS.includes(pathname) ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/exams") ||
     pathname.startsWith("/_next");
 
   if (isPublic) return NextResponse.next();

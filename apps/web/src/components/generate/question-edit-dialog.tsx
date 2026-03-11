@@ -53,9 +53,7 @@ function McqEditor({
         <Label>Options</Label>
         {options.map((opt, i) => (
           <div key={i} className="flex items-center gap-2">
-            <span className="text-sm font-medium w-6">
-              {String.fromCharCode(65 + i)}.
-            </span>
+            <span className="w-6 text-sm font-medium">{String.fromCharCode(65 + i)}.</span>
             <Input
               value={opt}
               onChange={(e) => {
@@ -73,7 +71,7 @@ function McqEditor({
             />
           </div>
         ))}
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           Select the radio button next to the correct answer
         </p>
       </div>
@@ -102,9 +100,7 @@ function TrueFalseEditor({
         <Label>Answer</Label>
         <Select
           value={String(content.answer)}
-          onValueChange={(v) =>
-            onChange({ ...content, answer: v === "true" })
-          }
+          onValueChange={(v) => onChange({ ...content, answer: v === "true" })}
         >
           <SelectTrigger>
             <SelectValue />
@@ -174,7 +170,7 @@ function MatchEditor({
               value={pair.left}
               onChange={(e) => {
                 const newPairs = [...pairs];
-                newPairs[i] = { ...newPairs[i], left: e.target.value };
+                newPairs[i] = { left: e.target.value, right: newPairs[i]?.right ?? "" };
                 onChange({ ...content, pairs: newPairs });
               }}
               placeholder="Left"
@@ -183,7 +179,7 @@ function MatchEditor({
               value={pair.right}
               onChange={(e) => {
                 const newPairs = [...pairs];
-                newPairs[i] = { ...newPairs[i], right: e.target.value };
+                newPairs[i] = { left: newPairs[i]?.left ?? "", right: e.target.value };
                 onChange({ ...content, pairs: newPairs });
               }}
               placeholder="Right"
@@ -230,9 +226,7 @@ function AssertionEditor({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="both_true_reason_correct">
-              Both true, reason is correct
-            </SelectItem>
+            <SelectItem value="both_true_reason_correct">Both true, reason is correct</SelectItem>
             <SelectItem value="both_true_reason_incorrect">
               Both true, reason is incorrect
             </SelectItem>
@@ -257,13 +251,13 @@ export function QuestionEditDialog({
     question.content as Record<string, unknown>,
   );
   const [explanation, setExplanation] = useState(
-    (question.content as Record<string, unknown>).explanation as string ?? "",
+    ((question.content as Record<string, unknown>).explanation as string) ?? "",
   );
   const [editedDifficulty, setEditedDifficulty] = useState(question.difficulty);
 
   const type = (editedContent.type as string) ?? "mcq";
 
-  const handleSave = () => {
+  const handleSave = (): void => {
     const updatedContent = { ...editedContent, explanation };
     onSave({
       ...question,
@@ -274,35 +268,22 @@ export function QuestionEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Question</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          {type === "mcq" && (
-            <McqEditor content={editedContent} onChange={setEditedContent} />
-          )}
+          {type === "mcq" && <McqEditor content={editedContent} onChange={setEditedContent} />}
           {type === "true_false" && (
-            <TrueFalseEditor
-              content={editedContent}
-              onChange={setEditedContent}
-            />
+            <TrueFalseEditor content={editedContent} onChange={setEditedContent} />
           )}
           {type === "fill_blank" && (
-            <FillBlankEditor
-              content={editedContent}
-              onChange={setEditedContent}
-            />
+            <FillBlankEditor content={editedContent} onChange={setEditedContent} />
           )}
-          {type === "match" && (
-            <MatchEditor content={editedContent} onChange={setEditedContent} />
-          )}
+          {type === "match" && <MatchEditor content={editedContent} onChange={setEditedContent} />}
           {type === "assertion" && (
-            <AssertionEditor
-              content={editedContent}
-              onChange={setEditedContent}
-            />
+            <AssertionEditor content={editedContent} onChange={setEditedContent} />
           )}
 
           {/* Explanation */}
@@ -320,9 +301,7 @@ export function QuestionEditDialog({
             <Label>Difficulty</Label>
             <Select
               value={editedDifficulty}
-              onValueChange={(v) =>
-                setEditedDifficulty(v as "easy" | "medium" | "hard")
-              }
+              onValueChange={(v) => setEditedDifficulty(v as "easy" | "medium" | "hard")}
             >
               <SelectTrigger>
                 <SelectValue />

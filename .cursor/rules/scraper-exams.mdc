@@ -1,0 +1,45 @@
+---
+description: Scraper management and exam listing UI patterns
+globs:
+  - "apps/web/src/app/(dashboard)/scraper/**/*.tsx"
+  - "apps/web/src/app/exams/**/*.tsx"
+  - "apps/web/src/components/home/exam-showcase.tsx"
+alwaysApply: false
+---
+
+# Scraper & Exam Listing UI Rules
+
+## Scraper Management (Admin Only)
+- Protected behind admin middleware
+- Source list: table layout with sortable columns
+- Status colors: active=green, paused=amber, error=red, pending=gray
+- "Scrape Now" triggers BullMQ job, polls for progress
+- Real-time log: poll scrape_runs every 3s during active scrape
+- Test scrape: inline preview of extracted questions (max 5)
+
+## Add Source Form
+- URL field: validate with z.string().url()
+- "Test Scrape" calls testScrape mutation → shows preview
+- Preview: card with extracted question count + 3 sample questions
+- AI Provider selector: reuse <AIProviderSelector mode="single" />
+- On save: optimistic update to source list
+
+## Exam Listing (/exams — PUBLIC)
+- Server Component for initial load (SEO)
+- URL search params synced with filters: /exams?category=pharmacy&status=upcoming
+- Category filters: multi-select checkboxes
+- Status: single select (All, Upcoming, Active, Past)
+- Search: debounced input, searches name + tags + conducting_body
+- Cards: uniform height, truncate long descriptions
+- Countdown badge: "Exam in 23 days" for upcoming, "Completed" for past
+- Pagination: cursor-based (load more button, not page numbers)
+- Mobile: filters collapse to bottom sheet, cards stack vertically
+- Empty state: friendly illustration + "No exams found"
+- SEO: generateMetadata with exam count + category in title
+
+## Home Page Exam Showcase
+- Max 6 cards: 3 featured + 3 upcoming
+- Auto-rotate featured exams (if > 3)
+- "View All Exams →" link to /exams
+- Countdown timer on upcoming exam cards
+- Responsive: 3 cols desktop, 2 tablet, 1 mobile

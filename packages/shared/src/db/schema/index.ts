@@ -1,13 +1,14 @@
 export { organizations } from "./organizations";
 export { users, userRoleEnum } from "./users";
 export { exams } from "./exams";
-export {
-  questions,
-  difficultyEnum,
-  questionTypeEnum,
-} from "./questions";
+export type { ExamPattern } from "./exams";
+export { questions, difficultyEnum, questionTypeEnum } from "./questions";
 export type { TranslationContent, Translations } from "./questions";
 export { examSessions } from "./exam-sessions";
 export { aiUsageLogs } from "./ai-usage-logs";
 export { scrapeSources, scrapeStatusEnum } from "./scrape-sources";
+export type { ScrapeSourceConfig } from "./scrape-sources";
 export { questionVersions, changeTypeEnum } from "./question-versions";
+export { examNotifications } from "./exam-notifications";
+export { scrapeRuns } from "./scrape-runs";
+export { discoveryRuns } from "./discovery-runs";

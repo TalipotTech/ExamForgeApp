@@ -1,10 +1,6 @@
 import { z } from "zod";
 import { eq, sql, and, inArray } from "drizzle-orm";
-import {
-  examSessions,
-  questions,
-  exams,
-} from "@examforge/shared/db/schema";
+import { examSessions, questions, exams } from "@examforge/shared/db/schema";
 import {
   examSessionStartSchema,
   examSessionSaveSchema,
@@ -26,8 +22,10 @@ type QuestionWithAnswer = QuestionForExam & {
 };
 
 function stripAnswers(content: Record<string, unknown>): Record<string, unknown> {
-  const { answer, explanation, ...rest } = content;
-  return rest;
+  const cleaned = { ...content };
+  delete cleaned.answer;
+  delete cleaned.explanation;
+  return cleaned;
 }
 
 function calculateScore(
@@ -95,12 +93,17 @@ export const examSessionRouter = router({
         })
         .returning({ id: examSessions.id });
 
+      if (!session) {
+        throw new Error("Failed to create exam session");
+      }
       return { sessionId: session.id };
     }),
 
-  getSession: protectedProcedure
-    .input(z.object({ sessionId: z.string().uuid() }))
-    .query(async ({ ctx, input }): Promise<{
+  getSession: protectedProcedure.input(z.object({ sessionId: z.string().uuid() })).query(
+    async ({
+      ctx,
+      input,
+    }): Promise<{
       id: string;
       examId: string;
       examName: string;
@@ -114,12 +117,7 @@ export const examSessionRouter = router({
       const [session] = await ctx.db
         .select()
         .from(examSessions)
-        .where(
-          and(
-            eq(examSessions.id, input.sessionId),
-            eq(examSessions.userId, ctx.userId),
-          ),
-        )
+        .where(and(eq(examSessions.id, input.sessionId), eq(examSessions.userId, ctx.userId)))
         .limit(1);
 
       if (!session) {
@@ -140,7 +138,7 @@ export const examSessionRouter = router({
 
       const orderedQuestions: QuestionForExam[] = questionIds
         .map((qId) => questionRows.find((q) => q.id === qId))
-        .filter((q): q is typeof questionRows[number] => q !== undefined)
+        .filter((q): q is (typeof questionRows)[number] => q !== undefined)
         .map((q) => ({
           ...q,
           content: stripAnswers(q.content as Record<string, unknown>),
@@ -155,11 +153,13 @@ export const examSessionRouter = router({
         questions: orderedQuestions,
         answers: (session.answers as Record<string, number>) ?? {},
         totalQuestions: session.totalQuestions,
-        durationMinutes: (metadata.durationMinutes as number) ?? Math.ceil(session.totalQuestions * 1.5),
+        durationMinutes:
+          (metadata.durationMinutes as number) ?? Math.ceil(session.totalQuestions * 1.5),
         startedAt: session.startedAt.toISOString(),
         completedAt: session.completedAt?.toISOString() ?? null,
       };
-    }),
+    },
+  ),
 
   saveAnswers: protectedProcedure
     .input(examSessionSaveSchema)
@@ -167,12 +167,7 @@ export const examSessionRouter = router({
       const [session] = await ctx.db
         .select({ id: examSessions.id, completedAt: examSessions.completedAt })
         .from(examSessions)
-        .where(
-          and(
-            eq(examSessions.id, input.sessionId),
-            eq(examSessions.userId, ctx.userId),
-          ),
-        )
+        .where(and(eq(examSessions.id, input.sessionId), eq(examSessions.userId, ctx.userId)))
         .limit(1);
 
       if (!session) throw new Error("Session not found");
@@ -191,53 +186,50 @@ export const examSessionRouter = router({
 
   submit: protectedProcedure
     .input(examSessionSubmitSchema)
-    .mutation(async ({ ctx, input }): Promise<{ score: number; correct: number; total: number }> => {
-      const [session] = await ctx.db
-        .select()
-        .from(examSessions)
-        .where(
-          and(
-            eq(examSessions.id, input.sessionId),
-            eq(examSessions.userId, ctx.userId),
-          ),
-        )
-        .limit(1);
+    .mutation(
+      async ({ ctx, input }): Promise<{ score: number; correct: number; total: number }> => {
+        const [session] = await ctx.db
+          .select()
+          .from(examSessions)
+          .where(and(eq(examSessions.id, input.sessionId), eq(examSessions.userId, ctx.userId)))
+          .limit(1);
 
-      if (!session) throw new Error("Session not found");
-      if (session.completedAt) throw new Error("Session already submitted");
+        if (!session) throw new Error("Session not found");
+        if (session.completedAt) throw new Error("Session already submitted");
 
-      const questionIds = session.questions as string[];
-      const questionRows = await ctx.db
-        .select({ id: questions.id, content: questions.content })
-        .from(questions)
-        .where(inArray(questions.id, questionIds));
+        const questionIds = session.questions as string[];
+        const questionRows = await ctx.db
+          .select({ id: questions.id, content: questions.content })
+          .from(questions)
+          .where(inArray(questions.id, questionIds));
 
-      const { score, correct, total } = calculateScore(
-        questionRows as Array<{ id: string; content: Record<string, unknown> }>,
-        input.answers,
-      );
+        const { score, correct, total } = calculateScore(
+          questionRows as Array<{ id: string; content: Record<string, unknown> }>,
+          input.answers,
+        );
 
-      const timeTakenSeconds = Math.floor(
-        (Date.now() - session.startedAt.getTime()) / 1000,
-      );
+        const timeTakenSeconds = Math.floor((Date.now() - session.startedAt.getTime()) / 1000);
 
-      await ctx.db
-        .update(examSessions)
-        .set({
-          answers: input.answers,
-          score,
-          timeTakenSeconds,
-          completedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(examSessions.id, input.sessionId));
+        await ctx.db
+          .update(examSessions)
+          .set({
+            answers: input.answers,
+            score,
+            timeTakenSeconds,
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(examSessions.id, input.sessionId));
 
-      return { score, correct, total };
-    }),
+        return { score, correct, total };
+      },
+    ),
 
-  getResults: protectedProcedure
-    .input(z.object({ sessionId: z.string().uuid() }))
-    .query(async ({ ctx, input }): Promise<{
+  getResults: protectedProcedure.input(z.object({ sessionId: z.string().uuid() })).query(
+    async ({
+      ctx,
+      input,
+    }): Promise<{
       id: string;
       examName: string;
       score: number;
@@ -252,12 +244,7 @@ export const examSessionRouter = router({
       const [session] = await ctx.db
         .select()
         .from(examSessions)
-        .where(
-          and(
-            eq(examSessions.id, input.sessionId),
-            eq(examSessions.userId, ctx.userId),
-          ),
-        )
+        .where(and(eq(examSessions.id, input.sessionId), eq(examSessions.userId, ctx.userId)))
         .limit(1);
 
       if (!session) throw new Error("Session not found");
@@ -279,7 +266,7 @@ export const examSessionRouter = router({
 
       const orderedQuestions: QuestionWithAnswer[] = questionIds
         .map((qId) => questionRows.find((q) => q.id === qId))
-        .filter((q): q is typeof questionRows[number] => q !== undefined)
+        .filter((q): q is (typeof questionRows)[number] => q !== undefined)
         .map((q) => {
           const content = q.content as Record<string, unknown>;
           return {
@@ -322,5 +309,6 @@ export const examSessionRouter = router({
         questions: orderedQuestions,
         userAnswers,
       };
-    }),
+    },
+  ),
 });

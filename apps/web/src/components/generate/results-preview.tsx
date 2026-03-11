@@ -1,15 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import {
-  CheckCircle,
-  XCircle,
-  Pencil,
-  Save,
-  RotateCcw,
-  CheckSquare,
-  Square,
-} from "lucide-react";
+import { CheckCircle, XCircle, Pencil, Save, RotateCcw, CheckSquare, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,8 +23,7 @@ function QuestionContentDisplay({
   content: Record<string, unknown>;
 }): React.ReactElement {
   const type = content.type as string;
-  const questionText =
-    (content.question as string) ?? (content.assertion as string) ?? "";
+  const questionText = (content.question as string) ?? (content.assertion as string) ?? "";
 
   return (
     <div className="space-y-2">
@@ -43,9 +34,9 @@ function QuestionContentDisplay({
           {(content.options as string[])?.map((opt, i) => (
             <div
               key={i}
-              className={`text-xs rounded px-2 py-1 ${
+              className={`rounded px-2 py-1 text-xs ${
                 i === (content.answer as number)
-                  ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200 font-medium"
+                  ? "bg-green-100 font-medium text-green-800 dark:bg-green-950 dark:text-green-200"
                   : "bg-muted"
               }`}
             >
@@ -69,13 +60,11 @@ function QuestionContentDisplay({
 
       {type === "match" && (
         <div className="space-y-1">
-          {(content.pairs as Array<{ left: string; right: string }>)?.map(
-            (pair, i) => (
-              <div key={i} className="text-xs bg-muted rounded px-2 py-1">
-                {pair.left} → {pair.right}
-              </div>
-            ),
-          )}
+          {(content.pairs as Array<{ left: string; right: string }>)?.map((pair, i) => (
+            <div key={i} className="bg-muted rounded px-2 py-1 text-xs">
+              {pair.left} → {pair.right}
+            </div>
+          ))}
         </div>
       )}
 
@@ -84,20 +73,16 @@ function QuestionContentDisplay({
           <div className="bg-muted rounded px-2 py-1">
             <strong>Reason:</strong> {content.reason as string}
           </div>
-          <Badge variant="secondary">
-            {(content.answer as string).replaceAll("_", " ")}
-          </Badge>
+          <Badge variant="secondary">{(content.answer as string).replaceAll("_", " ")}</Badge>
         </div>
       )}
 
-      {content.explanation && (
+      {(content.explanation as string) && (
         <details className="text-xs">
-          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+          <summary className="text-muted-foreground hover:text-foreground cursor-pointer">
             View explanation
           </summary>
-          <p className="mt-1 text-muted-foreground">
-            {content.explanation as string}
-          </p>
+          <p className="text-muted-foreground mt-1">{content.explanation as string}</p>
         </details>
       )}
     </div>
@@ -113,8 +98,7 @@ export function ResultsPreview({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(
     () => new Set(questions.map((_, i) => i)),
   );
-  const [editedQuestions, setEditedQuestions] =
-    useState<GeneratedQuestion[]>(questions);
+  const [editedQuestions, setEditedQuestions] = useState<GeneratedQuestion[]>(questions);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const toggleSelection = useCallback((index: number) => {
@@ -138,30 +122,22 @@ export function ResultsPreview({
     });
   }, [editedQuestions.length]);
 
-  const handleRemove = useCallback(
-    (index: number) => {
-      setEditedQuestions((prev) => prev.filter((_, i) => i !== index));
-      setSelectedIds((prev) => {
-        const next = new Set<number>();
-        for (const id of prev) {
-          if (id < index) next.add(id);
-          else if (id > index) next.add(id - 1);
-        }
-        return next;
-      });
-    },
-    [],
-  );
+  const handleRemove = useCallback((index: number) => {
+    setEditedQuestions((prev) => prev.filter((_, i) => i !== index));
+    setSelectedIds((prev) => {
+      const next = new Set<number>();
+      for (const id of prev) {
+        if (id < index) next.add(id);
+        else if (id > index) next.add(id - 1);
+      }
+      return next;
+    });
+  }, []);
 
-  const handleEditSave = useCallback(
-    (index: number, updated: GeneratedQuestion) => {
-      setEditedQuestions((prev) =>
-        prev.map((q, i) => (i === index ? updated : q)),
-      );
-      setEditingIndex(null);
-    },
-    [],
-  );
+  const handleEditSave = useCallback((index: number, updated: GeneratedQuestion) => {
+    setEditedQuestions((prev) => prev.map((q, i) => (i === index ? updated : q)));
+    setEditingIndex(null);
+  }, []);
 
   const handleSaveSelected = useCallback(() => {
     const toSave = editedQuestions.filter((_, i) => selectedIds.has(i));
@@ -206,9 +182,7 @@ export function ResultsPreview({
               <div
                 key={index}
                 className={`rounded-lg border p-4 transition-colors ${
-                  selectedIds.has(index)
-                    ? "border-primary/30 bg-primary/5"
-                    : "opacity-60"
+                  selectedIds.has(index) ? "border-primary/30 bg-primary/5" : "opacity-60"
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -217,21 +191,21 @@ export function ResultsPreview({
                     onCheckedChange={() => toggleSelection(index)}
                     className="mt-0.5"
                   />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-2 flex items-center gap-2">
                       <Badge variant="outline" className="text-xs">
                         {QUESTION_TYPE_LABELS[type]}
                       </Badge>
                       <Badge variant="secondary" className="text-xs capitalize">
                         {question.difficulty}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-muted-foreground text-xs">
                         {question.subject} / {question.topic}
                       </span>
                     </div>
                     <QuestionContentDisplay content={content} />
                   </div>
-                  <div className="flex gap-1 shrink-0">
+                  <div className="flex shrink-0 gap-1">
                     <Button
                       variant="ghost"
                       size="icon-xs"
@@ -246,7 +220,7 @@ export function ResultsPreview({
                       onClick={() => handleRemove(index)}
                       title="Remove"
                     >
-                      <XCircle className="h-3.5 w-3.5 text-destructive" />
+                      <XCircle className="text-destructive h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -255,7 +229,7 @@ export function ResultsPreview({
           })}
 
           {editedQuestions.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-muted-foreground py-8 text-center">
               All questions have been removed.
               <Button variant="link" onClick={onReset} className="ml-1">
                 Generate new questions
@@ -267,14 +241,11 @@ export function ResultsPreview({
 
       {/* Save Bar */}
       {editedQuestions.length > 0 && (
-        <div className="sticky bottom-4 flex items-center justify-between rounded-lg border bg-background/95 p-4 shadow-lg backdrop-blur">
-          <span className="text-sm text-muted-foreground">
+        <div className="bg-background/95 sticky bottom-4 flex items-center justify-between rounded-lg border p-4 shadow-lg backdrop-blur">
+          <span className="text-muted-foreground text-sm">
             {selectedCount} of {editedQuestions.length} questions selected
           </span>
-          <Button
-            onClick={handleSaveSelected}
-            disabled={selectedCount === 0 || isSaving}
-          >
+          <Button onClick={handleSaveSelected} disabled={selectedCount === 0 || isSaving}>
             <Save className="mr-2 h-4 w-4" />
             {isSaving
               ? "Saving..."
@@ -286,7 +257,7 @@ export function ResultsPreview({
       {/* Edit Dialog */}
       {editingIndex !== null && (
         <QuestionEditDialog
-          question={editedQuestions[editingIndex]}
+          question={editedQuestions[editingIndex]!}
           open={editingIndex !== null}
           onOpenChange={(open) => {
             if (!open) setEditingIndex(null);

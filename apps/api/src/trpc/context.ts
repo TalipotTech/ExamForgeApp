@@ -24,7 +24,9 @@ async function decryptSessionToken(
   cookieName: string,
 ): Promise<{ userId: string; role: string; orgId: string | null } | null> {
   try {
-    const jweHeader = JSON.parse(Buffer.from(token.split(".")[0], "base64url").toString());
+    const headerPart = token.split(".")[0];
+    if (!headerPart) return null;
+    const jweHeader = JSON.parse(Buffer.from(headerPart, "base64url").toString());
     const enc = jweHeader.enc ?? "A256CBC-HS512";
     const keyLength = enc === "A256CBC-HS512" ? 64 : 32;
     const key = getDerivedEncryptionKey(secret, cookieName, keyLength);

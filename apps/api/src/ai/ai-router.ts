@@ -87,6 +87,24 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     fallback: "mistral",
     fallbackModel: "mistral-large-latest",
   },
+  extract_questions_from_web: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
+  discover_exams: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "google",
+    fallbackModel: "gemini-2.0-flash",
+  },
+  analyze_source: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
 };
 
 // ─── Task → Feature mapping for logging ───
@@ -105,6 +123,9 @@ function taskToFeature(task: AITask): string {
     extract_syllabus: "scrape",
     generate_tutorial: "generate",
     generate_mcq_from_tutorial: "generate",
+    extract_questions_from_web: "scrape",
+    discover_exams: "scrape",
+    analyze_source: "scrape",
   };
   return map[task];
 }

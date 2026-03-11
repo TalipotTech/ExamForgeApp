@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { ExamShowcase } from "@/components/home/exam-showcase";
 
 const FEATURES = [
   {
@@ -52,27 +53,28 @@ const FEATURES = [
   },
 ] as const;
 
-const EXAMS = [
-  "BPharm Asst Prof",
-  "GPAT",
-  "NEET",
-  "UPSC",
-  "Kerala PSC",
-  "GATE",
-] as const;
+const EXAMS = ["BPharm Asst Prof", "GPAT", "NEET", "UPSC", "Kerala PSC", "GATE"] as const;
 
 export default function HomePage(): React.ReactElement {
   return (
     <div className="flex min-h-screen flex-col">
       {/* Nav */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 border-b backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
           <span className="text-lg font-bold tracking-tight">ExamForge</span>
-          <Link href="/auth/login">
-            <Button variant="outline" size="sm">
-              Sign in
-            </Button>
-          </Link>
+          <nav className="flex items-center gap-4">
+            <Link
+              href="/exams"
+              className="text-foreground/80 hover:text-foreground text-sm transition-colors"
+            >
+              Exams
+            </Link>
+            <Link href="/auth/login">
+              <Button variant="outline" size="sm">
+                Sign in
+              </Button>
+            </Link>
+          </nav>
         </div>
       </header>
 
@@ -85,15 +87,15 @@ export default function HomePage(): React.ReactElement {
 
         <h1 className="max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
           Ace your exams with{" "}
-          <span className="bg-gradient-to-r from-primary/80 to-primary bg-clip-text text-transparent">
+          <span className="from-primary/80 to-primary bg-gradient-to-r bg-clip-text text-transparent">
             AI-powered
           </span>{" "}
           preparation
         </h1>
 
-        <p className="mt-6 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-          Generate questions, take mock tests, and track your progress — all
-          powered by advanced AI. Built for Indian competitive exams.
+        <p className="text-muted-foreground mt-6 max-w-2xl text-lg sm:text-xl">
+          Generate questions, take mock tests, and track your progress — all powered by advanced AI.
+          Built for Indian competitive exams.
         </p>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -117,26 +119,24 @@ export default function HomePage(): React.ReactElement {
       </section>
 
       {/* Features */}
-      <section className="border-t bg-muted/30 px-4 py-20">
+      <section className="bg-muted/30 border-t px-4 py-20">
         <div className="mx-auto max-w-6xl">
           <div className="mb-12 text-center">
-            <h2 className="text-3xl font-bold tracking-tight">
-              Everything you need to succeed
-            </h2>
-            <p className="mt-3 text-muted-foreground">
+            <h2 className="text-3xl font-bold tracking-tight">Everything you need to succeed</h2>
+            <p className="text-muted-foreground mt-3">
               A complete platform designed for serious exam preparation.
             </p>
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((feature) => (
-              <Card key={feature.title} className="border-0 bg-background shadow-sm">
+              <Card key={feature.title} className="bg-background border-0 shadow-sm">
                 <CardContent className="pt-6">
-                  <div className="mb-4 flex size-10 items-center justify-center rounded-lg bg-primary/10">
-                    <feature.icon className="size-5 text-primary" />
+                  <div className="bg-primary/10 mb-4 flex size-10 items-center justify-center rounded-lg">
+                    <feature.icon className="text-primary size-5" />
                   </div>
                   <h3 className="mb-2 font-semibold">{feature.title}</h3>
-                  <p className="text-sm leading-relaxed text-muted-foreground">
+                  <p className="text-muted-foreground text-sm leading-relaxed">
                     {feature.description}
                   </p>
                 </CardContent>
@@ -146,13 +146,14 @@ export default function HomePage(): React.ReactElement {
         </div>
       </section>
 
+      {/* Exam Showcase */}
+      <ExamShowcase />
+
       {/* CTA */}
       <section className="px-4 py-20">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight">
-            Ready to start preparing?
-          </h2>
-          <p className="mt-3 text-muted-foreground">
+          <h2 className="text-3xl font-bold tracking-tight">Ready to start preparing?</h2>
+          <p className="text-muted-foreground mt-3">
             Join ExamForge today and let AI supercharge your exam preparation.
           </p>
           <div className="mt-8">
@@ -169,12 +170,10 @@ export default function HomePage(): React.ReactElement {
       {/* Footer */}
       <footer className="border-t px-4 py-8">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             ExamForge &mdash; AI exam preparation platform
           </p>
-          <p className="text-xs text-muted-foreground">
-            Built for Indian competitive exams
-          </p>
+          <p className="text-muted-foreground text-xs">Built for Indian competitive exams</p>
         </div>
       </footer>
     </div>
