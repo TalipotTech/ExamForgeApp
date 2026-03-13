@@ -1,0 +1,63 @@
+---
+description: Content finder search page, results, preview, saved content
+globs:
+  - "apps/web/src/app/(dashboard)/dashboard/find/**/*.tsx"
+  - "apps/web/src/app/(dashboard)/dashboard/saved/**/*.tsx"
+  - "apps/web/src/components/content-finder/**/*.tsx"
+alwaysApply: false
+---
+
+# Content Finder UI Rules
+
+## Search Page Layout
+- Large search input at top (hero-style prominence)
+- Filter row: content type pills, year dropdown, format pills, exam selector
+- Results below: card list, not grid (results need horizontal space for actions)
+- Side sheet for preview (shadcn Sheet, right side, 500px)
+- Search history chips below results
+
+## Result Card Anatomy
+- Left: content type icon (PDF=red, Web=blue, Questions=green, Syllabus=purple)
+- Center: title (bold), source line (domain + credibility badge), snippet (2 lines), metadata badges
+- Right: action buttons stacked vertically (Preview, Extract, Save)
+- Credibility badges: Official=green shield, Established=blue check, Community=gray
+- Match quality: colored dot before title (green/amber/gray)
+
+## Extract Questions Flow (inline, below the result card)
+1. Click Extract → show inline provider selector (compact)
+2. Progress: "Extracting with Claude..." progress bar
+3. Results: checklist of extracted questions
+4. Each question: checkbox + Q text + 4 options (collapsed) + difficulty badge
+5. Expand question to see full options + answer + explanation
+6. Bottom: "Save X selected questions" button + "Select All" / "Deselect All"
+7. After save: toast + card updates to show "15 questions extracted" badge
+
+## Preview Sheet
+- Header: title + source link (external) + credibility badge
+- Body: rendered content (markdown for text, first pages for PDF)
+- Footer: full-width action buttons (Extract Questions, Extract Syllabus, Download, Save)
+- Close with X or click outside
+
+## Saved Content Page
+- Tab bar: All | Bookmarks | PDFs | Text | Questions | Syllabi
+- Cards: title, source, type badge, date, exam badge, tags (editable inline)
+- Actions: View (opens preview), Extract (if not done), Delete, Share
+- Empty state per tab: "No saved [type] yet. Search for content to get started."
+
+## Global Search Integration
+- Compact search bar in dashboard top bar header
+- On focus: expands width
+- On submit: navigate to /dashboard/find?q={query}
+- Find page reads searchParams.q and auto-triggers search on mount
+
+## Loading States
+- Search: skeleton cards (3) with shimmer animation
+- Preview: skeleton text block in sheet
+- Extract: progress bar with provider name
+- Save: button shows spinner, then checkmark
+
+## Mobile
+- Filters collapse to "Filters" button → bottom sheet
+- Result cards: full width, actions below content (not side-by-side)
+- Preview sheet: full screen overlay
+- Global search: icon only in header, expands on tap

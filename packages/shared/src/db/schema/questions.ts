@@ -6,10 +6,12 @@ import {
   jsonb,
   pgEnum,
   index,
+  integer,
   vector,
 } from "drizzle-orm/pg-core";
 import { exams } from "./exams";
 import { organizations } from "./organizations";
+import { portalDocuments } from "./portal-documents";
 
 export const difficultyEnum = pgEnum("difficulty", ["easy", "medium", "hard"]);
 
@@ -49,6 +51,13 @@ export const questions = pgTable(
     translations: jsonb("translations").$type<Translations>(),
     embedding: vector("embedding", { dimensions: 1536 }),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+
+    // Portal source tracking
+    portalDocumentId: uuid("portal_document_id").references(() => portalDocuments.id),
+    paperYear: integer("paper_year"),
+    paperNumber: varchar("paper_number", { length: 50 }),
+    questionNumber: integer("question_number"),
+
     orgId: uuid("org_id").references(() => organizations.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

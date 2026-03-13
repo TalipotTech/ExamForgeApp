@@ -83,3 +83,89 @@ export type {
   SourceAnalysisResponse,
   RunDiscoveryInput,
 } from "./exam-listing";
+
+export {
+  aiProviderIdSchema,
+  syllabusNodeTypeSchema,
+  syllabusNodeSchema,
+  syllabusTreeSchema,
+  createSyllabusSchema,
+  processSyllabusSchema,
+  generateTutorialInputSchema,
+  generateMCQsInputSchema,
+  createExamFromNodesSchema,
+  syllabusJobDataSchema,
+} from "./syllabus";
+export type {
+  AIProviderId,
+  SyllabusNodeType,
+  SyllabusNodeInput,
+  SyllabusTree,
+  CreateSyllabus,
+  ProcessSyllabus,
+  GenerateTutorialInput,
+  GenerateMCQsInput,
+  CreateExamFromNodes,
+  SyllabusJobData,
+} from "./syllabus";
+
+export {
+  tutorialSectionTypeSchema,
+  tutorialSectionSchema,
+  keyDefinitionSchema,
+  formulaSchema,
+  mnemonicSchema,
+  tutorialContentSchema,
+} from "./tutorial";
+export type {
+  TutorialSectionType,
+  TutorialSection as TutorialSectionValidator,
+  KeyDefinition,
+  Formula,
+  Mnemonic,
+  TutorialContentValidator,
+} from "./tutorial";
+
+export {
+  ingestPortalSchema,
+  portalPageEntrySchema,
+  answerKeySchema,
+  descriptiveQuestionSchema,
+  portalMCQSchema,
+  portalDocumentFilterSchema,
+  processDocumentsSchema,
+  approveQuestionsSchema,
+  rejectQuestionsSchema,
+  mapExamSchema,
+  stagedQuestionFilterSchema,
+} from "./portal-ingestion";
+export type {
+  IngestPortal,
+  PortalPageEntry,
+  AnswerKey,
+  DescriptiveQuestion,
+  PortalMCQ,
+  PortalDocumentFilter,
+  ProcessDocuments,
+  ApproveQuestions,
+  RejectQuestions,
+  MapExam,
+  StagedQuestionFilter,
+} from "./portal-ingestion";
+
+export {
+  searchQuerySchema,
+  parsedQuerySchema,
+  searchResultItemSchema,
+  saveResultSchema,
+  extractQuestionsSchema,
+  extractSyllabusSchema,
+} from "./content-finder";
+export type {
+  SearchQuery,
+  ParsedQuery,
+  SearchResultItem,
+  SaveResult,
+  ExtractQuestions,
+  ExtractSyllabus,
+} from "./content-finder";

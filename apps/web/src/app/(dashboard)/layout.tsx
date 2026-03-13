@@ -44,6 +44,30 @@ export default function DashboardLayout({
             >
               Discovery
             </Link>
+            <Link
+              href={"/scraper/ingest" as "/"}
+              className="text-foreground/80 hover:text-foreground transition-colors"
+            >
+              Ingest
+            </Link>
+            <Link
+              href={"/syllabus" as "/"}
+              className="text-foreground/80 hover:text-foreground transition-colors"
+            >
+              Syllabus
+            </Link>
+            <Link
+              href={"/dashboard/find" as "/"}
+              className="text-foreground/80 hover:text-foreground transition-colors"
+            >
+              Find Content
+            </Link>
+            <Link
+              href={"/dashboard/saved" as "/"}
+              className="text-foreground/80 hover:text-foreground transition-colors"
+            >
+              Saved
+            </Link>
           </nav>
           <div className="ml-auto">
             <UserMenu />

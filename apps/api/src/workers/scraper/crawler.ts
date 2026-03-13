@@ -1,10 +1,12 @@
-import { CheerioCrawler, Configuration } from "crawlee";
+import { CheerioCrawler, Configuration, purgeDefaultStorages, RequestQueue } from "crawlee";
 import { PlaywrightCrawler } from "@crawlee/playwright";
+import { randomUUID } from "crypto";
 
 export type CrawledPage = {
   url: string;
   title: string;
   textContent: string;
+  htmlContent?: string;
 };
 
 export type CrawlOptions = {
@@ -66,8 +68,16 @@ export async function crawlPages(options: CrawlOptions): Promise<CrawledPage[]> 
   const config = Configuration.getGlobalConfig();
   config.set("persistStorage", false);
 
+  // Purge in-memory storages BEFORE creating the crawler to avoid
+  // request queue deduplication across runs within the same process.
+  await purgeDefaultStorages();
+
+  // Use a unique request queue per crawl to fully isolate runs
+  const requestQueue = await RequestQueue.open(randomUUID());
+
   if (crawlerType === "playwright") {
     const crawler = new PlaywrightCrawler({
+      requestQueue,
       maxRequestsPerCrawl: maxPages,
       requestHandlerTimeoutSecs: 60,
       navigationTimeoutSecs: 30,
@@ -75,8 +85,9 @@ export async function crawlPages(options: CrawlOptions): Promise<CrawledPage[]> 
         const title = await page.title();
         const bodyHandle = contentSelector ? await page.$(contentSelector) : await page.$("body");
         const textContent = bodyHandle ? await bodyHandle.innerText() : "";
+        const htmlContent = bodyHandle ? await bodyHandle.innerHTML() : undefined;
 
-        pages.push({ url: request.url, title, textContent });
+        pages.push({ url: request.url, title, textContent, htmlContent });
         onPageCrawled?.(request.url);
 
         await enqueueLinks({
@@ -99,14 +110,16 @@ export async function crawlPages(options: CrawlOptions): Promise<CrawledPage[]> 
     await crawler.run([startUrl]);
   } else {
     const crawler = new CheerioCrawler({
+      requestQueue,
       maxRequestsPerCrawl: maxPages,
       requestHandlerTimeoutSecs: 30,
       async requestHandler({ request, $, enqueueLinks }): Promise<void> {
         const title = $("title").text();
         const contentEl = contentSelector ? $(contentSelector) : $("body");
         const textContent = contentEl.text();
+        const htmlContent = contentEl.html() ?? undefined;
 
-        pages.push({ url: request.url, title, textContent });
+        pages.push({ url: request.url, title, textContent, htmlContent });
         onPageCrawled?.(request.url);
 
         await enqueueLinks({
@@ -128,6 +141,9 @@ export async function crawlPages(options: CrawlOptions): Promise<CrawledPage[]> 
 
     await crawler.run([startUrl]);
   }
+
+  // Clean up the unique request queue
+  await requestQueue.drop();
 
   return pages;
 }

@@ -17,7 +17,14 @@ export type AITask =
   | "generate_mcq_from_tutorial"
   | "extract_questions_from_web"
   | "discover_exams"
-  | "analyze_source";
+  | "analyze_source"
+  | "parse_content_query"
+  | "search_web_content"
+  | "extract_portal_page"
+  | "extract_mcq_from_pdf"
+  | "extract_answer_key"
+  | "extract_descriptive_questions"
+  | "extract_examination_schedule";
 
 export type ProviderMapping = {
   primary: AiProvider;
@@ -76,4 +83,53 @@ export type AIRequestResult<T> = {
 
 export type AIRouterDeps = {
   db: Database;
+};
+
+// ─── Multi-Agent Types ───
+
+export type AIProviderId = "claude" | "gemini" | "openai" | "mistral" | "perplexity";
+
+export const PROVIDER_ID_TO_AI_PROVIDER: Record<AIProviderId, AiProvider> = {
+  claude: "anthropic",
+  gemini: "google",
+  openai: "openai",
+  mistral: "mistral",
+  perplexity: "perplexity",
+};
+
+export type MergeStrategy = "combine" | "best_of" | "vote";
+
+export type MultiAgentConfig<T extends z.ZodTypeAny> = {
+  task: AITask;
+  providers: AIProviderId[];
+  prompt: string;
+  systemPrompt?: string;
+  schema: T;
+  mergeStrategy: MergeStrategy;
+  timeout?: number;
+  userId: string;
+  examId?: string;
+  temperature?: number;
+  maxTokens?: number;
+};
+
+export type PerProviderResult<T> = {
+  result: T;
+  provider: AIProviderId;
+  latencyMs: number;
+  tokensUsed: { input: number; output: number };
+  costUsd: number;
+  logId: string;
+};
+
+export type MultiAgentResult<T> = {
+  merged: T;
+  perProvider: Partial<Record<AIProviderId, PerProviderResult<T>>>;
+  mergeMetadata: {
+    strategy: MergeStrategy;
+    providersUsed: AIProviderId[];
+    providersFailed: AIProviderId[];
+    totalCostUsd: number;
+    totalLatencyMs: number;
+  };
 };

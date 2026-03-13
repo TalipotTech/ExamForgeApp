@@ -35,6 +35,43 @@ async function main(): Promise<void> {
     return { status: "ok", timestamp: new Date().toISOString() };
   });
 
+  // Static file serving for stored PDFs (syllabi, etc.)
+  app.get("/api/files/*", async (request, reply) => {
+    const { promises: fs } = await import("node:fs");
+    const { join, resolve } = await import("node:path");
+
+    const url = request.url.replace("/api/files/", "");
+    const safePath = url.split("?")[0]!.replace(/\.\./g, "");
+    const filePath = resolve(join(process.cwd(), "storage", safePath));
+
+    // Ensure path doesn't escape storage directory
+    const storageRoot = resolve(join(process.cwd(), "storage"));
+    if (!filePath.startsWith(storageRoot)) {
+      return reply.status(403).send({ error: "Forbidden" });
+    }
+
+    try {
+      const stat = await fs.stat(filePath);
+      const content = await fs.readFile(filePath);
+
+      const ext = filePath.split(".").pop()?.toLowerCase();
+      const mimeTypes: Record<string, string> = {
+        pdf: "application/pdf",
+        png: "image/png",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+      };
+
+      return reply
+        .header("Content-Type", mimeTypes[ext ?? ""] ?? "application/octet-stream")
+        .header("Content-Length", stat.size)
+        .header("Content-Disposition", `inline; filename="${safePath.split("/").pop()}"`)
+        .send(content);
+    } catch {
+      return reply.status(404).send({ error: "File not found" });
+    }
+  });
+
   await app.listen({ port: PORT, host: HOST });
   app.log.info(`API server running on http://${HOST}:${PORT}`);
 }

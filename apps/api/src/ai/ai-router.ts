@@ -105,6 +105,46 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     fallback: "openai",
     fallbackModel: "gpt-4o",
   },
+  parse_content_query: {
+    primary: "mistral",
+    model: "mistral-large-latest",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
+  search_web_content: {
+    primary: "perplexity",
+    model: "sonar-pro",
+  },
+  extract_portal_page: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "google",
+    fallbackModel: "gemini-2.0-flash",
+  },
+  extract_mcq_from_pdf: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
+  extract_answer_key: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "google",
+    fallbackModel: "gemini-2.0-flash",
+  },
+  extract_descriptive_questions: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
+  extract_examination_schedule: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "google",
+    fallbackModel: "gemini-2.0-flash",
+  },
 };
 
 // ─── Task → Feature mapping for logging ───
@@ -126,6 +166,13 @@ function taskToFeature(task: AITask): string {
     extract_questions_from_web: "scrape",
     discover_exams: "scrape",
     analyze_source: "scrape",
+    parse_content_query: "search",
+    search_web_content: "search",
+    extract_portal_page: "scrape",
+    extract_mcq_from_pdf: "scrape",
+    extract_answer_key: "scrape",
+    extract_descriptive_questions: "scrape",
+    extract_examination_schedule: "scrape",
   };
   return map[task];
 }
