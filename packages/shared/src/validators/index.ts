@@ -169,3 +169,22 @@ export type {
   ExtractQuestions,
   ExtractSyllabus,
 } from "./content-finder";
+
+export {
+  registerSchema,
+  loginSchema,
+  verifyOtpSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  resendOtpSchema,
+  updateUserAdminSchema,
+} from "./auth";
+export type {
+  RegisterInput,
+  LoginInput,
+  VerifyOtpInput,
+  ForgotPasswordInput,
+  ResetPasswordInput,
+  ResendOtpInput,
+  UpdateUserAdminInput,
+} from "./auth";

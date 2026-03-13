@@ -1,12 +1,4 @@
-import {
-  pgTable,
-  uuid,
-  varchar,
-  timestamp,
-  jsonb,
-  pgEnum,
-  index,
-} from "drizzle-orm/pg-core";
+import { pgTable, uuid, timestamp, jsonb, pgEnum, index } from "drizzle-orm/pg-core";
 import { questions } from "./questions";
 import { users } from "./users";
 
@@ -31,7 +23,5 @@ export const questionVersions = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => [
-    index("question_versions_question_id_idx").on(table.questionId),
-  ],
+  (table) => [index("question_versions_question_id_idx").on(table.questionId)],
 );

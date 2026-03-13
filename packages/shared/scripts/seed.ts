@@ -10,6 +10,10 @@ import {
   questions,
   scrapeSources,
   examNotifications,
+  subscriptionPlans,
+  userSubscriptions,
+  userCredits,
+  adminFeatureFlags,
 } from "../src/db/schema/index";
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -22,6 +26,12 @@ const db = createDatabase(DATABASE_URL);
 
 const ORG_ID = "a0000000-0000-0000-0000-000000000001";
 const ADMIN_ID = "b0000000-0000-0000-0000-000000000001";
+const STUDENT_ID = "b0000000-0000-0000-0000-000000000002";
+const PLAN_IDS = {
+  free: "e0000000-0000-0000-0000-000000000001",
+  pro: "e0000000-0000-0000-0000-000000000002",
+  premium: "e0000000-0000-0000-0000-000000000003",
+};
 const EXAM_IDS = {
   bpharm: "c0000000-0000-0000-0000-000000000001",
   gpat: "c0000000-0000-0000-0000-000000000002",
@@ -56,19 +66,307 @@ async function seed(): Promise<void> {
     })
     .onConflictDoNothing();
 
+  console.log("  Creating subscription plans...");
+  await db
+    .insert(subscriptionPlans)
+    .values([
+      {
+        id: PLAN_IDS.free,
+        name: "free",
+        displayName: "Free",
+        priceMonthlyInr: 0,
+        priceYearlyInr: 0,
+        creditsPerMonth: 50,
+        maxExams: 2,
+        maxTutorialsFree: 5,
+        maxAiQuestions: 10,
+        maxMockExams: 2,
+        features: {
+          explanations: true,
+          syllabus_structure: true,
+          basic_analytics: true,
+          detailed_analytics: false,
+          ai_insights: false,
+          ad_free: false,
+        },
+        sortOrder: 0,
+      },
+      {
+        id: PLAN_IDS.pro,
+        name: "pro",
+        displayName: "Pro",
+        priceMonthlyInr: 29900,
+        priceYearlyInr: 249900,
+        creditsPerMonth: 500,
+        maxExams: 5,
+        maxTutorialsFree: -1,
+        maxAiQuestions: 100,
+        maxMockExams: 20,
+        features: {
+          explanations: true,
+          syllabus_structure: true,
+          basic_analytics: true,
+          detailed_analytics: true,
+          ai_insights: false,
+          ad_free: true,
+        },
+        sortOrder: 1,
+      },
+      {
+        id: PLAN_IDS.premium,
+        name: "premium",
+        displayName: "Premium",
+        priceMonthlyInr: 79900,
+        priceYearlyInr: 699900,
+        creditsPerMonth: -1,
+        maxExams: -1,
+        maxTutorialsFree: -1,
+        maxAiQuestions: -1,
+        maxMockExams: -1,
+        features: {
+          explanations: true,
+          syllabus_structure: true,
+          basic_analytics: true,
+          detailed_analytics: true,
+          ai_insights: true,
+          ad_free: true,
+        },
+        sortOrder: 2,
+      },
+    ])
+    .onConflictDoNothing();
+
   console.log("  Creating admin user...");
-  const passwordHash = await bcrypt.hash("password123", 10);
+  const passwordHash = await bcrypt.hash("password123", 12);
   await db
     .insert(users)
     .values({
       id: ADMIN_ID,
       name: "Dev Admin",
       email: "admin@examforge.dev",
+      username: "admin",
       phone: "+919999999999",
       passwordHash,
       role: "superadmin",
       orgId: ORG_ID,
+      authProvider: "credentials",
+      emailVerified: new Date(),
+      phoneVerified: new Date(),
+      isActive: true,
+      isBanned: false,
+      loginCount: 0,
+      signupSource: "seed",
     })
+    .onConflictDoNothing();
+
+  console.log("  Creating test student user...");
+  const studentPasswordHash = await bcrypt.hash("student123", 12);
+  await db
+    .insert(users)
+    .values({
+      id: STUDENT_ID,
+      name: "Test Student",
+      email: "student@examforge.dev",
+      username: "teststudent",
+      phone: "+919999999998",
+      passwordHash: studentPasswordHash,
+      role: "student",
+      orgId: ORG_ID,
+      authProvider: "credentials",
+      emailVerified: new Date(),
+      isActive: true,
+      isBanned: false,
+      loginCount: 0,
+      signupSource: "seed",
+    })
+    .onConflictDoNothing();
+
+  // Create subscriptions for admin and student
+  const now = new Date();
+  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  console.log("  Creating user subscriptions...");
+  await db
+    .insert(userSubscriptions)
+    .values([
+      {
+        userId: STUDENT_ID,
+        planId: PLAN_IDS.free,
+        status: "active",
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+      },
+    ])
+    .onConflictDoNothing();
+
+  console.log("  Creating user credits...");
+  await db
+    .insert(userCredits)
+    .values([
+      {
+        userId: STUDENT_ID,
+        periodStart: periodStart.toISOString().split("T")[0],
+        periodEnd: periodEnd.toISOString().split("T")[0],
+        creditsTotal: 50,
+        creditsUsed: 0,
+      },
+    ])
+    .onConflictDoNothing();
+
+  console.log("  Seeding feature flags...");
+  await db
+    .insert(adminFeatureFlags)
+    .values([
+      // Auth
+      {
+        key: "auth.signup_enabled",
+        value: true,
+        category: "auth",
+        description: "Allow new user registrations",
+      },
+      {
+        key: "auth.google_oauth_enabled",
+        value: true,
+        category: "auth",
+        description: "Allow Google OAuth signup/login",
+      },
+      {
+        key: "auth.email_password_enabled",
+        value: true,
+        category: "auth",
+        description: "Allow email + password signup/login",
+      },
+      {
+        key: "auth.phone_password_enabled",
+        value: false,
+        category: "auth",
+        description: "Allow phone + password signup/login",
+      },
+      {
+        key: "auth.username_login_enabled",
+        value: true,
+        category: "auth",
+        description: "Allow login with username",
+      },
+      {
+        key: "auth.email_otp_verification",
+        value: true,
+        category: "auth",
+        description: "Require email OTP on signup",
+      },
+      {
+        key: "auth.sms_otp_verification",
+        value: false,
+        category: "auth",
+        description: "Require SMS OTP on signup (needs SMS provider)",
+      },
+      {
+        key: "auth.require_verification",
+        value: true,
+        category: "auth",
+        description: "Users must verify email/phone before full access",
+      },
+      // SMS
+      {
+        key: "sms.provider",
+        value: "none",
+        category: "sms",
+        description: "SMS provider: none | msg91 | twilio",
+      },
+      {
+        key: "sms.msg91_auth_key",
+        value: "",
+        category: "sms",
+        description: "MSG91 authentication key",
+      },
+      {
+        key: "sms.msg91_sender_id",
+        value: "EXMFRG",
+        category: "sms",
+        description: "MSG91 sender ID (6 chars)",
+      },
+      {
+        key: "sms.msg91_template_id",
+        value: "",
+        category: "sms",
+        description: "MSG91 OTP template ID",
+      },
+      {
+        key: "sms.twilio_account_sid",
+        value: "",
+        category: "sms",
+        description: "Twilio Account SID",
+      },
+      {
+        key: "sms.twilio_auth_token",
+        value: "",
+        category: "sms",
+        description: "Twilio Auth Token",
+      },
+      {
+        key: "sms.twilio_phone_number",
+        value: "",
+        category: "sms",
+        description: "Twilio sender phone number",
+      },
+      // Payment
+      {
+        key: "payment.enabled",
+        value: false,
+        category: "payment",
+        description: "Enable payment processing",
+      },
+      {
+        key: "payment.provider",
+        value: "razorpay",
+        category: "payment",
+        description: "Payment gateway: razorpay | stripe",
+      },
+      {
+        key: "payment.razorpay_key_id",
+        value: "",
+        category: "payment",
+        description: "Razorpay Key ID",
+      },
+      {
+        key: "payment.razorpay_key_secret",
+        value: "",
+        category: "payment",
+        description: "Razorpay Key Secret (encrypted)",
+      },
+      {
+        key: "payment.razorpay_webhook_secret",
+        value: "",
+        category: "payment",
+        description: "Razorpay Webhook Secret",
+      },
+      {
+        key: "payment.test_mode",
+        value: true,
+        category: "payment",
+        description: "Use test/sandbox credentials",
+      },
+      // Features
+      {
+        key: "feature.free_credits_on_signup",
+        value: 50,
+        category: "feature",
+        description: "Credits given to new users",
+      },
+      {
+        key: "feature.referral_bonus_credits",
+        value: 10,
+        category: "feature",
+        description: "Credits for referrer when referee signs up",
+      },
+      {
+        key: "feature.maintenance_mode",
+        value: false,
+        category: "feature",
+        description: "Show maintenance page to non-admins",
+      },
+    ])
     .onConflictDoNothing();
 
   console.log("  Creating exams (10)...");
@@ -503,10 +801,12 @@ async function seed(): Promise<void> {
 
   console.log("\nSeed complete!");
   console.log("──────────────────────────────────────");
-  console.log("  Login:    admin@examforge.dev");
-  console.log("  Password: password123");
+  console.log("  Admin:    admin@examforge.dev / password123");
+  console.log("  Student:  student@examforge.dev / student123");
   console.log("  Exams:    10 seeded");
   console.log("  Sources:  3 seeded");
+  console.log("  Plans:    3 seeded (free, pro, premium)");
+  console.log("  Flags:    24 seeded");
   console.log("──────────────────────────────────────");
 
   process.exit(0);

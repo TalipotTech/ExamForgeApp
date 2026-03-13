@@ -22,3 +22,16 @@ export { stagedQuestions } from "./staged-questions";
 export { contentSearches } from "./content-searches";
 export { searchResults } from "./search-results";
 export { userSavedContent } from "./user-saved-content";
+
+// Auth, Payments & Admin
+export { otpVerifications } from "./otp-verifications";
+export { authSessions } from "./auth-sessions";
+export { adminFeatureFlags } from "./admin-feature-flags";
+export { paymentOrders } from "./payment-orders";
+export { adminAuditLog } from "./admin-audit-log";
+export { subscriptionPlans } from "./subscription-plans";
+export { userSubscriptions } from "./user-subscriptions";
+export { userCredits } from "./user-credits";
+export { userExams } from "./user-exams";
+export { userProgress } from "./user-progress";
+export { topicConversations } from "./topic-conversations";

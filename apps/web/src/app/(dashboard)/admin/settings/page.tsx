@@ -1,0 +1,330 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+import { trpc } from "@/lib/trpc";
+
+function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+  description,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  description?: string;
+}): React.ReactElement {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        {description && <p className="text-muted-foreground text-xs">{description}</p>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+          checked ? "bg-primary" : "bg-muted"
+        }`}
+      >
+        <span
+          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform ${
+            checked ? "translate-x-5" : "translate-x-0"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+export default function AdminSettingsPage(): React.ReactElement {
+  const { data: flagGroups, isLoading } = trpc.adminSettings.getFlags.useQuery();
+  const updateMutation = trpc.adminSettings.updateFlags.useMutation();
+  const testSmsMutation = trpc.adminSettings.testSms.useMutation();
+  const testPaymentMutation = trpc.adminSettings.testPayment.useMutation();
+
+  const [changes, setChanges] = useState<Record<string, unknown>>({});
+  const [saved, setSaved] = useState(false);
+
+  function getValue(key: string): unknown {
+    if (key in changes) return changes[key];
+    if (!flagGroups) return null;
+    for (const group of Object.values(flagGroups)) {
+      const flag = group.find((f) => f.key === key);
+      if (flag) return flag.value;
+    }
+    return null;
+  }
+
+  function setValue(key: string, value: unknown): void {
+    setChanges((prev) => ({ ...prev, [key]: value }));
+    setSaved(false);
+  }
+
+  async function handleSave(): Promise<void> {
+    const flags = Object.entries(changes).map(([key, value]) => ({ key, value }));
+    if (flags.length === 0) return;
+    await updateMutation.mutateAsync({ flags });
+    setChanges({});
+    setSaved(true);
+  }
+
+  if (isLoading) {
+    return <div className="p-8 text-center">Loading settings...</div>;
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Platform Settings</h1>
+        <Button
+          onClick={handleSave}
+          disabled={Object.keys(changes).length === 0 || updateMutation.isPending}
+        >
+          {updateMutation.isPending ? "Saving..." : saved ? "Saved!" : "Save All Settings"}
+        </Button>
+      </div>
+
+      {/* Authentication */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Authentication</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <ToggleSwitch
+            checked={getValue("auth.signup_enabled") as boolean}
+            onChange={(v) => setValue("auth.signup_enabled", v)}
+            label="Allow new registrations"
+          />
+          <ToggleSwitch
+            checked={getValue("auth.google_oauth_enabled") as boolean}
+            onChange={(v) => setValue("auth.google_oauth_enabled", v)}
+            label="Google OAuth"
+          />
+          <ToggleSwitch
+            checked={getValue("auth.email_password_enabled") as boolean}
+            onChange={(v) => setValue("auth.email_password_enabled", v)}
+            label="Email + Password"
+          />
+          <ToggleSwitch
+            checked={getValue("auth.phone_password_enabled") as boolean}
+            onChange={(v) => setValue("auth.phone_password_enabled", v)}
+            label="Phone + Password"
+          />
+          <ToggleSwitch
+            checked={getValue("auth.username_login_enabled") as boolean}
+            onChange={(v) => setValue("auth.username_login_enabled", v)}
+            label="Username login"
+          />
+          <ToggleSwitch
+            checked={getValue("auth.email_otp_verification") as boolean}
+            onChange={(v) => setValue("auth.email_otp_verification", v)}
+            label="Require email verification"
+          />
+          <ToggleSwitch
+            checked={getValue("auth.sms_otp_verification") as boolean}
+            onChange={(v) => setValue("auth.sms_otp_verification", v)}
+            label="Require SMS verification"
+          />
+          <ToggleSwitch
+            checked={getValue("auth.require_verification") as boolean}
+            onChange={(v) => setValue("auth.require_verification", v)}
+            label="Require verification before full access"
+          />
+        </CardContent>
+      </Card>
+
+      {/* SMS Provider */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">SMS Provider</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label>Provider</Label>
+            <select
+              value={(getValue("sms.provider") as string) ?? "none"}
+              onChange={(e) => setValue("sms.provider", e.target.value)}
+              className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
+            >
+              <option value="none">None</option>
+              <option value="msg91">MSG91</option>
+              <option value="twilio">Twilio</option>
+            </select>
+          </div>
+
+          {getValue("sms.provider") === "msg91" && (
+            <div className="space-y-2 rounded-md border p-3">
+              <div>
+                <Label>Auth Key</Label>
+                <Input
+                  type="password"
+                  value={(getValue("sms.msg91_auth_key") as string) ?? ""}
+                  onChange={(e) => setValue("sms.msg91_auth_key", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Sender ID</Label>
+                <Input
+                  value={(getValue("sms.msg91_sender_id") as string) ?? ""}
+                  onChange={(e) => setValue("sms.msg91_sender_id", e.target.value)}
+                  maxLength={6}
+                />
+              </div>
+              <div>
+                <Label>Template ID</Label>
+                <Input
+                  type="password"
+                  value={(getValue("sms.msg91_template_id") as string) ?? ""}
+                  onChange={(e) => setValue("sms.msg91_template_id", e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {getValue("sms.provider") === "twilio" && (
+            <div className="space-y-2 rounded-md border p-3">
+              <div>
+                <Label>Account SID</Label>
+                <Input
+                  type="password"
+                  value={(getValue("sms.twilio_account_sid") as string) ?? ""}
+                  onChange={(e) => setValue("sms.twilio_account_sid", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Auth Token</Label>
+                <Input
+                  type="password"
+                  value={(getValue("sms.twilio_auth_token") as string) ?? ""}
+                  onChange={(e) => setValue("sms.twilio_auth_token", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Phone Number</Label>
+                <Input
+                  value={(getValue("sms.twilio_phone_number") as string) ?? ""}
+                  onChange={(e) => setValue("sms.twilio_phone_number", e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => testSmsMutation.mutate({ phone: "+919999999999" })}
+            disabled={testSmsMutation.isPending}
+          >
+            {testSmsMutation.isPending ? "Sending..." : "Test SMS"}
+          </Button>
+          {testSmsMutation.data && (
+            <p className="text-muted-foreground text-xs">{testSmsMutation.data.message}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Payments */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Payments</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <ToggleSwitch
+            checked={getValue("payment.enabled") as boolean}
+            onChange={(v) => setValue("payment.enabled", v)}
+            label="Enable payment processing"
+          />
+          <ToggleSwitch
+            checked={getValue("payment.test_mode") as boolean}
+            onChange={(v) => setValue("payment.test_mode", v)}
+            label="Test/Sandbox mode"
+          />
+          <div className="space-y-2 rounded-md border p-3">
+            <div>
+              <Label>Razorpay Key ID</Label>
+              <Input
+                type="password"
+                value={(getValue("payment.razorpay_key_id") as string) ?? ""}
+                onChange={(e) => setValue("payment.razorpay_key_id", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Razorpay Key Secret</Label>
+              <Input
+                type="password"
+                value={(getValue("payment.razorpay_key_secret") as string) ?? ""}
+                onChange={(e) => setValue("payment.razorpay_key_secret", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Webhook Secret</Label>
+              <Input
+                type="password"
+                value={(getValue("payment.razorpay_webhook_secret") as string) ?? ""}
+                onChange={(e) => setValue("payment.razorpay_webhook_secret", e.target.value)}
+              />
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => testPaymentMutation.mutate()}
+            disabled={testPaymentMutation.isPending}
+          >
+            {testPaymentMutation.isPending ? "Testing..." : "Test Connection"}
+          </Button>
+          {testPaymentMutation.data && (
+            <p
+              className={`text-xs ${testPaymentMutation.data.success ? "text-green-600" : "text-destructive"}`}
+            >
+              {testPaymentMutation.data.message}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Content */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Content</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label>Free credits on signup</Label>
+            <Input
+              type="number"
+              value={(getValue("feature.free_credits_on_signup") as number) ?? 50}
+              onChange={(e) =>
+                setValue("feature.free_credits_on_signup", parseInt(e.target.value) || 0)
+              }
+            />
+          </div>
+          <div>
+            <Label>Referral bonus credits</Label>
+            <Input
+              type="number"
+              value={(getValue("feature.referral_bonus_credits") as number) ?? 10}
+              onChange={(e) =>
+                setValue("feature.referral_bonus_credits", parseInt(e.target.value) || 0)
+              }
+            />
+          </div>
+          <ToggleSwitch
+            checked={getValue("feature.maintenance_mode") as boolean}
+            onChange={(v) => setValue("feature.maintenance_mode", v)}
+            label="Maintenance mode"
+            description="Show maintenance page to non-admins"
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

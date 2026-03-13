@@ -8,6 +8,10 @@ import { scrapeSourceRouter } from "./routers/scrape-source.js";
 import { syllabusRouter } from "./routers/syllabus.js";
 import { contentFinderRouter } from "./routers/content-finder.js";
 import { portalIngestionRouter } from "./routers/portal-ingestion.js";
+import { authRouter } from "./routers/auth.js";
+import { paymentRouter } from "./routers/payment.js";
+import { adminUsersRouter } from "./routers/admin-users.js";
+import { adminSettingsRouter } from "./routers/admin-settings.js";
 
 export const appRouter = router({
   health: healthRouter,
@@ -19,6 +23,10 @@ export const appRouter = router({
   syllabus: syllabusRouter,
   contentFinder: contentFinderRouter,
   portalIngestion: portalIngestionRouter,
+  auth: authRouter,
+  payment: paymentRouter,
+  adminUsers: adminUsersRouter,
+  adminSettings: adminSettingsRouter,
 });
 
 export type AppRouter = typeof appRouter;

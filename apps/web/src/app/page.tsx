@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ExamShowcase } from "@/components/home/exam-showcase";
+import { ExaminationList } from "@/components/home/examination-list";
 
 const FEATURES = [
   {
@@ -69,7 +70,7 @@ export default function HomePage(): React.ReactElement {
             >
               Exams
             </Link>
-            <Link href="/auth/login">
+            <Link href="/login">
               <Button variant="outline" size="sm">
                 Sign in
               </Button>
@@ -99,7 +100,7 @@ export default function HomePage(): React.ReactElement {
         </p>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Link href="/auth/login">
+          <Link href="/login">
             <Button size="lg" className="gap-2 text-base">
               <GraduationCap className="size-5" />
               Start Practicing
@@ -117,6 +118,9 @@ export default function HomePage(): React.ReactElement {
           ))}
         </div>
       </section>
+
+      {/* Examination Schedule Cards from DB */}
+      <ExaminationList />
 
       {/* Features */}
       <section className="bg-muted/30 border-t px-4 py-20">
@@ -157,7 +161,7 @@ export default function HomePage(): React.ReactElement {
             Join ExamForge today and let AI supercharge your exam preparation.
           </p>
           <div className="mt-8">
-            <Link href="/auth/login">
+            <Link href="/login">
               <Button size="lg" className="gap-2 text-base">
                 Get Started Free
                 <ArrowRight className="size-4" />

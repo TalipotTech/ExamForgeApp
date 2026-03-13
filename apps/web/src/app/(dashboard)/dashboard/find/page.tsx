@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Search,
@@ -137,6 +137,14 @@ function MatchDot({ quality }: { quality: string }): React.ReactElement {
 // ─── Main Page ───
 
 export default function FindContentPage(): React.ReactElement {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+      <FindContentPageInner />
+    </Suspense>
+  );
+}
+
+function FindContentPageInner(): React.ReactElement {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") ?? "";
 

@@ -20,7 +20,7 @@ import {
   stagedQuestionFilterSchema,
 } from "@examforge/shared/validators";
 import { TRPCError } from "@trpc/server";
-import { router, adminProcedure } from "../trpc.js";
+import { router, adminProcedure, publicProcedure } from "../trpc.js";
 import { addPortalIngestionJob } from "../../queues/portal-ingestion-queue.js";
 import {
   addProcessDocumentJob,
@@ -934,6 +934,172 @@ export const portalIngestionRouter = router({
       });
 
       return { jobId };
+    }),
+
+  // ─── Public Endpoints (for student-facing pages) ───
+
+  /** List processed examination schedule documents (public) */
+  listExaminationDocuments: publicProcedure
+    .input(
+      z
+        .object({
+          search: z.string().optional(),
+          page: z.number().int().min(1).default(1),
+          limit: z.number().int().min(1).max(50).default(20),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const page = input?.page ?? 1;
+      const limit = input?.limit ?? 20;
+      const offset = (page - 1) * limit;
+
+      const conditions = [
+        eq(portalDocuments.documentType, "examination_schedule"),
+        eq(portalDocuments.processingStatus, "processed"),
+      ];
+
+      const docs = await ctx.db
+        .select({
+          id: portalDocuments.id,
+          title: portalDocuments.title,
+          examName: portalDocuments.examName,
+          examCategory: portalDocuments.examCategory,
+          portalName: portalDocuments.portalName,
+          metadata: portalDocuments.metadata,
+          createdAt: portalDocuments.createdAt,
+        })
+        .from(portalDocuments)
+        .where(and(...conditions))
+        .orderBy(desc(portalDocuments.createdAt))
+        .limit(limit)
+        .offset(offset);
+
+      const [totalRow] = await ctx.db
+        .select({ count: count() })
+        .from(portalDocuments)
+        .where(and(...conditions));
+
+      return {
+        documents: docs,
+        total: Number(totalRow?.count ?? 0),
+        page,
+        limit,
+      };
+    }),
+
+  /** Get examination entries from a specific document (public, read-only) */
+  getExaminationEntries: publicProcedure
+    .input(
+      z.object({
+        documentId: z.string().uuid(),
+        search: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const [doc] = await ctx.db
+        .select({
+          id: portalDocuments.id,
+          title: portalDocuments.title,
+          examName: portalDocuments.examName,
+          examCategory: portalDocuments.examCategory,
+          portalName: portalDocuments.portalName,
+          metadata: portalDocuments.metadata,
+          createdAt: portalDocuments.createdAt,
+        })
+        .from(portalDocuments)
+        .where(
+          and(
+            eq(portalDocuments.id, input.documentId),
+            eq(portalDocuments.documentType, "examination_schedule"),
+            eq(portalDocuments.processingStatus, "processed"),
+          ),
+        )
+        .limit(1);
+
+      if (!doc) return null;
+
+      type ExamEntry = {
+        examName: string;
+        postName?: string;
+        categoryNumber?: string;
+        examDate?: string;
+        examTime?: string;
+        venue?: string;
+        department?: string;
+        stage?: string;
+        status?: string;
+        remarks?: string;
+        syllabusUrl?: string;
+      };
+
+      const meta = doc.metadata as {
+        type?: string;
+        examinations?: ExamEntry[];
+        syllabusLinks?: Array<{
+          url: string;
+          entryKey: string;
+          syllabusId: number;
+          examName: string;
+          status: string;
+        }>;
+      } | null;
+      let examinations = meta?.examinations ?? [];
+      const syllabusLinks = meta?.syllabusLinks ?? [];
+
+      // Filter by search term
+      if (input.search) {
+        const term = input.search.toLowerCase();
+        examinations = examinations.filter(
+          (e) =>
+            e.examName.toLowerCase().includes(term) ||
+            e.postName?.toLowerCase().includes(term) ||
+            e.categoryNumber?.toLowerCase().includes(term) ||
+            e.department?.toLowerCase().includes(term),
+        );
+      }
+
+      return {
+        document: doc,
+        examinations,
+        syllabusLinks,
+        total: examinations.length,
+      };
+    }),
+
+  /** Get syllabus data (public, read-only) */
+  getPublicSyllabusData: publicProcedure
+    .input(z.object({ syllabusId: z.number().int() }))
+    .query(async ({ ctx, input }) => {
+      const [syllabus] = await ctx.db
+        .select()
+        .from(syllabi)
+        .where(eq(syllabi.id, input.syllabusId))
+        .limit(1);
+
+      if (!syllabus) return null;
+
+      const nodes = await ctx.db
+        .select({
+          id: syllabusNodes.id,
+          title: syllabusNodes.title,
+          nodeType: syllabusNodes.nodeType,
+          depth: syllabusNodes.depth,
+          parentId: syllabusNodes.parentId,
+          description: syllabusNodes.description,
+          content: syllabusNodes.content,
+          sortOrder: syllabusNodes.sortOrder,
+        })
+        .from(syllabusNodes)
+        .where(eq(syllabusNodes.syllabusId, input.syllabusId))
+        .orderBy(syllabusNodes.sortOrder);
+
+      return {
+        status: syllabus.status,
+        extractionMethod: syllabus.extractionMethod,
+        fileUrl: syllabus.fileUrl,
+        nodes,
+      };
     }),
 
   /** List exams grouped by conducting body (for exam mapper dropdown) */

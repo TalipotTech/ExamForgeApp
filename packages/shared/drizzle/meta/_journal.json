@@ -57,6 +57,13 @@
       "when": 1773365397028,
       "tag": "0007_abandoned_magma",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1773416363140,
+      "tag": "0008_wakeful_the_executioner",
+      "breakpoints": true
     }
   ]
 }
