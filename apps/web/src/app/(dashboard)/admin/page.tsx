@@ -14,6 +14,7 @@ import {
   Search,
   Bookmark,
   Activity,
+  BookMarked,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
@@ -51,6 +52,12 @@ const QUICK_LINKS: QuickLink[] = [
     label: "Syllabus",
     description: "Manage syllabi & tutorials",
     icon: GraduationCap,
+  },
+  {
+    href: "/admin/tutorials",
+    label: "Tutorials",
+    description: "AI tutorial generation",
+    icon: BookMarked,
   },
   {
     href: "/dashboard/find",

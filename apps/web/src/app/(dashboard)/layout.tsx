@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { UserMenu } from "@/components/user-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   Shield,
   BookOpen,
@@ -15,7 +17,10 @@ import {
   GraduationCap,
   Search,
   Bookmark,
+  BookMarked,
+  Menu,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const ADMIN_ROLES = ["admin", "superadmin"];
 
@@ -34,11 +39,17 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/scraper/discovery", label: "Discovery", icon: Compass, adminOnly: true },
   { href: "/scraper/ingest", label: "Ingest", icon: FileInput, adminOnly: true },
   { href: "/syllabus", label: "Syllabus", icon: GraduationCap, adminOnly: true },
+  { href: "/admin/tutorials", label: "Tutorials", icon: BookMarked, adminOnly: true },
   { href: "/dashboard/find", label: "Find Content", icon: Search, adminOnly: true },
   { href: "/dashboard/saved", label: "Saved", icon: Bookmark, adminOnly: true },
 ];
 
 const STUDENT_NAV: NavItem[] = [{ href: "/exams/start", label: "Start Exam", icon: Play }];
+
+function isLinkActive(pathname: string, href: string): boolean {
+  if (href === "/exams/start") return pathname === "/exams/start";
+  return pathname.startsWith(href);
+}
 
 export default function DashboardLayout({
   children,
@@ -48,6 +59,7 @@ export default function DashboardLayout({
   const { data: session } = useSession();
   const pathname = usePathname();
   const isAdmin = ADMIN_ROLES.includes(session?.user?.role ?? "");
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = isAdmin ? ADMIN_NAV : STUDENT_NAV;
 
@@ -58,13 +70,12 @@ export default function DashboardLayout({
           <Link href="/" className="text-lg font-bold tracking-tight">
             ExamForge
           </Link>
-          <nav className="ml-8 flex items-center gap-5 text-sm">
+
+          {/* Desktop nav — hidden on mobile */}
+          <nav className="ml-8 hidden items-center gap-5 text-sm md:flex">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const active =
-                item.href === "/exams/start"
-                  ? pathname === "/exams/start"
-                  : pathname.startsWith(item.href);
+              const active = isLinkActive(pathname, item.href);
               return (
                 <Link
                   key={item.href}
@@ -94,8 +105,61 @@ export default function DashboardLayout({
               </Link>
             )}
           </nav>
-          <div className="ml-auto">
+
+          <div className="ml-auto flex items-center gap-2">
             <UserMenu />
+
+            {/* Mobile hamburger — hidden on desktop */}
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open menu">
+                  <Menu className="size-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-72 overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle className="text-left text-lg font-bold">ExamForge</SheetTitle>
+                </SheetHeader>
+                <nav className="flex flex-col gap-1 px-2 pt-2">
+                  {navItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = isLinkActive(pathname, item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href as "/"}
+                        onClick={() => setMobileOpen(false)}
+                        className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
+                          active
+                            ? "bg-accent text-accent-foreground font-medium"
+                            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                        }`}
+                      >
+                        <Icon className="size-4" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                  {isAdmin && (
+                    <>
+                      <div className="my-2 border-t" />
+                      <Link
+                        href={"/admin" as "/"}
+                        onClick={() => setMobileOpen(false)}
+                        className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
+                          pathname.startsWith("/admin")
+                            ? "bg-accent text-accent-foreground font-medium"
+                            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                        }`}
+                      >
+                        <Shield className="size-4" />
+                        Admin Panel
+                      </Link>
+                    </>
+                  )}
+                </nav>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </header>

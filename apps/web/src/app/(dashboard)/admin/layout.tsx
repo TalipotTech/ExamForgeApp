@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, Settings, LayoutDashboard } from "lucide-react";
+import { Users, Settings, LayoutDashboard, BookMarked } from "lucide-react";
 
 const adminNav = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/tutorials", label: "Tutorials", icon: BookMarked },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
@@ -23,10 +24,11 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex gap-6">
-      <aside className="w-52 shrink-0">
-        <nav className="sticky top-20 flex flex-col gap-1">
-          <h2 className="text-muted-foreground mb-2 px-3 text-xs font-semibold uppercase tracking-wider">
+    <div className="flex flex-col gap-4 md:flex-row md:gap-6">
+      {/* Sidebar — horizontal on mobile, vertical on desktop */}
+      <aside className="w-full shrink-0 md:w-52">
+        <nav className="flex gap-1 overflow-x-auto md:sticky md:top-20 md:flex-col md:overflow-x-visible">
+          <h2 className="text-muted-foreground mb-2 hidden px-3 text-xs font-semibold uppercase tracking-wider md:block">
             Admin
           </h2>
           {adminNav.map((item) => {
@@ -36,7 +38,7 @@ export default function AdminLayout({
               <Link
                 key={item.href}
                 href={item.href as "/"}
-                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+                className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors ${
                   active
                     ? "bg-accent text-accent-foreground font-medium"
                     : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"

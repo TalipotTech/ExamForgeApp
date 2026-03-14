@@ -96,7 +96,7 @@ export default function AdminTutorialsPage(): React.ReactElement {
           <CardTitle className="text-lg">Start New Generation</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-end gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
               <label className="text-muted-foreground mb-1 block text-sm">Examination</label>
               <select
