@@ -116,6 +116,7 @@ export const tutorialAgentRouter = router({
         includeMnemonics: input.includeMnemonics,
         includeReferences: input.includeReferences,
         userId: ctx.userId,
+        retryFailedOnly: false,
       });
 
       return { jobId: job!.id, queueJobId };
@@ -161,10 +162,74 @@ export const tutorialAgentRouter = router({
         includeMnemonics: job.includeMnemonics ?? true,
         includeReferences: job.includeReferences ?? true,
         userId: ctx.userId,
+        retryFailedOnly: false,
       });
 
       return { queueJobId };
     }),
+
+  // ═══ ADMIN: Retry failed tutorials from a completed/error job ═══
+  retryFailed: adminProcedure
+    .input(tutorialJobIdSchema)
+    .mutation(
+      async ({
+        ctx,
+        input,
+      }): Promise<{ jobId: number; queueJobId: string; failedCount: number }> => {
+        // Load the original job
+        const [originalJob] = await ctx.db
+          .select()
+          .from(tutorialGenerationJobs)
+          .where(eq(tutorialGenerationJobs.id, input.jobId))
+          .limit(1);
+
+        if (!originalJob) throw new Error("Job not found");
+
+        if (originalJob.status !== "completed" && originalJob.status !== "error") {
+          throw new Error("Can only retry failed tutorials from completed or errored jobs");
+        }
+
+        const failedCount = originalJob.failedNodes ?? 0;
+        if (failedCount === 0) {
+          throw new Error("No failed tutorials to retry");
+        }
+
+        // Create a new job record for the retry
+        const [newJob] = await ctx.db
+          .insert(tutorialGenerationJobs)
+          .values({
+            syllabusId: originalJob.syllabusId,
+            examId: originalJob.examId,
+            totalNodes: failedCount,
+            status: "queued",
+            aiProviders: originalJob.aiProviders,
+            generatePreviews: originalJob.generatePreviews,
+            previewPercentage: originalJob.previewPercentage,
+            includeDiagrams: originalJob.includeDiagrams,
+            includeMnemonics: originalJob.includeMnemonics,
+            includeReferences: originalJob.includeReferences,
+            createdBy: ctx.userId,
+          })
+          .returning({ id: tutorialGenerationJobs.id });
+
+        // Queue the retry job with retryFailedOnly flag
+        const queueJobId = await addTutorialAgentJob({
+          jobId: newJob!.id,
+          syllabusId: originalJob.syllabusId,
+          examId: originalJob.examId,
+          providers: originalJob.aiProviders as string[],
+          generatePreviews: originalJob.generatePreviews ?? true,
+          previewPercentage: originalJob.previewPercentage ?? 30,
+          includeDiagrams: originalJob.includeDiagrams ?? true,
+          includeMnemonics: originalJob.includeMnemonics ?? true,
+          includeReferences: originalJob.includeReferences ?? true,
+          userId: ctx.userId,
+          retryFailedOnly: true,
+        });
+
+        return { jobId: newJob!.id, queueJobId, failedCount };
+      },
+    ),
 
   // ═══ ADMIN: Get generation status ═══
   getGenerationStatus: adminProcedure.input(tutorialJobIdSchema).query(

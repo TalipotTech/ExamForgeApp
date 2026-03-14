@@ -96,6 +96,7 @@ export const tutorialAgentJobDataSchema = z.object({
   includeMnemonics: z.boolean().default(true),
   includeReferences: z.boolean().default(true),
   userId: z.string().uuid(),
+  retryFailedOnly: z.boolean().default(false),
 });
 
 export type TutorialAgentJobData = z.infer<typeof tutorialAgentJobDataSchema>;

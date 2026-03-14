@@ -72,7 +72,7 @@ async function processTutorialAgentJob(
   jobData: TutorialAgentJobData,
   db: Database,
 ): Promise<TutorialAgentResult> {
-  const { jobId, syllabusId, examId, userId, providers } = jobData;
+  const { jobId, syllabusId, examId, userId, providers, retryFailedOnly } = jobData;
 
   try {
     // 1. Update job status → running
@@ -119,7 +119,22 @@ async function processTutorialAgentJob(
 
     // Find leaf nodes (nodes that have no children)
     const parentIds = new Set(allNodes.filter((n) => n.parentId !== null).map((n) => n.parentId!));
-    const leafNodes = allNodes.filter((n) => !parentIds.has(n.id) && n.nodeType !== "unit");
+    let leafNodes = allNodes.filter((n) => !parentIds.has(n.id) && n.nodeType !== "unit");
+
+    // If retrying failed only, filter to nodes that don't have a current tutorial
+    if (retryFailedOnly) {
+      const existingTutorials = await db
+        .select({ syllabusNodeId: tutorialFiles.syllabusNodeId })
+        .from(tutorialFiles)
+        .where(and(eq(tutorialFiles.syllabusId, syllabusId), eq(tutorialFiles.isCurrent, true)));
+
+      const generatedNodeIds = new Set(existingTutorials.map((t) => t.syllabusNodeId));
+      leafNodes = leafNodes.filter((n) => !generatedNodeIds.has(n.id));
+
+      console.log(
+        `[tutorial-agent] Retry mode: ${leafNodes.length} failed nodes to process (${generatedNodeIds.size} already generated)`,
+      );
+    }
 
     let totalGenerated = 0;
     let totalFailed = 0;
