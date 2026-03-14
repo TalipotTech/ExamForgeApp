@@ -41,6 +41,26 @@ import { PROVIDER_ID_TO_AI_PROVIDER } from "../../ai/types.js";
 // ─── Tutorial Agent Router ───
 
 export const tutorialAgentRouter = router({
+  // ═══ ADMIN: List exams that have at least one parsed syllabus ═══
+  listExamsWithSyllabi: adminProcedure.query(
+    async ({
+      ctx,
+    }): Promise<Array<{ id: string; name: string; conductingBody: string | null }>> => {
+      const rows = await ctx.db
+        .selectDistinctOn([exams.id], {
+          id: exams.id,
+          name: exams.name,
+          conductingBody: exams.conductingBody,
+        })
+        .from(exams)
+        .innerJoin(syllabi, eq(syllabi.examId, exams.id))
+        .where(eq(syllabi.status, "done"))
+        .orderBy(exams.id, exams.name);
+
+      return rows;
+    },
+  ),
+
   // ═══ ADMIN: Start batch generation ═══
   startGeneration: adminProcedure
     .input(startTutorialGenerationSchema)

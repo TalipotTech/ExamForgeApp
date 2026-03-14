@@ -5,15 +5,26 @@ import { Play, Pause, Loader2, CheckCircle, XCircle, Clock, Zap } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 export default function AdminTutorialsPage(): React.ReactElement {
-  const [syllabusId, setSyllabusId] = useState("");
-  const [examId, setExamId] = useState("");
+  const [selectedExamId, setSelectedExamId] = useState("");
+  const [selectedSyllabusId, setSelectedSyllabusId] = useState("");
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+
+  // Fetch exams that have at least one parsed syllabus
+  const examsQuery = trpc.tutorialAgent.listExamsWithSyllabi.useQuery();
+
+  // Fetch syllabi for the selected exam
+  const syllabiQuery = trpc.syllabus.list.useQuery(
+    { examId: selectedExamId },
+    { enabled: selectedExamId !== "" },
+  );
+
+  // Only show syllabi with status 'done'
+  const parsedSyllabi = (syllabiQuery.data ?? []).filter((s) => s.status === "done");
 
   const jobsQuery = trpc.tutorialAgent.listGenerationJobs.useQuery();
 
@@ -46,6 +57,11 @@ export default function AdminTutorialsPage(): React.ReactElement {
     },
     onError: (err) => toast.error(err.message),
   });
+
+  const handleExamChange = (examId: string): void => {
+    setSelectedExamId(examId);
+    setSelectedSyllabusId(""); // reset syllabus when exam changes
+  };
 
   const statusBadge = (status: string): React.ReactElement => {
     const variants: Record<
@@ -82,37 +98,63 @@ export default function AdminTutorialsPage(): React.ReactElement {
         <CardContent>
           <div className="flex items-end gap-3">
             <div className="flex-1">
-              <label className="text-muted-foreground mb-1 block text-sm">Syllabus ID</label>
-              <Input
-                type="number"
-                placeholder="e.g. 1"
-                value={syllabusId}
-                onChange={(e) => setSyllabusId(e.target.value)}
-              />
+              <label className="text-muted-foreground mb-1 block text-sm">Examination</label>
+              <select
+                className="border-input bg-background ring-offset-background focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50"
+                value={selectedExamId}
+                onChange={(e) => handleExamChange(e.target.value)}
+                disabled={examsQuery.isLoading}
+              >
+                <option value="">
+                  {examsQuery.isLoading ? "Loading exams..." : "Select an examination"}
+                </option>
+                {(examsQuery.data ?? []).map((exam) => (
+                  <option key={exam.id} value={exam.id}>
+                    {exam.name}
+                    {exam.conductingBody ? ` (${exam.conductingBody})` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="flex-1">
-              <label className="text-muted-foreground mb-1 block text-sm">Exam ID (UUID)</label>
-              <Input
-                placeholder="e.g. abc123..."
-                value={examId}
-                onChange={(e) => setExamId(e.target.value)}
-              />
+              <label className="text-muted-foreground mb-1 block text-sm">Syllabus</label>
+              <select
+                className="border-input bg-background ring-offset-background focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50"
+                value={selectedSyllabusId}
+                onChange={(e) => setSelectedSyllabusId(e.target.value)}
+                disabled={!selectedExamId || syllabiQuery.isLoading}
+              >
+                <option value="">
+                  {!selectedExamId
+                    ? "Select an exam first"
+                    : syllabiQuery.isLoading
+                      ? "Loading syllabi..."
+                      : parsedSyllabi.length === 0
+                        ? "No parsed syllabi found"
+                        : "Select a syllabus"}
+                </option>
+                {parsedSyllabi.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <Button
               onClick={() => {
-                if (!syllabusId || !examId) {
-                  toast.error("Both Syllabus ID and Exam ID are required");
+                if (!selectedExamId || !selectedSyllabusId) {
+                  toast.error("Select both an examination and a syllabus");
                   return;
                 }
                 startMutation.mutate({
-                  syllabusId: Number(syllabusId),
-                  examId,
+                  syllabusId: Number(selectedSyllabusId),
+                  examId: selectedExamId,
                   providers: ["claude"],
                   generatePreviews: true,
                   previewPercentage: 30,
                 });
               }}
-              disabled={startMutation.isPending}
+              disabled={startMutation.isPending || !selectedExamId || !selectedSyllabusId}
             >
               {startMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
