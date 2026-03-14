@@ -858,4 +858,48 @@ export const tutorialAgentRouter = router({
       return jobs;
     },
   ),
+
+  // ═══ ADMIN: List generated tutorials for browsing ═══
+  listGeneratedTutorials: adminProcedure
+    .input(
+      listTutorialsForSyllabusSchema.extend({
+        examId: getTutorialForNodeSchema.shape.syllabusNodeId.optional(),
+      }),
+    )
+    .query(
+      async ({
+        ctx,
+        input,
+      }): Promise<
+        Array<{
+          id: number;
+          syllabusNodeId: number;
+          title: string;
+          wordCount: number | null;
+          sectionsCount: number | null;
+          estimatedReadMinutes: number | null;
+          version: number;
+          createdAt: Date;
+        }>
+      > => {
+        const tutorials = await ctx.db
+          .select({
+            id: tutorialFiles.id,
+            syllabusNodeId: tutorialFiles.syllabusNodeId,
+            title: tutorialFiles.title,
+            wordCount: tutorialFiles.wordCount,
+            sectionsCount: tutorialFiles.sectionsCount,
+            estimatedReadMinutes: tutorialFiles.estimatedReadMinutes,
+            version: tutorialFiles.version,
+            createdAt: tutorialFiles.createdAt,
+          })
+          .from(tutorialFiles)
+          .where(
+            and(eq(tutorialFiles.syllabusId, input.syllabusId), eq(tutorialFiles.isCurrent, true)),
+          )
+          .orderBy(tutorialFiles.title);
+
+        return tutorials;
+      },
+    ),
 });

@@ -331,10 +331,19 @@ function NodeRow({
 
         {/* Status badges */}
         {node.tutorialStatus === "generated" && (
-          <Badge variant="secondary" className="shrink-0 text-[10px]">
-            <BookOpen className="mr-0.5 h-2.5 w-2.5" />
-            Tutorial
-          </Badge>
+          <Link
+            href={`/dashboard/tutorial/${node.id}` as "/"}
+            onClick={(e) => e.stopPropagation()}
+            className="shrink-0"
+          >
+            <Badge
+              variant="secondary"
+              className="cursor-pointer text-[10px] hover:bg-green-100 dark:hover:bg-green-900"
+            >
+              <BookOpen className="mr-0.5 h-2.5 w-2.5" />
+              View Tutorial
+            </Badge>
+          </Link>
         )}
         {node.tutorialStatus === "generating" && (
           <Badge variant="secondary" className="shrink-0 text-[10px]">

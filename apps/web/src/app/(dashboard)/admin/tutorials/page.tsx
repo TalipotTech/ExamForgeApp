@@ -1,7 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Play, Pause, Loader2, CheckCircle, XCircle, Clock, Zap, RotateCcw } from "lucide-react";
+import Link from "next/link";
+import {
+  Play,
+  Pause,
+  Loader2,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Zap,
+  RotateCcw,
+  BookOpen,
+  ExternalLink,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +37,12 @@ export default function AdminTutorialsPage(): React.ReactElement {
 
   // Only show syllabi with status 'parsed'
   const parsedSyllabi = (syllabiQuery.data ?? []).filter((s) => s.status === "parsed");
+
+  // Fetch generated tutorials for the selected syllabus
+  const tutorialsQuery = trpc.tutorialAgent.listGeneratedTutorials.useQuery(
+    { syllabusId: Number(selectedSyllabusId) },
+    { enabled: selectedSyllabusId !== "" },
+  );
 
   const jobsQuery = trpc.tutorialAgent.listGenerationJobs.useQuery();
 
@@ -180,6 +198,58 @@ export default function AdminTutorialsPage(): React.ReactElement {
           </div>
         </CardContent>
       </Card>
+
+      {/* Browse Generated Tutorials */}
+      {selectedSyllabusId && (
+        <Card>
+          <CardHeader className="px-4 sm:px-6">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <BookOpen className="h-5 w-5" />
+                Generated Tutorials
+              </CardTitle>
+              {tutorialsQuery.data && (
+                <Badge variant="secondary">{tutorialsQuery.data.length} tutorials</Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="px-4 sm:px-6">
+            {tutorialsQuery.isLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : !tutorialsQuery.data || tutorialsQuery.data.length === 0 ? (
+              <p className="text-muted-foreground py-4 text-center text-sm">
+                No tutorials generated yet for this syllabus. Start a generation above.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                {tutorialsQuery.data.map((tutorial) => (
+                  <Link
+                    key={tutorial.id}
+                    href={`/dashboard/tutorial/${tutorial.syllabusNodeId}` as "/"}
+                    className="hover:bg-muted/50 flex items-center justify-between rounded-lg border px-3 py-2.5 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{tutorial.title}</p>
+                      <p className="text-muted-foreground text-xs">
+                        {tutorial.wordCount?.toLocaleString() ?? "—"} words
+                        {tutorial.sectionsCount ? ` · ${tutorial.sectionsCount} sections` : ""}
+                        {tutorial.estimatedReadMinutes
+                          ? ` · ${tutorial.estimatedReadMinutes} min read`
+                          : ""}
+                      </p>
+                    </div>
+                    <ExternalLink className="text-muted-foreground ml-2 h-4 w-4 shrink-0" />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Active Job Status */}
       {selectedJobId && statusQuery.data && (
