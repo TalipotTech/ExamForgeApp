@@ -35,3 +35,10 @@ export { userCredits } from "./user-credits";
 export { userExams } from "./user-exams";
 export { userProgress } from "./user-progress";
 export { topicConversations } from "./topic-conversations";
+
+// Tutorial Agent (HTML-based)
+export { tutorialFiles } from "./tutorial-files";
+export { userGeneratedExams } from "./user-generated-exams";
+export type { UserGeneratedQuestion } from "./user-generated-exams";
+export { tutorialGenerationJobs } from "./tutorial-generation-jobs";
+export type { GenerationProgressEntry } from "./tutorial-generation-jobs";

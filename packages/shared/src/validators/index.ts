@@ -171,6 +171,31 @@ export type {
 } from "./content-finder";
 
 export {
+  startTutorialGenerationSchema,
+  tutorialJobIdSchema,
+  regenerateTopicSchema,
+  getTutorialForNodeSchema,
+  listTutorialsForSyllabusSchema,
+  generateUserExamSchema,
+  listUserExamsSchema,
+  getUserExamByIdSchema,
+  deleteUserExamSchema,
+  tutorialAgentJobDataSchema,
+} from "./tutorial-agent";
+export type {
+  StartTutorialGeneration,
+  TutorialJobId,
+  RegenerateTopic,
+  GetTutorialForNode,
+  ListTutorialsForSyllabus,
+  GenerateUserExam,
+  ListUserExams,
+  GetUserExamById,
+  DeleteUserExam,
+  TutorialAgentJobData,
+} from "./tutorial-agent";
+
+export {
   registerSchema,
   loginSchema,
   verifyOtpSchema,

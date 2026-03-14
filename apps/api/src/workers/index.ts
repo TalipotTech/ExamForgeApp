@@ -9,6 +9,8 @@ import { createPortalProcessingWorker } from "./portal-processing-worker.js";
 import { closePortalProcessingQueue } from "../queues/portal-processing-queue.js";
 import { createSyllabusWorker } from "./syllabus-processor.js";
 import { closeSyllabusQueue } from "../queues/syllabus-queue.js";
+import { createTutorialAgentWorker } from "./tutorial-agent-worker.js";
+import { closeTutorialAgentQueue } from "../queues/tutorial-agent-queue.js";
 
 async function main(): Promise<void> {
   console.log("[workers] Starting ExamForge workers...");
@@ -17,6 +19,7 @@ async function main(): Promise<void> {
   const portalIngestionWorker = createPortalIngestionWorker();
   const portalProcessingWorker = createPortalProcessingWorker();
   const syllabusWorker = createSyllabusWorker();
+  const tutorialAgentWorker = createTutorialAgentWorker();
 
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[workers] Received ${signal}, shutting down...`);
@@ -24,10 +27,12 @@ async function main(): Promise<void> {
     await portalIngestionWorker.close();
     await portalProcessingWorker.close();
     await syllabusWorker.close();
+    await tutorialAgentWorker.close();
     await closeScraperQueue();
     await closePortalIngestionQueue();
     await closePortalProcessingQueue();
     await closeSyllabusQueue();
+    await closeTutorialAgentQueue();
     console.log("[workers] Shutdown complete.");
     process.exit(0);
   };
@@ -36,7 +41,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   console.log(
-    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus workers started. Waiting for jobs...",
+    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent workers started. Waiting for jobs...",
   );
 }
 

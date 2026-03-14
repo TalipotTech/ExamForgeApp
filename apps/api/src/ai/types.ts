@@ -24,7 +24,8 @@ export type AITask =
   | "extract_mcq_from_pdf"
   | "extract_answer_key"
   | "extract_descriptive_questions"
-  | "extract_examination_schedule";
+  | "extract_examination_schedule"
+  | "generate_tutorial_html";
 
 export type ProviderMapping = {
   primary: AiProvider;

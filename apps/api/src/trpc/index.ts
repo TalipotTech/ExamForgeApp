@@ -12,6 +12,7 @@ import { authRouter } from "./routers/auth.js";
 import { paymentRouter } from "./routers/payment.js";
 import { adminUsersRouter } from "./routers/admin-users.js";
 import { adminSettingsRouter } from "./routers/admin-settings.js";
+import { tutorialAgentRouter } from "./routers/tutorial-agent.js";
 
 export const appRouter = router({
   health: healthRouter,
@@ -27,6 +28,7 @@ export const appRouter = router({
   payment: paymentRouter,
   adminUsers: adminUsersRouter,
   adminSettings: adminSettingsRouter,
+  tutorialAgent: tutorialAgentRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,4 +1,4 @@
-import { generateObject, streamText, embedMany } from "ai";
+import { generateObject, generateText, streamText, embedMany } from "ai";
 import type { z } from "zod";
 import type { AiProvider } from "@examforge/shared";
 import type { Database } from "@examforge/shared/db";
@@ -145,6 +145,12 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     fallback: "google",
     fallbackModel: "gemini-2.0-flash",
   },
+  generate_tutorial_html: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
 };
 
 // ─── Task → Feature mapping for logging ───
@@ -173,6 +179,7 @@ function taskToFeature(task: AITask): string {
     extract_answer_key: "scrape",
     extract_descriptive_questions: "scrape",
     extract_examination_schedule: "scrape",
+    generate_tutorial_html: "tutorial",
   };
   return map[task];
 }
@@ -308,6 +315,72 @@ async function callProvider<T extends z.ZodTypeAny>(
 
   return {
     data: response.object,
+    provider,
+    model,
+    usage: {
+      promptTokens: inputTokens,
+      completionTokens: outputTokens,
+      totalTokens: inputTokens + outputTokens,
+    },
+    latencyMs,
+    estimatedCostUsd: cost,
+    cached: false,
+    logId,
+  };
+}
+
+// ─── Text Generation (non-structured, e.g. HTML fragments) ───
+
+export async function routeTextRequest(
+  params: AIStreamParams,
+  db: Database,
+): Promise<AIRequestResult<string>> {
+  const rateCheck = await checkRateLimit(params.userId);
+  if (!rateCheck.allowed) {
+    throw new AIRouterError("RATE_LIMITED", "Rate limit exceeded.");
+  }
+
+  const budgetCheck = await checkBudget(db);
+  if (!budgetCheck.allowed) {
+    throw new AIRouterError("BUDGET_EXCEEDED", "Monthly AI budget exceeded.");
+  }
+
+  const mapping = TASK_PROVIDER_MAP[params.task];
+  const provider = params.overrideProvider ?? mapping.primary;
+  const model = params.overrideModel ?? mapping.model;
+  const languageModel = getLanguageModel(provider, model);
+
+  const startTime = Date.now();
+
+  const response = await withRetry(async () => {
+    return generateText({
+      model: languageModel,
+      prompt: params.prompt,
+      system: params.systemPrompt,
+      temperature: params.temperature,
+      maxOutputTokens: params.maxTokens ?? 8192,
+    });
+  });
+
+  const latencyMs = Date.now() - startTime;
+  const inputTokens = response.usage.inputTokens ?? 0;
+  const outputTokens = response.usage.outputTokens ?? 0;
+  const cost = estimateCost(model, inputTokens, outputTokens);
+
+  const logId = await logAICall(db, {
+    provider,
+    model,
+    feature: taskToFeature(params.task),
+    inputTokens,
+    outputTokens,
+    latencyMs,
+    estimatedCostUsd: cost,
+    userId: params.userId,
+    examId: params.examId,
+  });
+
+  return {
+    data: response.text,
     provider,
     model,
     usage: {
