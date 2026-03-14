@@ -84,7 +84,7 @@ function VerifyForm(): React.ReactElement {
 
       // Verification successful — redirect
       if (purpose === "signup") {
-        router.push("/questions");
+        router.push("/admin");
       } else {
         router.push("/login?verified=true" as "/");
       }

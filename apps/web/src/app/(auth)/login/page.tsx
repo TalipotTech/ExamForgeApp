@@ -13,7 +13,7 @@ import { trpc } from "@/lib/trpc";
 function LoginForm(): React.ReactElement {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/questions";
+  const callbackUrl = searchParams.get("callbackUrl") ?? "/admin";
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");

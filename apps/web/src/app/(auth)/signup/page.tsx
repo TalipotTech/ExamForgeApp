@@ -59,7 +59,7 @@ export default function SignupPage(): React.ReactElement {
           password,
           redirect: false,
         });
-        router.push("/questions");
+        router.push("/admin");
       }
     } catch (err) {
       setError((err as Error).message);
@@ -69,7 +69,7 @@ export default function SignupPage(): React.ReactElement {
   }
 
   async function handleGoogleSignup(): Promise<void> {
-    await signIn("google", { callbackUrl: "/questions" });
+    await signIn("google", { callbackUrl: "/admin" });
   }
 
   if (flags && !flags.signupEnabled) {
