@@ -24,7 +24,7 @@ export default function AdminTutorialsPage(): React.ReactElement {
   );
 
   // Only show syllabi with status 'done'
-  const parsedSyllabi = (syllabiQuery.data ?? []).filter((s) => s.status === "done");
+  const parsedSyllabi = (syllabiQuery.data ?? []).filter((s) => s.status === "parsed");
 
   const jobsQuery = trpc.tutorialAgent.listGenerationJobs.useQuery();
 

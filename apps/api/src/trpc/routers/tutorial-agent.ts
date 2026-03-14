@@ -54,7 +54,7 @@ export const tutorialAgentRouter = router({
         })
         .from(exams)
         .innerJoin(syllabi, eq(syllabi.examId, exams.id))
-        .where(eq(syllabi.status, "done"))
+        .where(eq(syllabi.status, "parsed"))
         .orderBy(exams.id, exams.name);
 
       return rows;
