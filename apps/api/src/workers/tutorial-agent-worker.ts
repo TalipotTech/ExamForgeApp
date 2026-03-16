@@ -23,6 +23,7 @@ import {
   validateHtmlFragment,
   extractMetadataFromFragment,
 } from "../services/tutorial-html-generator.js";
+import { parseHtmlToSections } from "../services/tutorial-html-parser.js";
 import { getTutorialStorage } from "../services/tutorial-storage.js";
 import { TUTORIAL_AGENT_QUEUE_NAME } from "../queues/tutorial-agent-queue.js";
 import type { AIProviderId } from "../ai/types.js";
@@ -250,6 +251,9 @@ async function processTutorialAgentJob(
           nextTopicUrl: nextNode ? `/dashboard/tutorial/${nextNode.id}` : "#",
         });
 
+        // Parse HTML into sections for reader
+        const parsed = parseHtmlToSections(fullHtml);
+
         // Upload full HTML
         await storage.upload(fileKey, fullHtml);
 
@@ -294,6 +298,8 @@ async function processTutorialAgentJob(
           previewFileKey: jobData.generatePreviews ? previewFileKey : undefined,
           previewFileUrl: previewUrl,
           fileSizeBytes: Buffer.byteLength(fullHtml, "utf-8"),
+          sections: parsed.sections,
+          plainText: parsed.plainText,
           title: node.title,
           wordCount: metadata.wordCount,
           estimatedReadMinutes: metadata.estimatedReadMinutes,

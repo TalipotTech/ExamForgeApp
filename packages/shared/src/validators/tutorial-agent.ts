@@ -83,6 +83,61 @@ export const deleteUserExamSchema = z.object({
 
 export type DeleteUserExam = z.infer<typeof deleteUserExamSchema>;
 
+// ─── User: Generate Multi-Topic Exam ───
+
+export const generateMultiTopicExamSchema = z.object({
+  syllabusId: z.number().int().positive(),
+  syllabusNodeIds: z.array(z.number().int().positive()).min(1).max(20),
+  questionsPerTopic: z.number().int().min(2).max(20).default(5),
+  difficulty: z.enum(["mixed", "easy", "medium", "hard"]).default("mixed"),
+  timeLimitMinutes: z.number().int().min(5).max(180).optional(),
+  providers: z.array(aiProviderIdSchema).default(["claude"]),
+});
+
+export type GenerateMultiTopicExam = z.infer<typeof generateMultiTopicExamSchema>;
+
+// ─── User: Generate Batch Exams (No Repeat) ───
+
+export const generateBatchExamsSchema = z.object({
+  tutorialFileId: z.number().int().positive(),
+  count: z.number().int().min(1).max(5).default(2),
+  questionsPerExam: z.number().int().min(5).max(50).default(10),
+  difficulty: z.enum(["mixed", "easy", "medium", "hard"]).default("mixed"),
+  timeLimitMinutes: z.number().int().min(5).max(120).optional(),
+  providers: z.array(aiProviderIdSchema).default(["claude"]),
+});
+
+export type GenerateBatchExams = z.infer<typeof generateBatchExamsSchema>;
+
+// ─── User: Start (Take) User Exam ───
+
+export const startUserExamSchema = z.object({
+  id: z.number().int().positive(),
+});
+
+export type StartUserExam = z.infer<typeof startUserExamSchema>;
+
+// ─── User: Submit User Exam ───
+
+export const submitUserExamSchema = z.object({
+  id: z.number().int().positive(),
+  answers: z.record(z.string(), z.number()),
+  timeTakenSeconds: z.number().int().nonnegative(),
+});
+
+export type SubmitUserExam = z.infer<typeof submitUserExamSchema>;
+
+// ─── User: Generate Exam from Notes ───
+
+export const generateExamFromNotesSchema = z.object({
+  noteIds: z.array(z.number().int().positive()).min(1).max(20),
+  questionCount: z.number().int().min(5).max(50).default(10),
+  difficulty: z.enum(["mixed", "easy", "medium", "hard"]).default("mixed"),
+  providers: z.array(aiProviderIdSchema).default(["claude"]),
+});
+
+export type GenerateExamFromNotes = z.infer<typeof generateExamFromNotesSchema>;
+
 // ─── Worker: Tutorial Agent Job Data ───
 
 export const tutorialAgentJobDataSchema = z.object({

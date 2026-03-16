@@ -115,6 +115,68 @@ export const paymentRouter = router({
     };
   }),
 
+  // ═══ Switch plan (testing mode — no payment gateway yet) ═══
+  switchPlan: protectedProcedure
+    .input(
+      z.object({
+        planName: z.enum(["free", "pro", "premium"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // If switching to free, deactivate any active subscription
+      if (input.planName === "free") {
+        await ctx.db
+          .update(userSubscriptions)
+          .set({ status: "cancelled", updatedAt: new Date() })
+          .where(
+            and(eq(userSubscriptions.userId, ctx.userId), eq(userSubscriptions.status, "active")),
+          );
+        return { success: true as const, planName: "free", planDisplayName: "Free" };
+      }
+
+      // Find the target plan
+      const [plan] = await ctx.db
+        .select()
+        .from(subscriptionPlans)
+        .where(eq(subscriptionPlans.name, input.planName))
+        .limit(1);
+
+      if (!plan) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Plan "${input.planName}" not found`,
+        });
+      }
+
+      // Deactivate existing subscription if any
+      await ctx.db
+        .update(userSubscriptions)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(
+          and(eq(userSubscriptions.userId, ctx.userId), eq(userSubscriptions.status, "active")),
+        );
+
+      // Create new active subscription (testing: no payment)
+      const now = new Date();
+      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+
+      await ctx.db.insert(userSubscriptions).values({
+        userId: ctx.userId,
+        planId: plan.id,
+        status: "active",
+        billingCycle: "monthly",
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        cancelAtPeriodEnd: false,
+      });
+
+      return {
+        success: true as const,
+        planName: plan.name,
+        planDisplayName: plan.displayName,
+      };
+    }),
+
   cancelSubscription: protectedProcedure.mutation(async ({ ctx }) => {
     await cancelSubscription(ctx.db, ctx.userId);
     return { success: true };

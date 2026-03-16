@@ -151,6 +151,25 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     fallback: "openai",
     fallbackModel: "gpt-4o",
   },
+  topic_chat: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
+};
+
+// ─── Provider → Default Model mapping ───
+// Used when overrideProvider is set but overrideModel is not,
+// so we pick a valid model for the target provider instead of
+// using the task's default model (which belongs to a different provider).
+
+const PROVIDER_DEFAULT_MODELS: Record<AiProvider, string> = {
+  anthropic: "claude-sonnet-4-20250514",
+  openai: "gpt-4o",
+  google: "gemini-2.0-flash",
+  mistral: "mistral-large-latest",
+  perplexity: "sonar-pro",
 };
 
 // ─── Task → Feature mapping for logging ───
@@ -180,6 +199,7 @@ function taskToFeature(task: AITask): string {
     extract_descriptive_questions: "scrape",
     extract_examination_schedule: "scrape",
     generate_tutorial_html: "tutorial",
+    topic_chat: "chat",
   };
   return map[task];
 }
@@ -208,7 +228,9 @@ export async function routeAIRequest<T extends z.ZodTypeAny>(
 
   const mapping = TASK_PROVIDER_MAP[params.task];
   const provider = params.overrideProvider ?? mapping.primary;
-  const model = params.overrideModel ?? mapping.model;
+  const model =
+    params.overrideModel ??
+    (params.overrideProvider ? PROVIDER_DEFAULT_MODELS[provider] : mapping.model);
 
   if (!params.skipCache) {
     const cacheKey = buildCacheKey(provider, model, params.prompt, params.systemPrompt);
@@ -287,14 +309,19 @@ async function callProvider<T extends z.ZodTypeAny>(
 ): Promise<AIRequestResult<z.infer<T>>> {
   const languageModel = getLanguageModel(provider, model);
 
-  const response = await generateObject({
-    model: languageModel,
-    schema: params.schema,
-    prompt: params.prompt,
-    system: params.systemPrompt,
-    temperature: params.temperature,
-    maxOutputTokens: params.maxTokens,
-  });
+  let response;
+  try {
+    response = await generateObject({
+      model: languageModel,
+      schema: params.schema,
+      prompt: params.prompt,
+      system: params.systemPrompt,
+      temperature: params.temperature,
+      maxOutputTokens: params.maxTokens,
+    });
+  } catch (error) {
+    throw toUserFriendlyAIError(error, provider);
+  }
 
   const latencyMs = Date.now() - startTime;
   const inputTokens = response.usage.inputTokens ?? 0;
@@ -347,20 +374,28 @@ export async function routeTextRequest(
 
   const mapping = TASK_PROVIDER_MAP[params.task];
   const provider = params.overrideProvider ?? mapping.primary;
-  const model = params.overrideModel ?? mapping.model;
+  const model =
+    params.overrideModel ??
+    (params.overrideProvider ? PROVIDER_DEFAULT_MODELS[provider] : mapping.model);
   const languageModel = getLanguageModel(provider, model);
 
   const startTime = Date.now();
 
-  const response = await withRetry(async () => {
-    return generateText({
-      model: languageModel,
-      prompt: params.prompt,
-      system: params.systemPrompt,
-      temperature: params.temperature,
-      maxOutputTokens: params.maxTokens ?? 8192,
+  let response;
+  try {
+    response = await withRetry(async () => {
+      return generateText({
+        model: languageModel,
+        prompt: params.prompt,
+        system: params.systemPrompt,
+        temperature: params.temperature,
+        maxOutputTokens: params.maxTokens ?? 8192,
+      });
     });
-  });
+  } catch (error) {
+    if (error instanceof AIRouterError) throw error;
+    throw toUserFriendlyAIError(error, provider);
+  }
 
   const latencyMs = Date.now() - startTime;
   const inputTokens = response.usage.inputTokens ?? 0;
@@ -413,7 +448,9 @@ export async function routeStreamingRequest(
 
   const mapping = TASK_PROVIDER_MAP[params.task];
   const provider = params.overrideProvider ?? mapping.primary;
-  const model = params.overrideModel ?? mapping.model;
+  const model =
+    params.overrideModel ??
+    (params.overrideProvider ? PROVIDER_DEFAULT_MODELS[provider] : mapping.model);
   const languageModel = getLanguageModel(provider, model);
 
   const startTime = Date.now();
@@ -504,4 +541,84 @@ export class AIRouterError extends Error {
     this.code = code;
     this.details = details;
   }
+}
+
+/**
+ * Convert raw provider errors into user-friendly messages.
+ * Detects quota, auth, and rate limit issues from all providers.
+ */
+export function toUserFriendlyAIError(error: unknown, provider?: string): AIRouterError {
+  const msg = error instanceof Error ? error.message : String(error);
+  const lower = msg.toLowerCase();
+  const providerLabel = provider
+    ? ({
+        anthropic: "Claude",
+        google: "Gemini",
+        openai: "ChatGPT",
+        mistral: "Mistral",
+        perplexity: "Perplexity",
+      }[provider] ?? provider)
+    : "AI provider";
+
+  // Quota / billing
+  if (lower.includes("quota") && lower.includes("exceeded")) {
+    return new AIRouterError(
+      "PROVIDER_QUOTA_EXCEEDED",
+      `${providerLabel} API quota exceeded. Please try a different AI provider or try again later.`,
+      { originalError: msg, provider },
+    );
+  }
+
+  if (
+    lower.includes("insufficient_quota") ||
+    (lower.includes("billing") && lower.includes("hard limit"))
+  ) {
+    return new AIRouterError(
+      "PROVIDER_QUOTA_EXCEEDED",
+      `${providerLabel} billing limit reached. Please try a different AI provider.`,
+      { originalError: msg, provider },
+    );
+  }
+
+  // Rate limits
+  if (
+    lower.includes("rate limit") ||
+    lower.includes("rate_limit") ||
+    lower.includes("too many requests")
+  ) {
+    return new AIRouterError(
+      "PROVIDER_RATE_LIMITED",
+      `${providerLabel} is temporarily overloaded. Please wait a moment and try again, or switch to a different provider.`,
+      { originalError: msg, provider },
+    );
+  }
+
+  // Auth errors
+  if (
+    lower.includes("invalid api key") ||
+    lower.includes("invalid_api_key") ||
+    lower.includes("unauthorized")
+  ) {
+    return new AIRouterError(
+      "PROVIDER_AUTH_ERROR",
+      `${providerLabel} is temporarily unavailable. Please try a different AI provider.`,
+      { originalError: msg, provider },
+    );
+  }
+
+  // Content filter / safety
+  if (lower.includes("content filter") || lower.includes("safety") || lower.includes("blocked")) {
+    return new AIRouterError(
+      "CONTENT_FILTERED",
+      `Your message was filtered by ${providerLabel}'s safety system. Please rephrase your question.`,
+      { originalError: msg, provider },
+    );
+  }
+
+  // Generic fallback
+  return new AIRouterError(
+    "PROVIDER_ERROR",
+    `${providerLabel} encountered an error. Please try again or switch to a different provider.`,
+    { originalError: msg, provider },
+  );
 }

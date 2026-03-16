@@ -17,7 +17,7 @@ export async function generateOtp(
     ip?: string;
     userAgent?: string;
   },
-): Promise<{ otpId: string; expiresAt: Date }> {
+): Promise<{ otpId: string; expiresAt: Date; otpCode: string }> {
   // Rate limit: max 3 OTPs per identifier per hour
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
   const recentOtps = await db
@@ -71,7 +71,7 @@ export async function generateOtp(
   if (!record) {
     throw new Error("Failed to create OTP record");
   }
-  return { otpId: record.id, expiresAt };
+  return { otpId: record.id, expiresAt, otpCode: otp };
 }
 
 export async function verifyOtp(
@@ -133,7 +133,7 @@ export async function resendOtp(
     ip?: string;
     userAgent?: string;
   },
-): Promise<{ success: boolean; cooldownSeconds?: number }> {
+): Promise<{ success: boolean; cooldownSeconds?: number; otpCode?: string }> {
   // Check rate limit
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
   const recentOtps = await db
@@ -160,6 +160,6 @@ export async function resendOtp(
     }
   }
 
-  await generateOtp(db, params);
-  return { success: true };
+  const { otpCode } = await generateOtp(db, params);
+  return { success: true, otpCode };
 }

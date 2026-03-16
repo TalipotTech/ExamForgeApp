@@ -4,6 +4,7 @@ import {
   bigint,
   uuid,
   varchar,
+  text,
   timestamp,
   integer,
   jsonb,
@@ -12,6 +13,16 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+
+// ─── Types ───
+
+export type TutorialFileSection = {
+  id: string;
+  title: string;
+  htmlContent: string;
+  plainText: string;
+  order: number;
+};
 import { syllabusNodes } from "./syllabus-nodes";
 import { syllabi } from "./syllabi";
 import { exams } from "./exams";
@@ -36,6 +47,10 @@ export const tutorialFiles = pgTable(
     previewFileKey: varchar("preview_file_key", { length: 500 }),
     previewFileUrl: varchar("preview_file_url", { length: 1000 }),
     fileSizeBytes: integer("file_size_bytes"),
+
+    // Parsed content (extracted from HTML for reader)
+    sections: jsonb("sections").$type<TutorialFileSection[]>(),
+    plainText: text("plain_text"),
 
     // Content metadata
     title: varchar("title", { length: 500 }).notNull(),

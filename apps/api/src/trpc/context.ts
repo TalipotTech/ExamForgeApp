@@ -10,6 +10,8 @@ export type Context = {
   userId: string | null;
   userRole: string | null;
   orgId: string | null;
+  isSubscriber: boolean;
+  onboardingCompleted: boolean;
 };
 
 function getDerivedEncryptionKey(secret: string, salt: string, keyLength: number): Uint8Array {
@@ -18,11 +20,19 @@ function getDerivedEncryptionKey(secret: string, salt: string, keyLength: number
   );
 }
 
+type DecodedToken = {
+  userId: string;
+  role: string;
+  orgId: string | null;
+  isSubscriber: boolean;
+  onboardingCompleted: boolean;
+};
+
 async function decryptSessionToken(
   token: string,
   secret: string,
   cookieName: string,
-): Promise<{ userId: string; role: string; orgId: string | null } | null> {
+): Promise<DecodedToken | null> {
   try {
     const headerPart = token.split(".")[0];
     if (!headerPart) return null;
@@ -40,6 +50,8 @@ async function decryptSessionToken(
       userId: (payload.userId as string) ?? null,
       role: (payload.role as string) ?? null,
       orgId: (payload.orgId as string) ?? null,
+      isSubscriber: (payload.isSubscriber as boolean) ?? false,
+      onboardingCompleted: (payload.onboardingCompleted as boolean) ?? false,
     };
   } catch {
     return null;
@@ -53,6 +65,8 @@ export function createContextFactory(db: Database) {
     let userId: string | null = null;
     let userRole: string | null = null;
     let orgId: string | null = null;
+    let isSubscriber = false;
+    let onboardingCompleted = false;
 
     if (secret) {
       const cookieHeader = req.headers.cookie ?? "";
@@ -76,11 +90,13 @@ export function createContextFactory(db: Database) {
           userId = decoded.userId;
           userRole = decoded.role;
           orgId = decoded.orgId;
+          isSubscriber = decoded.isSubscriber;
+          onboardingCompleted = decoded.onboardingCompleted;
           break;
         }
       }
     }
 
-    return { req, res, db, userId, userRole, orgId };
+    return { req, res, db, userId, userRole, orgId, isSubscriber, onboardingCompleted };
   };
 }

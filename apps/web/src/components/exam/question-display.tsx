@@ -48,7 +48,7 @@ export function QuestionDisplay({
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">
+              <span className="text-muted-foreground text-sm font-medium">
                 Question {index + 1} of {total}
               </span>
               <Badge variant="outline" className="text-xs capitalize">
@@ -65,12 +65,7 @@ export function QuestionDisplay({
             onClick={onToggleFlag}
             aria-label={isFlagged ? "Remove flag" : "Flag question"}
           >
-            <Flag
-              className={cn(
-                "size-4",
-                isFlagged ? "fill-orange-500 text-orange-500" : "",
-              )}
-            />
+            <Flag className={cn("size-4", isFlagged ? "fill-orange-500 text-orange-500" : "")} />
           </Button>
         </div>
 
@@ -78,12 +73,10 @@ export function QuestionDisplay({
         {question.type === "assertion" ? (
           <div className="flex flex-col gap-3">
             <p className="text-base font-medium leading-relaxed sm:text-lg">
-              <span className="font-semibold">Assertion (A):</span>{" "}
-              {content.assertion as string}
+              <span className="font-semibold">Assertion (A):</span> {content.assertion as string}
             </p>
             <p className="text-base font-medium leading-relaxed sm:text-lg">
-              <span className="font-semibold">Reason (R):</span>{" "}
-              {content.reason as string}
+              <span className="font-semibold">Reason (R):</span> {content.reason as string}
             </p>
           </div>
         ) : (
@@ -93,7 +86,7 @@ export function QuestionDisplay({
         )}
 
         {/* Options */}
-        {question.type === "mcq" && (
+        {question.type === "mcq" && Array.isArray(content.options) && (
           <McqOptions
             options={content.options as string[]}
             selected={selectedAnswer}
@@ -102,23 +95,15 @@ export function QuestionDisplay({
         )}
 
         {question.type === "true_false" && (
-          <TrueFalseOptions
-            selected={selectedAnswer}
-            onSelect={onSelectAnswer}
-          />
+          <TrueFalseOptions selected={selectedAnswer} onSelect={onSelectAnswer} />
         )}
 
         {question.type === "assertion" && (
-          <AssertionOptions
-            selected={selectedAnswer}
-            onSelect={onSelectAnswer}
-          />
+          <AssertionOptions selected={selectedAnswer} onSelect={onSelectAnswer} />
         )}
 
         {question.type === "match" && (
-          <MatchDisplay
-            pairs={content.pairs as Array<{ left: string; right: string }>}
-          />
+          <MatchDisplay pairs={content.pairs as Array<{ left: string; right: string }>} />
         )}
 
         {/* Clear answer */}
@@ -127,7 +112,7 @@ export function QuestionDisplay({
             variant="ghost"
             size="sm"
             onClick={onClearAnswer}
-            className="self-start text-muted-foreground"
+            className="text-muted-foreground self-start"
           >
             <Eraser className="size-4" />
             Clear answer
@@ -157,12 +142,12 @@ function McqOptions({
         <label
           key={i}
           className={cn(
-            "flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors hover:bg-accent",
+            "hover:bg-accent flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors",
             selected === i && "border-primary bg-primary/5",
           )}
         >
           <RadioGroupItem value={String(i)} id={`option-${i}`} />
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold">
+          <span className="bg-muted flex size-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold">
             {OPTION_LABELS[i]}
           </span>
           <Label htmlFor={`option-${i}`} className="cursor-pointer text-sm">
@@ -189,7 +174,7 @@ function TrueFalseOptions({
           type="button"
           onClick={() => onSelect(i)}
           className={cn(
-            "flex-1 rounded-lg border p-4 text-center font-medium transition-colors hover:bg-accent",
+            "hover:bg-accent flex-1 rounded-lg border p-4 text-center font-medium transition-colors",
             selected === i && "border-primary bg-primary/5",
           )}
         >
@@ -224,7 +209,7 @@ function AssertionOptions({
         <label
           key={i}
           className={cn(
-            "flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors hover:bg-accent",
+            "hover:bg-accent flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors",
             selected === i && "border-primary bg-primary/5",
           )}
         >
@@ -245,18 +230,16 @@ function MatchDisplay({
 }): React.ReactElement {
   return (
     <div className="rounded-lg border p-4">
-      <p className="mb-3 text-sm font-medium text-muted-foreground">
-        Match the following:
-      </p>
+      <p className="text-muted-foreground mb-3 text-sm font-medium">Match the following:</p>
       <div className="grid grid-cols-2 gap-2">
         <div className="font-medium">Column A</div>
         <div className="font-medium">Column B</div>
         {pairs.map((pair, i) => (
           <div key={i} className="contents">
-            <div className="rounded bg-muted p-2 text-sm">
+            <div className="bg-muted rounded p-2 text-sm">
               {i + 1}. {pair.left}
             </div>
-            <div className="rounded bg-muted p-2 text-sm">
+            <div className="bg-muted rounded p-2 text-sm">
               {String.fromCharCode(65 + i)}. {pair.right}
             </div>
           </div>

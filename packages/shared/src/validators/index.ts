@@ -180,6 +180,11 @@ export {
   listUserExamsSchema,
   getUserExamByIdSchema,
   deleteUserExamSchema,
+  generateMultiTopicExamSchema,
+  generateBatchExamsSchema,
+  generateExamFromNotesSchema,
+  startUserExamSchema,
+  submitUserExamSchema,
   tutorialAgentJobDataSchema,
 } from "./tutorial-agent";
 export type {
@@ -189,15 +194,58 @@ export type {
   GetTutorialForNode,
   ListTutorialsForSyllabus,
   GenerateUserExam,
+  GenerateMultiTopicExam,
+  GenerateBatchExams,
+  GenerateExamFromNotes,
   ListUserExams,
   GetUserExamById,
   DeleteUserExam,
+  StartUserExam,
+  SubmitUserExam,
   TutorialAgentJobData,
 } from "./tutorial-agent";
 
 export {
+  getSyllabusLearningTreeSchema,
+  getTutorialContentSchema,
+  markSectionReadSchema,
+  markTopicCompleteSchema,
+  searchTutorialsSchema,
+  getNavigationOrderSchema,
+  sendChatMessageSchema,
+  getConversationsForNodeSchema,
+  saveNoteFromChatSchema,
+  getNotesForNodeSchema,
+  getUserProfileStatsSchema,
+  getUserKeywordsSchema,
+  getUserNotesSchema,
+  getUserTopicsWithContentSchema,
+} from "./learn";
+export type {
+  GetSyllabusLearningTree,
+  GetTutorialContent,
+  MarkSectionRead,
+  MarkTopicComplete,
+  SearchTutorials,
+  GetNavigationOrder,
+  SendChatMessage,
+  GetConversationsForNode,
+  SaveNoteFromChat,
+  GetNotesForNode,
+  GetUserProfileStats,
+  GetUserKeywords,
+  GetUserNotes,
+  GetUserTopicsWithContent,
+} from "./learn";
+
+export {
   registerSchema,
   loginSchema,
+  loginWithOtpRequestSchema,
+  loginWithOtpVerifySchema,
+  loginWithPinSchema,
+  setPinSchema,
+  removePinSchema,
   verifyOtpSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
@@ -207,9 +255,17 @@ export {
 export type {
   RegisterInput,
   LoginInput,
+  LoginWithOtpRequestInput,
+  LoginWithOtpVerifyInput,
+  LoginWithPinInput,
+  SetPinInput,
+  RemovePinInput,
   VerifyOtpInput,
   ForgotPasswordInput,
   ResetPasswordInput,
   ResendOtpInput,
   UpdateUserAdminInput,
 } from "./auth";
+
+export { saveSelectedExamsSchema, getOnboardingStatusSchema } from "./onboarding";
+export type { SaveSelectedExams, GetOnboardingStatus } from "./onboarding";

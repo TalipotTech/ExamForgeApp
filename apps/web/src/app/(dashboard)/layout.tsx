@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { UserMenu } from "@/components/user-menu";
+import { VerificationBanner } from "@/components/verification-banner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   Shield,
@@ -18,7 +19,13 @@ import {
   Search,
   Bookmark,
   BookMarked,
+  Library,
+  FileQuestion,
+  User,
   Menu,
+  Home,
+  Settings,
+  StickyNote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -40,14 +47,25 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/scraper/ingest", label: "Ingest", icon: FileInput, adminOnly: true },
   { href: "/syllabus", label: "Syllabus", icon: GraduationCap, adminOnly: true },
   { href: "/admin/tutorials", label: "Tutorials", icon: BookMarked, adminOnly: true },
+  { href: "/learn", label: "Learn", icon: Library },
   { href: "/dashboard/find", label: "Find Content", icon: Search, adminOnly: true },
   { href: "/dashboard/saved", label: "Saved", icon: Bookmark, adminOnly: true },
 ];
 
-const STUDENT_NAV: NavItem[] = [{ href: "/exams/start", label: "Start Exam", icon: Play }];
+const STUDENT_NAV: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: Home },
+  { href: "/learn", label: "Learn", icon: Library },
+  { href: "/exams/start", label: "Start Exam", icon: Play },
+  { href: "/dashboard/my-exams", label: "My Exams", icon: FileQuestion },
+  { href: "/dashboard/notes", label: "My Notes", icon: StickyNote },
+  { href: "/dashboard/topics", label: "My Topics", icon: BookMarked },
+  { href: "/dashboard/profile", label: "Profile", icon: User },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+];
 
 function isLinkActive(pathname: string, href: string): boolean {
   if (href === "/exams/start") return pathname === "/exams/start";
+  if (href === "/dashboard") return pathname === "/dashboard";
   return pathname.startsWith(href);
 }
 
@@ -61,7 +79,14 @@ export default function DashboardLayout({
   const isAdmin = ADMIN_ROLES.includes(session?.user?.role ?? "");
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const navItems = isAdmin ? ADMIN_NAV : STUDENT_NAV;
+  const isSubscriber =
+    (session?.user as { isSubscriber?: boolean } | undefined)?.isSubscriber ?? false;
+  const allNavItems = isAdmin ? ADMIN_NAV : STUDENT_NAV;
+  const navItems = allNavItems.filter((item) => {
+    // Hide Profile for non-subscribers
+    if (item.href === "/dashboard/profile" && !isSubscriber && !isAdmin) return false;
+    return true;
+  });
 
   return (
     <div className="bg-background min-h-screen">
@@ -163,6 +188,7 @@ export default function DashboardLayout({
           </div>
         </div>
       </header>
+      <VerificationBanner />
       <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
     </div>
   );

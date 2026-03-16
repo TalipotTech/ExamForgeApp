@@ -1,0 +1,437 @@
+/* ═══════════════════════════════════════════════════════
+   Tutorial Reader — Content Styles
+   Scoped under .tutorial-reader
+   Extracted from tutorial-template.html
+   ═══════════════════════════════════════════════════════ */
+
+/* ── CSS Variables ── */
+.tutorial-reader {
+  --emerald-50: hsl(152 81% 96%);
+  --emerald-100: hsl(149 80% 90%);
+  --emerald-600: hsl(160 84% 39%);
+  --emerald-800: hsl(163 88% 20%);
+  --blue-50: hsl(214 100% 97%);
+  --blue-100: hsl(214 95% 93%);
+  --blue-600: hsl(221 83% 53%);
+  --blue-800: hsl(224 76% 48%);
+  --purple-50: hsl(270 100% 98%);
+  --purple-100: hsl(269 100% 92%);
+  --purple-600: hsl(271 91% 65%);
+  --purple-800: hsl(273 67% 47%);
+  --amber-50: hsl(48 100% 96%);
+  --amber-100: hsl(48 96% 89%);
+  --amber-600: hsl(32 95% 44%);
+  --amber-800: hsl(25 95% 33%);
+  --teal-50: hsl(166 76% 97%);
+  --teal-100: hsl(167 85% 89%);
+  --teal-600: hsl(175 84% 32%);
+  --teal-800: hsl(176 69% 22%);
+  --red-50: hsl(0 86% 97%);
+  --red-100: hsl(0 93% 94%);
+  --red-600: hsl(0 72% 51%);
+  --yellow-200: hsl(48 97% 77%);
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+}
+
+/* ── Section Headings ── */
+.tutorial-reader h2 {
+  font-size: 1.375rem;
+  font-weight: 700;
+  margin: 2.5rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid hsl(var(--border));
+  line-height: 1.3;
+}
+
+.tutorial-reader h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 2rem 0 0.75rem;
+  line-height: 1.35;
+}
+
+.tutorial-reader h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.5rem;
+}
+
+/* ── Body Text ── */
+.tutorial-reader p {
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  margin-bottom: 1rem;
+}
+
+.tutorial-reader ul,
+.tutorial-reader ol {
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.tutorial-reader li {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  margin-bottom: 0.375rem;
+}
+
+.tutorial-reader strong {
+  font-weight: 600;
+}
+
+.tutorial-reader a {
+  color: var(--blue-600);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.tutorial-reader a:hover { opacity: 0.8; }
+
+/* ── Learning Objectives ── */
+.tutorial-reader .learning-objectives {
+  background: var(--emerald-50);
+  border: 1px solid var(--emerald-100);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+}
+.tutorial-reader .learning-objectives h3 {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--emerald-800);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.tutorial-reader .learning-objectives ul { padding-left: 1.25rem; margin: 0; }
+.tutorial-reader .learning-objectives li {
+  font-size: 0.8125rem;
+  color: var(--emerald-800);
+  line-height: 1.6;
+  margin-bottom: 0.25rem;
+}
+
+/* ── Definition Box ── */
+.tutorial-reader .definition {
+  background: var(--teal-50);
+  border-left: 3px solid var(--teal-600);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+}
+.tutorial-reader .definition-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--teal-600);
+  margin-bottom: 0.25rem;
+}
+.tutorial-reader .definition p {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--teal-800);
+  margin: 0;
+}
+
+/* ── Formula Box ── */
+.tutorial-reader .formula {
+  background: var(--amber-50);
+  border: 1px solid var(--amber-100);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+  text-align: center;
+}
+.tutorial-reader .formula-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--amber-600);
+  margin-bottom: 0.5rem;
+  text-align: left;
+}
+.tutorial-reader .formula-content {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--amber-800);
+  padding: 0.5rem 0;
+}
+.tutorial-reader .formula-description {
+  font-size: 0.8125rem;
+  color: var(--amber-800);
+  opacity: 0.8;
+  text-align: left;
+  margin-top: 0.5rem;
+}
+
+/* ── Key Point / Important ── */
+.tutorial-reader .key-point {
+  background: var(--blue-50);
+  border-left: 3px solid var(--blue-600);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+}
+.tutorial-reader .key-point-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--blue-600);
+  margin-bottom: 0.25rem;
+}
+.tutorial-reader .key-point p {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--blue-800);
+  margin: 0;
+}
+
+/* ── Warning / Note ── */
+.tutorial-reader .warning {
+  background: var(--amber-50);
+  border-left: 3px solid var(--amber-600);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+}
+.tutorial-reader .warning-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--amber-600);
+  margin-bottom: 0.25rem;
+}
+.tutorial-reader .warning p {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--amber-800);
+  margin: 0;
+}
+
+/* ── Example Box ── */
+.tutorial-reader .example {
+  background: var(--purple-50);
+  border: 1px solid var(--purple-100);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin: 1.25rem 0;
+}
+.tutorial-reader .example-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--purple-600);
+  margin-bottom: 0.5rem;
+}
+.tutorial-reader .example p,
+.tutorial-reader .example li {
+  font-size: 0.875rem;
+  color: var(--purple-800);
+}
+
+/* ── Code ── */
+.tutorial-reader code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  background: hsl(var(--muted));
+  padding: 0.15rem 0.375rem;
+  border-radius: var(--radius-sm);
+}
+
+.tutorial-reader pre {
+  background: hsl(0 0% 5%);
+  color: hsl(0 0% 90%);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  overflow-x: auto;
+  margin: 1.25rem 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.tutorial-reader pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+/* ── Tables ── */
+.tutorial-reader table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.875rem;
+}
+.tutorial-reader thead {
+  background: hsl(var(--muted));
+}
+.tutorial-reader th {
+  font-weight: 600;
+  text-align: left;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.8125rem;
+}
+.tutorial-reader td {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+.tutorial-reader tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tutorial-reader .table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg);
+  margin: 1.25rem 0;
+}
+.tutorial-reader .table-wrapper table { margin: 0; }
+
+/* ── Highlight ── */
+.tutorial-reader mark,
+.tutorial-reader .highlight {
+  background: var(--yellow-200);
+  color: inherit;
+  padding: 0.1rem 0.25rem;
+  border-radius: 2px;
+}
+
+/* ── Summary ── */
+.tutorial-reader .summary {
+  background: hsl(var(--secondary));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin: 2rem 0;
+}
+.tutorial-reader .summary h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+.tutorial-reader .summary ul { padding-left: 1.25rem; }
+.tutorial-reader .summary li {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  margin-bottom: 0.25rem;
+}
+
+/* ── MCQ Cards ── */
+.tutorial-reader .mcq-card {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin: 1.5rem 0;
+}
+.tutorial-reader .mcq-question {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+}
+.tutorial-reader .mcq-options {
+  list-style: none;
+  padding: 0;
+}
+.tutorial-reader .mcq-options li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.375rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.tutorial-reader .mcq-options li:hover {
+  background: hsl(var(--muted));
+}
+.tutorial-reader .mcq-options li.correct {
+  background: var(--emerald-50);
+  border-color: var(--emerald-600);
+  color: var(--emerald-800);
+}
+.tutorial-reader .mcq-options li.incorrect {
+  background: var(--red-50);
+  border-color: var(--red-600);
+  color: var(--red-600);
+}
+.tutorial-reader .mcq-option-label {
+  font-weight: 600;
+  min-width: 1.25rem;
+  color: hsl(var(--muted-foreground));
+}
+.tutorial-reader .mcq-explanation {
+  display: none;
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--emerald-50);
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--emerald-800);
+}
+.tutorial-reader .mcq-explanation.visible { display: block; }
+
+/* ── Badge ── */
+.tutorial-reader .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 500;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+/* ── Images ── */
+.tutorial-reader img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid hsl(var(--border));
+  margin: 1rem 0;
+}
+.tutorial-reader .image-caption {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* ── Mnemonic ── */
+.tutorial-reader .mnemonic {
+  background: var(--purple-50);
+  border: 1px solid var(--purple-100);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin: 1.25rem 0;
+}
+
+/* ── Card (generic) ── */
+.tutorial-reader .card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.tutorial-reader .card-header { padding: 1.25rem 1.25rem 0; }
+.tutorial-reader .card-content { padding: 1.25rem; }
+
+/* ── Print ── */
+@media print {
+  .tutorial-reader .mcq-card { display: none; }
+}

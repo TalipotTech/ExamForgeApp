@@ -1,15 +1,34 @@
-// Email service - console.log in development, Resend structure for production
-// To enable Resend: set RESEND_API_KEY in .env and uncomment the Resend import
+// Email service - Nodemailer + Gmail (primary), Resend (alternative), console.log (dev fallback)
 
-// import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-export async function sendOtpEmail(email: string, otp: string, purpose: string): Promise<void> {
+// ── Gmail transporter (lazy — env vars may not be available at import time) ──
+let _transporter: nodemailer.Transporter | null = null;
+
+function getTransporter(): nodemailer.Transporter | null {
+  if (_transporter) return _transporter;
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    _transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD,
+      },
+    });
+  }
+  return _transporter;
+}
+
+// ── HTML templates ───────────────────────────────────────────────────
+function otpHtml(otp: string, purpose: string): { subject: string; html: string } {
   const subject =
     purpose === "reset_password"
       ? "ExamForge - Password Reset OTP"
-      : "ExamForge - Verify Your Email";
+      : purpose === "login"
+        ? "ExamForge - Login OTP"
+        : "ExamForge - Verify Your Email";
 
-  const body = `
+  const html = `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 20px;">
       <h2 style="color: #1a1a1a;">ExamForge</h2>
       <p>Your verification code is:</p>
@@ -22,37 +41,53 @@ export async function sendOtpEmail(email: string, otp: string, purpose: string):
     </div>
   `;
 
-  if (process.env.RESEND_API_KEY) {
-    // Production: send via Resend
-    const { Resend } = await import("resend");
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    await resend.emails.send({
-      from: process.env.EMAIL_FROM ?? "ExamForge <noreply@examforge.in>",
-      to: email,
-      subject,
-      html: body,
-    });
-  } else {
-    // Development: log to console
+  return { subject, html };
+}
+
+// ── Send helper ──────────────────────────────────────────────────────
+async function send(to: string, subject: string, html: string): Promise<void> {
+  const emailFrom = process.env.EMAIL_FROM ?? "ExamForge <noreply@examforge.in>";
+  const transport = getTransporter();
+  if (transport) {
+    await transport.sendMail({ from: emailFrom, to, subject, html });
+  }
+  // Uncomment below to use Resend instead of Gmail:
+  // else if (process.env.RESEND_API_KEY) {
+  //   const { Resend } = await import("resend");
+  //   const resend = new Resend(process.env.RESEND_API_KEY);
+  //   await resend.emails.send({ from: emailFrom, to, subject, html });
+  // }
+  else {
+    console.log(`[EMAIL] To: ${to} | Subject: ${subject}`);
+  }
+}
+
+// ── Public API (same signatures as before) ───────────────────────────
+export async function sendOtpEmail(email: string, otp: string, purpose: string): Promise<void> {
+  const { subject, html } = otpHtml(otp, purpose);
+
+  if (!getTransporter()) {
+    // Dev fallback: also log the OTP code for easy testing
     console.log(`[EMAIL] To: ${email} | Subject: ${subject} | OTP: ${otp}`);
+    console.log(`[EMAIL] GMAIL_USER/GMAIL_APP_PASSWORD not set — using console fallback.`);
+    return;
+  }
+
+  try {
+    await send(email, subject, html);
+    console.log(`[EMAIL] OTP sent to ${email} via Gmail`);
+  } catch (err) {
+    console.error(`[EMAIL] Failed to send to ${email}:`, err);
+    throw err;
   }
 }
 
 export async function sendWelcomeEmail(email: string, name: string): Promise<void> {
-  const subject = "Welcome to ExamForge!";
-
-  if (process.env.RESEND_API_KEY) {
-    const { Resend } = await import("resend");
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    await resend.emails.send({
-      from: process.env.EMAIL_FROM ?? "ExamForge <noreply@examforge.in>",
-      to: email,
-      subject,
-      html: `<p>Hi ${name}, welcome to ExamForge! Start your exam preparation journey today.</p>`,
-    });
-  } else {
-    console.log(`[EMAIL] Welcome email to: ${email} (${name})`);
-  }
+  await send(
+    email,
+    "Welcome to ExamForge!",
+    `<p>Hi ${name}, welcome to ExamForge! Start your exam preparation journey today.</p>`,
+  );
 }
 
 export async function sendPasswordResetEmail(email: string, otp: string): Promise<void> {

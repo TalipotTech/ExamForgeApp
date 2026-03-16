@@ -25,8 +25,10 @@ const ADMIN_ONLY_PATHS = [
   "/dashboard/saved",
 ];
 
-function getDefaultRoute(role: string): string {
-  return ADMIN_ROLES.includes(role) ? "/admin" : "/exams/start";
+function getDefaultRoute(role: string, onboardingCompleted: boolean): string {
+  if (ADMIN_ROLES.includes(role)) return "/admin";
+  if (!onboardingCompleted) return "/onboarding";
+  return "/dashboard";
 }
 
 function isAdminOnlyPath(pathname: string): boolean {
@@ -44,6 +46,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     pathname.startsWith("/api/payment") ||
     pathname.startsWith("/exams") ||
     pathname.startsWith("/examinations") ||
+    pathname.startsWith("/topics") ||
     pathname.startsWith("/_next");
 
   if (isPublic) return NextResponse.next();
@@ -60,15 +63,26 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   }
 
   const role = (token.role as string) ?? "student";
+  const onboardingCompleted = (token.onboardingCompleted as boolean) ?? false;
 
   // Redirect authenticated users away from auth pages
   if (pathname === "/login" || pathname === "/signup" || pathname === "/auth/login") {
-    return NextResponse.redirect(new URL(getDefaultRoute(role), request.url));
+    return NextResponse.redirect(new URL(getDefaultRoute(role, onboardingCompleted), request.url));
   }
 
   // Admin-only routes: redirect non-admins to their default page
   if (isAdminOnlyPath(pathname) && !ADMIN_ROLES.includes(role)) {
-    return NextResponse.redirect(new URL("/exams/start", request.url));
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  // Redirect non-onboarded users to onboarding (except if already on /onboarding)
+  if (!ADMIN_ROLES.includes(role) && !onboardingCompleted && pathname !== "/onboarding") {
+    return NextResponse.redirect(new URL("/onboarding", request.url));
+  }
+
+  // Redirect already-onboarded users away from /onboarding
+  if (pathname === "/onboarding" && onboardingCompleted) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   return NextResponse.next();

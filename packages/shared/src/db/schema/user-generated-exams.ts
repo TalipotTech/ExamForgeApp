@@ -58,11 +58,14 @@ export const userGeneratedExams = pgTable(
     sourceTutorialId: bigint("source_tutorial_id", { mode: "number" }).references(
       () => tutorialFiles.id,
     ),
+    sourceNodeIds: jsonb("source_node_ids").$type<number[]>(),
+    questionHashes: jsonb("question_hashes").$type<string[]>(),
 
     // Usage
     timesAttempted: integer("times_attempted").default(0),
     bestScore: real("best_score"),
     lastAttemptedAt: timestamp("last_attempted_at"),
+    lastAttemptAnswers: jsonb("last_attempt_answers").$type<Record<string, number>>(),
 
     // Ownership
     ownerType: varchar("owner_type", { length: 10 }).notNull().default("user"),

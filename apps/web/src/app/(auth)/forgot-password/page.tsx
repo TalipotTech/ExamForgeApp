@@ -9,10 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 
+type Step = "identifier" | "otp" | "done";
+type IdentifierType = "email" | "phone";
+
 export default function ForgotPasswordPage(): React.ReactElement {
   const router = useRouter();
-  const [step, setStep] = useState<"email" | "otp" | "done">("email");
-  const [email, setEmail] = useState("");
+  const [step, setStep] = useState<Step>("identifier");
+  const [identifierType, setIdentifierType] = useState<IdentifierType>("email");
+  const [identifier, setIdentifier] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -27,7 +31,7 @@ export default function ForgotPasswordPage(): React.ReactElement {
     setError("");
     setLoading(true);
     try {
-      await forgotMutation.mutateAsync({ email });
+      await forgotMutation.mutateAsync({ identifier, identifierType });
       setStep("otp");
     } catch (err) {
       setError((err as Error).message);
@@ -48,7 +52,8 @@ export default function ForgotPasswordPage(): React.ReactElement {
     setLoading(true);
     try {
       await resetMutation.mutateAsync({
-        email,
+        identifier,
+        identifierType,
         otp,
         newPassword,
       });
@@ -81,8 +86,8 @@ export default function ForgotPasswordPage(): React.ReactElement {
       <CardHeader className="text-center">
         <CardTitle className="text-2xl font-bold">Forgot Password</CardTitle>
         <CardDescription>
-          {step === "email"
-            ? "Enter your email to receive a reset code"
+          {step === "identifier"
+            ? "Choose how to receive your reset code"
             : "Enter the code and your new password"}
         </CardDescription>
       </CardHeader>
@@ -93,17 +98,51 @@ export default function ForgotPasswordPage(): React.ReactElement {
           </div>
         )}
 
-        {step === "email" && (
+        {step === "identifier" && (
           <form onSubmit={handleSendOtp} className="flex flex-col gap-4">
+            {/* Method toggle */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label>Reset via</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={identifierType === "email" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => {
+                    setIdentifierType("email");
+                    setIdentifier("");
+                  }}
+                >
+                  Email
+                </Button>
+                <Button
+                  type="button"
+                  variant={identifierType === "phone" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => {
+                    setIdentifierType("phone");
+                    setIdentifier("");
+                  }}
+                >
+                  Phone
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="identifier">
+                {identifierType === "email" ? "Email" : "Phone (with country code)"}
+              </Label>
               <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="identifier"
+                type={identifierType === "email" ? "email" : "tel"}
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
                 autoFocus
+                placeholder={identifierType === "email" ? "john@example.com" : "+919876543210"}
               />
             </div>
             <Button type="submit" disabled={loading} className="w-full">
@@ -114,6 +153,9 @@ export default function ForgotPasswordPage(): React.ReactElement {
 
         {step === "otp" && (
           <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
+            <p className="text-muted-foreground text-sm">
+              Code sent to <strong>{identifier}</strong>
+            </p>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="otp">6-digit Code</Label>
               <Input
@@ -137,6 +179,9 @@ export default function ForgotPasswordPage(): React.ReactElement {
                 required
                 minLength={8}
               />
+              <p className="text-muted-foreground text-xs">
+                Min 8 chars, 1 uppercase, 1 lowercase, 1 number
+              </p>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="confirm-password">Confirm Password</Label>

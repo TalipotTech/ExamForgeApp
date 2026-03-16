@@ -1,4 +1,14 @@
-import { pgTable, uuid, varchar, integer, jsonb, timestamp, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  uuid,
+  varchar,
+  integer,
+  jsonb,
+  timestamp,
+  index,
+  bigint,
+  boolean,
+} from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { exams } from "./exams";
 
@@ -20,11 +30,17 @@ export const topicConversations = pgTable(
     messageCount: integer("message_count").notNull().default(0),
     aiProvider: varchar("ai_provider", { length: 50 }),
     totalTokens: integer("total_tokens").notNull().default(0),
+    syllabusId: bigint("syllabus_id", { mode: "number" }),
+    syllabusNodeId: bigint("syllabus_node_id", { mode: "number" }),
+    tutorialFileId: bigint("tutorial_file_id", { mode: "number" }),
+    keyword: varchar("keyword", { length: 200 }),
+    savedAsNote: boolean("saved_as_note").default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
     index("idx_topic_conv_user").on(table.userId),
     index("idx_topic_conv_context").on(table.contextType, table.contextId),
+    index("idx_topic_conv_syllabus_node").on(table.syllabusNodeId),
   ],
 );

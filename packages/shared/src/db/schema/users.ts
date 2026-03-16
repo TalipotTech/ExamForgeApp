@@ -37,10 +37,17 @@ export const users = pgTable("users", {
   isBanned: boolean("is_banned").notNull().default(false),
   banReason: text("ban_reason"),
 
+  // Onboarding
+  onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
+
+  // PIN login
+  pinHash: varchar("pin_hash", { length: 255 }),
+
   // Login tracking
   lastLoginAt: timestamp("last_login_at"),
   lastLoginIp: varchar("last_login_ip", { length: 45 }),
   loginCount: integer("login_count").notNull().default(0),
+  unverifiedLoginCount: integer("unverified_login_count").notNull().default(0),
 
   // Signup info
   signupSource: varchar("signup_source", { length: 50 }),

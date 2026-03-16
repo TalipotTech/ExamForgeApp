@@ -28,6 +28,21 @@ async function main(): Promise<void> {
     trpcOptions: {
       router: appRouter,
       createContext: createContextFactory(db),
+      onError: ({
+        path,
+        error,
+      }: {
+        path: string | undefined;
+        error: { code: string; message: string; stack?: string };
+      }) => {
+        // Log all tRPC errors to the server console (visible in Cursor terminal)
+        console.error(
+          `[ExamForge tRPC Error] ${path ?? "unknown"} — ${error.code}: ${error.message}`,
+        );
+        if (error.stack && process.env.NODE_ENV !== "production") {
+          console.error(error.stack);
+        }
+      },
     },
   });
 

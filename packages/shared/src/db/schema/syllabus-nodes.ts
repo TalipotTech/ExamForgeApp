@@ -8,6 +8,7 @@ import {
   integer,
   jsonb,
   index,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { syllabi } from "./syllabi";
 
@@ -35,6 +36,8 @@ export const syllabusNodes = pgTable(
     tutorialStatus: varchar("tutorial_status", { length: 20 }).default("none"),
     mcqStatus: varchar("mcq_status", { length: 20 }).default("none"),
     mcqCount: integer("mcq_count").default(0),
+    slug: varchar("slug", { length: 200 }),
+    publicSummaryAvailable: boolean("public_summary_available").default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

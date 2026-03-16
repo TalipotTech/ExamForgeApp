@@ -6,10 +6,22 @@ export function buildMCQFromTutorialPrompt(params: {
   tutorialContentText: string;
   count: number;
   difficultyMix: { easy: number; medium: number; hard: number };
+  excludeQuestions?: string[];
 }): { systemPrompt: string; prompt: string } {
   const systemPrompt = `You are an expert question setter for Indian competitive examinations. You generate high-quality MCQs from provided tutorial content. Every question must be directly answerable from the tutorial text.`;
 
   const truncatedContent = params.tutorialContentText.slice(0, MAX_TUTORIAL_LENGTH);
+
+  let exclusionBlock = "";
+  if (params.excludeQuestions && params.excludeQuestions.length > 0) {
+    const exclusionList = params.excludeQuestions
+      .slice(0, 100)
+      .map((q, i) => `${i + 1}. ${q}`)
+      .join("\n");
+    exclusionBlock = `\n\n=== QUESTIONS TO AVOID (do NOT generate similar questions) ===
+${exclusionList}
+=== END EXCLUSIONS ===\n`;
+  }
 
   const prompt = `Generate ${params.count} multiple-choice questions from the following tutorial.
 
@@ -19,7 +31,7 @@ Difficulty distribution: ${params.difficultyMix.easy}% easy, ${params.difficulty
 
 === TUTORIAL CONTENT ===
 ${truncatedContent}
-=== END CONTENT ===
+=== END CONTENT ===${exclusionBlock}
 
 Rules:
 1. EVERY question must be answerable from the tutorial content above
@@ -37,7 +49,7 @@ Rules:
    - Assertion-Reason (if count > 10, include 2-3)
    - Match-the-following (if count > 15, include 1-2)
 9. Cover different sections of the tutorial — don't cluster questions
-10. Use standard exam language patterns for ${params.examName}
+10. Use standard exam language patterns for ${params.examName}${params.excludeQuestions && params.excludeQuestions.length > 0 ? "\n11. DO NOT repeat or closely paraphrase any question from the exclusion list above" : ""}
 
 OUTPUT FORMAT: JSON array matching QuestionSchema[] (via Instructor.js)
 Each question: { question, options, answer (0-3), explanation, subject, difficulty, type }`;
