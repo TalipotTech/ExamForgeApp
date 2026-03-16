@@ -14,6 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ExamShowcase } from "@/components/home/exam-showcase";
 import { ExaminationList } from "@/components/home/examination-list";
+import { TopicExplorer } from "@/components/home/topic-explorer";
+import { PopularTags } from "@/components/home/popular-tags";
+import { SiteStats } from "@/components/home/site-stats";
 
 const FEATURES = [
   {
@@ -119,8 +122,14 @@ export default function HomePage(): React.ReactElement {
         </div>
       </section>
 
+      {/* Site Stats */}
+      <SiteStats />
+
       {/* Examination Schedule Cards from DB */}
       <ExaminationList />
+
+      {/* Popular Topics */}
+      <PopularTags />
 
       {/* Features */}
       <section className="bg-muted/30 border-t px-4 py-20">
@@ -149,6 +158,9 @@ export default function HomePage(): React.ReactElement {
           </div>
         </div>
       </section>
+
+      {/* Explore Topics */}
+      <TopicExplorer />
 
       {/* Exam Showcase */}
       <ExamShowcase />
