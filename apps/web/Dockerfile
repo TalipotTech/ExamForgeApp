@@ -6,8 +6,11 @@ WORKDIR /app
 FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/web/package.json ./apps/web/
+COPY apps/api/package.json ./apps/api/
 COPY packages/shared/package.json ./packages/shared/
-RUN pnpm install --frozen-lockfile --prod=false
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV HUSKY=0
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # ── Build ──
 FROM deps AS builder

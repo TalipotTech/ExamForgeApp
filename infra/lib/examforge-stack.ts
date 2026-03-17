@@ -172,6 +172,18 @@ export class ExamforgeStack extends cdk.Stack {
       });
     }
 
+    // Connection string secrets (managed outside CDK, referenced by name)
+    secretRefs["database-url"] = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "ImportedDbUrl",
+      `examforge/${envName}/app-database-url`,
+    );
+    secretRefs["redis-url"] = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "ImportedRedisUrl",
+      `examforge/${envName}/app-redis-url`,
+    );
+
     // ──── SNS Alerts ────
     const alertsTopic = new sns.Topic(this, "AlertsTopic", {
       topicName: `examforge-${envName}-alerts`,
@@ -271,6 +283,15 @@ export class ExamforgeStack extends cdk.Stack {
               runtimeEnvironmentVariables: [
                 { name: "NODE_ENV", value: envName === "prod" ? "production" : "development" },
                 { name: "NEXT_PUBLIC_API_URL", value: "https://api.examforge.in" },
+                {
+                  name: "NEXTAUTH_URL",
+                  value: envName === "prod" ? "https://examforge.in" : "https://dev.examforge.in",
+                },
+                { name: "HOSTNAME", value: "0.0.0.0" },
+              ],
+              runtimeEnvironmentSecrets: [
+                { name: "DATABASE_URL", value: secretRefs["database-url"]!.secretArn },
+                { name: "NEXTAUTH_SECRET", value: secretRefs["nextauth-secret"]!.secretArn },
               ],
             },
           },
@@ -289,11 +310,11 @@ export class ExamforgeStack extends cdk.Stack {
         },
         healthCheckConfiguration: {
           protocol: "HTTP",
-          path: "/",
+          path: "/api/health",
           interval: 10,
           timeout: 5,
           healthyThreshold: 1,
-          unhealthyThreshold: 3,
+          unhealthyThreshold: 5,
         },
       });
       webService.addDependency(vpcConnector);
@@ -312,9 +333,20 @@ export class ExamforgeStack extends cdk.Stack {
               port: "4000",
               runtimeEnvironmentVariables: [
                 { name: "NODE_ENV", value: envName === "prod" ? "production" : "development" },
-                { name: "REDIS_HOST", value: redisCluster.attrRedisEndpointAddress },
-                { name: "REDIS_PORT", value: redisCluster.attrRedisEndpointPort },
                 { name: "S3_BUCKET", value: uploadsBucket.bucketName },
+                { name: "AWS_REGION", value: "ap-south-1" },
+              ],
+              runtimeEnvironmentSecrets: [
+                { name: "DATABASE_URL", value: secretRefs["database-url"]!.secretArn },
+                { name: "REDIS_URL", value: secretRefs["redis-url"]!.secretArn },
+                { name: "ANTHROPIC_API_KEY", value: secretRefs["anthropic-api-key"]!.secretArn },
+                { name: "OPENAI_API_KEY", value: secretRefs["openai-api-key"]!.secretArn },
+                {
+                  name: "GOOGLE_GENERATIVE_AI_API_KEY",
+                  value: secretRefs["gemini-api-key"]!.secretArn,
+                },
+                { name: "MISTRAL_API_KEY", value: secretRefs["mistral-api-key"]!.secretArn },
+                { name: "NEXTAUTH_SECRET", value: secretRefs["nextauth-secret"]!.secretArn },
               ],
             },
           },
