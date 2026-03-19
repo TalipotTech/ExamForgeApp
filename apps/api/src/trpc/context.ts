@@ -69,6 +69,10 @@ export function createContextFactory(db: Database) {
     let onboardingCompleted = false;
 
     if (secret) {
+      // Try Authorization header first (cross-origin), then cookies (same-origin)
+      const authHeader = req.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
       const cookieHeader = req.headers.cookie ?? "";
       const cookies = Object.fromEntries(
         cookieHeader.split(";").map((c) => {
@@ -82,17 +86,35 @@ export function createContextFactory(db: Database) {
         ["authjs.session-token", "authjs.session-token"],
       ] as const;
 
-      for (const [cookieName, salt] of cookieCandidates) {
-        const token = cookies[cookieName];
-        if (!token) continue;
-        const decoded = await decryptSessionToken(token, secret, salt);
-        if (decoded) {
-          userId = decoded.userId;
-          userRole = decoded.role;
-          orgId = decoded.orgId;
-          isSubscriber = decoded.isSubscriber;
-          onboardingCompleted = decoded.onboardingCompleted;
-          break;
+      // If we have a bearer token, try decrypting with all cookie salt candidates
+      if (bearerToken) {
+        for (const [, salt] of cookieCandidates) {
+          const decoded = await decryptSessionToken(bearerToken, secret, salt);
+          if (decoded) {
+            userId = decoded.userId;
+            userRole = decoded.role;
+            orgId = decoded.orgId;
+            isSubscriber = decoded.isSubscriber;
+            onboardingCompleted = decoded.onboardingCompleted;
+            break;
+          }
+        }
+      }
+
+      // Fall back to cookies if bearer didn't work
+      if (!userId) {
+        for (const [cookieName, salt] of cookieCandidates) {
+          const token = cookies[cookieName];
+          if (!token) continue;
+          const decoded = await decryptSessionToken(token, secret, salt);
+          if (decoded) {
+            userId = decoded.userId;
+            userRole = decoded.role;
+            orgId = decoded.orgId;
+            isSubscriber = decoded.isSubscriber;
+            onboardingCompleted = decoded.onboardingCompleted;
+            break;
+          }
         }
       }
     }

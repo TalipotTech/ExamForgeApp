@@ -6,11 +6,22 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 import { trpc } from "@/lib/trpc";
 
-function getApiUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+/**
+ * tRPC URL: use same-origin /api/trpc proxy (Next.js rewrites) so that
+ * HttpOnly session cookies are forwarded automatically. The Next.js server
+ * proxies to the real API via the rewrite rule in next.config.ts.
+ */
+function getTrpcUrl(): string {
+  if (typeof window !== "undefined") {
+    // Client-side: same-origin proxy path
+    return "/api/trpc";
+  }
+  // Server-side: call the API directly
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  return `${apiUrl}/trpc`;
 }
 
-export function Providers({ children }: { children: React.ReactNode }): React.ReactElement {
+function TRPCWrapper({ children }: { children: React.ReactNode }): React.ReactElement {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -27,7 +38,7 @@ export function Providers({ children }: { children: React.ReactNode }): React.Re
     trpc.createClient({
       links: [
         httpBatchLink({
-          url: `${getApiUrl()}/trpc`,
+          url: getTrpcUrl(),
           fetch(url, options) {
             return fetch(url, { ...options, credentials: "include" });
           },
@@ -37,10 +48,16 @@ export function Providers({ children }: { children: React.ReactNode }): React.Re
   );
 
   return (
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </trpc.Provider>
+  );
+}
+
+export function Providers({ children }: { children: React.ReactNode }): React.ReactElement {
+  return (
     <SessionProvider>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      </trpc.Provider>
+      <TRPCWrapper>{children}</TRPCWrapper>
     </SessionProvider>
   );
 }

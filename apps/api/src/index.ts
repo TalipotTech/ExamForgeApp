@@ -17,7 +17,10 @@ async function main(): Promise<void> {
     throw new Error("DATABASE_URL environment variable is required");
   }
 
-  const app = Fastify({ logger: true });
+  const app = Fastify({
+    logger: true,
+    maxParamLength: 1000, // tRPC batch routes can have long comma-separated procedure names
+  });
 
   const db = createDatabase(DATABASE_URL);
 

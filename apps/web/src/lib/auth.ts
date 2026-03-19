@@ -69,8 +69,23 @@ async function validateAuthToken(authToken: string): Promise<string | null> {
   return null;
 }
 
+const useSecureCookies =
+  process.env.NODE_ENV === "production" || process.env.NEXTAUTH_URL?.startsWith("https");
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+  trustHost: true,
+  cookies: {
+    csrfToken: {
+      name: useSecureCookies ? "__Secure-authjs.csrf-token" : "authjs.csrf-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: useSecureCookies,
+      },
+    },
+  },
   providers: [
     Credentials({
       credentials: {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { decode } from "next-auth/jwt";
 
 const PUBLIC_PATHS = [
   "/",
@@ -43,6 +43,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   const isPublic =
     PUBLIC_PATHS.includes(pathname) ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/trpc") ||
     pathname.startsWith("/api/payment") ||
     pathname.startsWith("/exams") ||
     pathname.startsWith("/examinations") ||
@@ -51,10 +52,27 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   if (isPublic) return NextResponse.next();
 
-  const token = await getToken({
-    req: request,
-    secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
-  });
+  // Read session token directly from the cookie — getToken() may look for wrong cookie name
+  const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+  const sessionCookie =
+    request.cookies.get("__Secure-authjs.session-token")?.value ??
+    request.cookies.get("authjs.session-token")?.value;
+
+  let token: Record<string, unknown> | null = null;
+  if (sessionCookie && secret) {
+    try {
+      const salt =
+        request.cookies.get("__Secure-authjs.session-token") != null
+          ? "__Secure-authjs.session-token"
+          : "authjs.session-token";
+      token = (await decode({ token: sessionCookie, secret, salt })) as Record<
+        string,
+        unknown
+      > | null;
+    } catch {
+      token = null;
+    }
+  }
 
   if (!token) {
     const loginUrl = new URL("/login", request.url);

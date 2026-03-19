@@ -16,6 +16,12 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 FROM deps AS builder
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# NEXT_PUBLIC_* vars must be available at build time (inlined by Next.js)
+ARG NEXT_PUBLIC_API_URL=http://localhost:4000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 RUN pnpm --filter @examforge/shared build
 RUN pnpm --filter @examforge/web build
 
