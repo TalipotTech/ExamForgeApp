@@ -48,9 +48,10 @@ ${input.syllabusContext}
 === END STUDY MATERIAL ===`);
   }
 
+  const examContext = input.examName ? `\n- Exam: ${input.examName}` : "";
   parts.push(`You are an expert exam question generator for Indian competitive exams.
 
-Generate exactly ${input.count} ${typeLabel} questions for the following:
+Generate exactly ${input.count} ${typeLabel} questions for the following:${examContext}
 - Subject: ${input.subject}
 - Topic: ${input.topic}
 - Difficulty: ${input.difficulty}

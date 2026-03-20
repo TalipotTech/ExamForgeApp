@@ -5,7 +5,8 @@ export const aiProviderEnum = z.enum(["anthropic", "mistral", "openai", "google"
 
 export const generateQuestionsInputSchema = z.object({
   provider: aiProviderEnum,
-  examId: z.string().uuid(),
+  examId: z.string().uuid().optional(),
+  examName: z.string().min(1).optional(),
   subject: z.string().min(1),
   topic: z.string().min(1),
   count: z.number().int().min(1).max(50),

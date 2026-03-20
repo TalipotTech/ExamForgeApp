@@ -1,7 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Cpu, Zap, Brain, Flame, Globe, BookOpen } from "lucide-react";
+import {
+  Sparkles,
+  Cpu,
+  Zap,
+  Brain,
+  Flame,
+  Globe,
+  BookOpen,
+  Check,
+  ChevronsUpDown,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +37,6 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { QUESTION_TYPE_LABELS } from "@examforge/shared/constants";
-import { ExamCombobox } from "@/components/exam/exam-combobox";
 import type { GenerateQuestionsInput } from "@examforge/shared";
 
 type Provider = "anthropic" | "mistral" | "openai" | "google" | "perplexity";
@@ -91,7 +101,9 @@ export function GenerateForm({
   onCountChange,
 }: GenerateFormProps): React.ReactElement {
   const [provider, setProvider] = useState<Provider>("anthropic");
-  const [examId, setExamId] = useState("");
+  const [selectedExamEntry, setSelectedExamEntry] = useState<string>(""); // composite ID from portal entries
+  const [examId, setExamId] = useState(""); // actual exam UUID if mapped
+  const [examName, setExamName] = useState(""); // exam name for display & generation
   const [subject, setSubject] = useState("");
   const [topic, setTopic] = useState("");
   const [count, setCount] = useState(10);
@@ -99,12 +111,18 @@ export function GenerateForm({
   const [questionType, setQuestionType] = useState<QuestionType>("mcq");
   const [customPrompt, setCustomPrompt] = useState("");
   const [topicOpen, setTopicOpen] = useState(false);
+  const [examOpen, setExamOpen] = useState(false);
 
-  const { data: examList, isLoading: examsLoading } = trpc.exam.listForUser.useQuery();
+  // Load examination entries from portal documents instead of exams table
+  const { data: portalExams, isLoading: examsLoading } =
+    trpc.portalIngestion.listAllExaminations.useQuery();
+
+  // Also keep exam.listForUser as fallback for mapped exams (needed for examId)
+  // const { data: examList, isLoading: examsLoading } = trpc.exam.listForUser.useQuery();
 
   const filters = trpc.question.filters.useQuery();
 
-  // Fetch syllabus topics when an exam is selected
+  // Fetch syllabus topics when an exam is selected (uses examId if available)
   const { data: syllabusTopics } = trpc.syllabus.getTopicsForExam.useQuery(
     { examId },
     { enabled: !!examId },
@@ -122,7 +140,8 @@ export function GenerateForm({
     // The caller (QuestionGenerator) handles this via the input fields
     onGenerate({
       provider,
-      examId,
+      examId: examId || undefined,
+      examName: examName || undefined,
       subject,
       topic,
       count,
@@ -134,7 +153,7 @@ export function GenerateForm({
     });
   };
 
-  const isValid = examId && subject && topic.trim();
+  const isValid = (examId || examName) && subject && topic.trim();
 
   return (
     <Card>
@@ -180,17 +199,92 @@ export function GenerateForm({
           {/* Exam & Subject */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="exam">Exam</Label>
-              <ExamCombobox
-                exams={examList ?? []}
-                value={examId}
-                onValueChange={(id) => {
-                  setExamId(id);
-                  setTopic("");
-                }}
-                isLoading={examsLoading}
-                placeholder="Select exam"
-              />
+              <Label htmlFor="exam">Examination</Label>
+              <Popover open={examOpen} onOpenChange={setExamOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={examOpen}
+                    className="w-full justify-between font-normal"
+                    disabled={examsLoading}
+                  >
+                    {examsLoading ? (
+                      <span className="text-muted-foreground">Loading...</span>
+                    ) : examName ? (
+                      <span className="truncate">{examName}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Select examination...</span>
+                    )}
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-[var(--radix-popover-trigger-width)] p-0"
+                  align="start"
+                >
+                  <Command>
+                    <CommandInput placeholder="Search examinations..." />
+                    <CommandList>
+                      <CommandEmpty>No examinations found.</CommandEmpty>
+                      <CommandGroup>
+                        {(portalExams ?? []).map((entry) => (
+                          <CommandItem
+                            key={entry.id}
+                            value={`${entry.examName} ${entry.categoryNumber ?? ""} ${entry.department ?? ""}`}
+                            onSelect={() => {
+                              setSelectedExamEntry(entry.id);
+                              setExamName(entry.examName);
+                              setExamId(""); // no examId from portal entries
+                              setTopic("");
+                              setExamOpen(false);
+                            }}
+                            className="flex flex-col items-start gap-1 py-2"
+                          >
+                            <div className="flex w-full items-center gap-2">
+                              <Check
+                                className={cn(
+                                  "size-4 shrink-0",
+                                  selectedExamEntry === entry.id ? "opacity-100" : "opacity-0",
+                                )}
+                              />
+                              <span className="flex-1 truncate text-sm font-medium">
+                                {entry.examName}
+                              </span>
+                              {entry.hasSyllabus && (
+                                <Badge
+                                  variant="secondary"
+                                  className="shrink-0 bg-green-100 px-1.5 py-0 text-[10px] text-green-700"
+                                >
+                                  <BookOpen className="mr-0.5 size-2.5" />
+                                  Syllabus
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex w-full flex-wrap items-center gap-1.5 pl-6">
+                              {entry.categoryNumber && (
+                                <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                                  Cat. {entry.categoryNumber}
+                                </Badge>
+                              )}
+                              {entry.examDate && (
+                                <span className="text-muted-foreground text-[10px]">
+                                  {entry.examDate}
+                                </span>
+                              )}
+                              {entry.department && (
+                                <span className="text-muted-foreground max-w-[120px] truncate text-[10px]">
+                                  {entry.department}
+                                </span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="space-y-2">

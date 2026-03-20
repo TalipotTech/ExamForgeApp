@@ -1102,6 +1102,117 @@ export const portalIngestionRouter = router({
       };
     }),
 
+  /** Aggregate all examination entries across all processed documents (for dropdowns) */
+  listAllExaminations: publicProcedure
+    .input(z.object({ search: z.string().max(200).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const search = input?.search;
+
+      // Fetch all processed examination_schedule documents
+      const docs = await ctx.db
+        .select({
+          id: portalDocuments.id,
+          title: portalDocuments.title,
+          portalName: portalDocuments.portalName,
+          examCategory: portalDocuments.examCategory,
+          metadata: portalDocuments.metadata,
+          createdAt: portalDocuments.createdAt,
+        })
+        .from(portalDocuments)
+        .where(
+          and(
+            eq(portalDocuments.documentType, "examination_schedule"),
+            eq(portalDocuments.processingStatus, "processed"),
+          ),
+        )
+        .orderBy(desc(portalDocuments.createdAt));
+
+      type ExamEntry = {
+        examName: string;
+        postName?: string;
+        categoryNumber?: string;
+        examDate?: string;
+        examTime?: string;
+        venue?: string;
+        department?: string;
+        stage?: string;
+        status?: string;
+        remarks?: string;
+        syllabusUrl?: string;
+      };
+
+      // Aggregate all examination entries with document context
+      const allEntries: Array<{
+        id: string;
+        examName: string;
+        postName: string | null;
+        categoryNumber: string | null;
+        examDate: string | null;
+        examTime: string | null;
+        venue: string | null;
+        department: string | null;
+        stage: string | null;
+        syllabusUrl: string | null;
+        documentId: string;
+        documentTitle: string | null;
+        portalName: string | null;
+        examCategory: string | null;
+        hasSyllabus: boolean;
+      }> = [];
+
+      for (const doc of docs) {
+        const meta = doc.metadata as {
+          examinations?: ExamEntry[];
+          syllabusLinks?: Array<{ entryKey: string; syllabusId: number; status: string }>;
+        } | null;
+
+        const examinations = meta?.examinations ?? [];
+        const syllabusLinks = meta?.syllabusLinks ?? [];
+
+        for (const entry of examinations) {
+          const entryKey = `${entry.examName}::${entry.categoryNumber ?? ""}`;
+          const hasSyllabus = syllabusLinks.some(
+            (s) => s.entryKey === entryKey && s.status !== "error",
+          );
+
+          // Generate a stable ID from document + exam name + category
+          const id = `${doc.id}::${entry.categoryNumber ?? ""}::${entry.examName}`;
+
+          allEntries.push({
+            id,
+            examName: entry.examName,
+            postName: entry.postName ?? null,
+            categoryNumber: entry.categoryNumber ?? null,
+            examDate: entry.examDate ?? null,
+            examTime: entry.examTime ?? null,
+            venue: entry.venue ?? null,
+            department: entry.department ?? null,
+            stage: entry.stage ?? null,
+            syllabusUrl: entry.syllabusUrl ?? null,
+            documentId: doc.id,
+            documentTitle: doc.title,
+            portalName: doc.portalName,
+            examCategory: doc.examCategory,
+            hasSyllabus,
+          });
+        }
+      }
+
+      // Filter by search term if provided
+      if (search) {
+        const term = search.toLowerCase();
+        return allEntries.filter(
+          (e) =>
+            e.examName.toLowerCase().includes(term) ||
+            e.postName?.toLowerCase().includes(term) ||
+            e.categoryNumber?.toLowerCase().includes(term) ||
+            e.department?.toLowerCase().includes(term),
+        );
+      }
+
+      return allEntries;
+    }),
+
   /** List exams grouped by conducting body (for exam mapper dropdown) */
   getExamsByCategory: adminProcedure.query(async ({ ctx }) => {
     const examsList = await ctx.db

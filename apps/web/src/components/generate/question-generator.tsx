@@ -63,29 +63,33 @@ export function QuestionGenerator(): React.ReactElement {
       setFinalQuestions([]);
       setUsageInfo({ provider: input.provider, startTime: Date.now() });
 
-      // Fetch syllabus context and existing questions for dedup in parallel
-      const [syllabusContext, existingTexts] = await Promise.allSettled([
-        utils.syllabus.getTopicContent.fetch({
-          examId: input.examId,
-          topicTitle: input.topic,
-        }),
-        utils.question.getExistingForTopic.fetch({
-          examId: input.examId,
-          topic: input.topic,
-        }),
-      ]);
+      // Fetch syllabus context and existing questions for dedup (only if examId is available)
+      let enrichedInput: GenerateQuestionsInput = { ...input };
 
-      const enrichedInput: GenerateQuestionsInput = {
-        ...input,
-        syllabusContext:
-          syllabusContext.status === "fulfilled" && syllabusContext.value
-            ? syllabusContext.value
-            : undefined,
-        existingQuestionTexts:
-          existingTexts.status === "fulfilled" && existingTexts.value.length > 0
-            ? existingTexts.value
-            : undefined,
-      };
+      if (input.examId) {
+        const [syllabusContext, existingTexts] = await Promise.allSettled([
+          utils.syllabus.getTopicContent.fetch({
+            examId: input.examId,
+            topicTitle: input.topic,
+          }),
+          utils.question.getExistingForTopic.fetch({
+            examId: input.examId,
+            topic: input.topic,
+          }),
+        ]);
+
+        enrichedInput = {
+          ...input,
+          syllabusContext:
+            syllabusContext.status === "fulfilled" && syllabusContext.value
+              ? syllabusContext.value
+              : undefined,
+          existingQuestionTexts:
+            existingTexts.status === "fulfilled" && existingTexts.value.length > 0
+              ? existingTexts.value
+              : undefined,
+        };
+      }
 
       submit(enrichedInput);
     },
@@ -105,10 +109,15 @@ export function QuestionGenerator(): React.ReactElement {
 
   const handleSave = useCallback(
     (questions: GeneratedQuestion[]) => {
-      if (!formData) return;
+      if (!formData || !formData.examId) {
+        toast.error(
+          "Cannot save: no exam mapped. Questions were generated but require an exam mapping to save.",
+        );
+        return;
+      }
       bulkCreate.mutate({
         questions: questions.map((q) => ({
-          examId: formData.examId,
+          examId: formData.examId!,
           content: q.content,
           subject: q.subject,
           topic: q.topic,
