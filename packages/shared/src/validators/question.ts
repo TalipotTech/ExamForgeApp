@@ -58,6 +58,10 @@ export const createQuestionSchema = z.object({
   topic: z.string().optional(),
   difficulty: z.enum(["easy", "medium", "hard"]),
   source: z.string().optional(),
+  syllabusId: z.number().int().optional(),
+  syllabusName: z.string().optional(),
+  syllabusNodeId: z.number().int().optional(),
+  topicName: z.string().optional(),
 });
 
 export type McqContent = z.infer<typeof mcqContentSchema>;

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc, asc, ilike, or, gt, count, notInArray } from "drizzle-orm";
+import { eq, and, desc, asc, ilike, or, gt, count, sql, notInArray } from "drizzle-orm";
 import {
   exams,
   examNotifications,
@@ -7,6 +7,7 @@ import {
   discoveryRuns,
   userExams,
   syllabi,
+  portalDocuments,
   subscriptionPlans,
   userSubscriptions,
 } from "@examforge/shared/db/schema";
@@ -493,5 +494,112 @@ export const examRouter = router({
         .set({ status: input.status, isActive: true, updatedAt: new Date() })
         .where(eq(exams.id, input.id));
       return { success: true };
+    }),
+
+  /** Admin: list all exams for generate dropdown (with syllabus + question count) */
+  listForAdmin: adminProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select({
+        id: exams.id,
+        name: exams.name,
+        category: exams.category,
+        conductingBody: exams.conductingBody,
+        status: exams.status,
+        examDate: exams.examDate,
+        officialUrl: exams.officialUrl,
+        discoverySource: exams.discoverySource,
+        isAutoDiscovered: exams.isAutoDiscovered,
+        questionCount: exams.questionCount,
+        createdAt: exams.createdAt,
+      })
+      .from(exams)
+      .orderBy(desc(exams.createdAt));
+
+    // Get syllabus counts per exam
+    const syllabusRows = await ctx.db
+      .select({
+        examId: syllabi.examId,
+        count: count(),
+        processedCount: sql<number>`count(*) filter (where ${syllabi.status} = 'processed')`,
+      })
+      .from(syllabi)
+      .groupBy(syllabi.examId);
+
+    const syllabusMap = new Map(
+      syllabusRows.map((r) => [
+        r.examId,
+        { total: Number(r.count), processed: Number(r.processedCount) },
+      ]),
+    );
+
+    return rows.map((e) => ({
+      ...e,
+      hasSyllabus: (syllabusMap.get(e.id)?.processed ?? 0) > 0,
+      syllabusCount: syllabusMap.get(e.id)?.total ?? 0,
+    }));
+  }),
+
+  /** Get exam with linked portal document metadata */
+  getWithPortalDetails: adminProcedure
+    .input(z.object({ examId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const [exam] = await ctx.db.select().from(exams).where(eq(exams.id, input.examId)).limit(1);
+
+      if (!exam) return null;
+
+      // Get portal documents linked to this exam
+      const docs = await ctx.db
+        .select({
+          id: portalDocuments.id,
+          title: portalDocuments.title,
+          documentType: portalDocuments.documentType,
+          sourcePageType: portalDocuments.sourcePageType,
+          examName: portalDocuments.examName,
+          examCategory: portalDocuments.examCategory,
+          portalName: portalDocuments.portalName,
+          processingStatus: portalDocuments.processingStatus,
+          metadata: portalDocuments.metadata,
+          createdAt: portalDocuments.createdAt,
+        })
+        .from(portalDocuments)
+        .where(eq(portalDocuments.examId, input.examId))
+        .orderBy(desc(portalDocuments.createdAt));
+
+      // Extract examination entry metadata from the portal docs
+      type ExamEntry = {
+        examName: string;
+        postName?: string;
+        categoryNumber?: string;
+        examDate?: string;
+        examTime?: string;
+        venue?: string;
+        department?: string;
+        stage?: string;
+        syllabusUrl?: string;
+      };
+
+      let examEntries: ExamEntry[] = [];
+      for (const doc of docs) {
+        if (doc.documentType === "examination_schedule") {
+          const meta = doc.metadata as { examinations?: ExamEntry[] } | null;
+          if (meta?.examinations) {
+            // Find entries matching this exam by name
+            const matching = meta.examinations.filter(
+              (e) =>
+                e.examName.toLowerCase().includes(exam.name.toLowerCase().slice(0, 30)) ||
+                exam.name.toLowerCase().includes(e.examName.toLowerCase().slice(0, 30)),
+            );
+            if (matching.length > 0) {
+              examEntries = [...examEntries, ...matching];
+            }
+          }
+        }
+      }
+
+      return {
+        exam,
+        portalDocuments: docs,
+        examEntries,
+      };
     }),
 });

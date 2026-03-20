@@ -130,6 +130,10 @@ export const questionRouter = router({
             topic: q.topic,
             difficulty: q.difficulty,
             source: q.source ?? "ai-generated",
+            syllabusId: q.syllabusId ?? null,
+            syllabusName: q.syllabusName ?? null,
+            syllabusNodeId: q.syllabusNodeId ?? null,
+            topicName: q.topicName ?? null,
             orgId: ctx.orgId,
           })),
         )

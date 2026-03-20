@@ -15,6 +15,10 @@ export const generateQuestionsInputSchema = z.object({
   customPrompt: z.string().optional(),
   syllabusContext: z.string().optional(),
   existingQuestionTexts: z.array(z.string()).max(100).optional(),
+  syllabusId: z.number().int().optional(),
+  syllabusName: z.string().optional(),
+  syllabusNodeId: z.number().int().optional(),
+  topicName: z.string().optional(),
 });
 
 export const generatedQuestionSchema = z.object({

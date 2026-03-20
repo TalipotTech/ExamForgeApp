@@ -123,6 +123,10 @@ export function QuestionGenerator(): React.ReactElement {
           topic: q.topic,
           difficulty: q.difficulty,
           source: "ai-generated",
+          syllabusId: formData.syllabusId,
+          syllabusName: formData.syllabusName,
+          syllabusNodeId: formData.syllabusNodeId,
+          topicName: formData.topicName,
         })),
       });
     },

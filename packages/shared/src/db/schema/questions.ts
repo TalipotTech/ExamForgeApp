@@ -7,11 +7,14 @@ import {
   pgEnum,
   index,
   integer,
+  bigint,
   vector,
 } from "drizzle-orm/pg-core";
 import { exams } from "./exams";
 import { organizations } from "./organizations";
 import { portalDocuments } from "./portal-documents";
+import { syllabi } from "./syllabi";
+import { syllabusNodes } from "./syllabus-nodes";
 
 export const difficultyEnum = pgEnum("difficulty", ["easy", "medium", "hard"]);
 
@@ -57,6 +60,14 @@ export const questions = pgTable(
     paperYear: integer("paper_year"),
     paperNumber: varchar("paper_number", { length: 50 }),
     questionNumber: integer("question_number"),
+
+    // Syllabus / topic tracking (for AI-generated questions)
+    syllabusId: bigint("syllabus_id", { mode: "number" }).references(() => syllabi.id),
+    syllabusName: varchar("syllabus_name", { length: 500 }),
+    syllabusNodeId: bigint("syllabus_node_id", { mode: "number" }).references(
+      () => syllabusNodes.id,
+    ),
+    topicName: varchar("topic_name", { length: 500 }),
 
     orgId: uuid("org_id").references(() => organizations.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
