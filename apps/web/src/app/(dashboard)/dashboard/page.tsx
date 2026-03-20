@@ -23,8 +23,10 @@ import {
   MapPin,
   LogIn,
   Zap,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BrowseExamsDialog } from "@/components/exam/browse-exams-dialog";
 
 function getDeviceInfo(): string {
   if (typeof navigator === "undefined") return "Unknown";
@@ -59,6 +61,8 @@ export default function DashboardPage(): React.ReactElement {
   const data = dashboardQuery.data;
   const quota = quotaQuery.data;
   const userName = session?.user?.name?.split(" ")[0] ?? "there";
+
+  const [browseOpen, setBrowseOpen] = useState(false);
 
   // Client-side device info
   const [deviceInfo, setDeviceInfo] = useState("");
@@ -230,15 +234,45 @@ export default function DashboardPage(): React.ReactElement {
       )}
 
       {/* Your Exams */}
-      {data && data.selectedExams.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
               <GraduationCap className="h-4 w-4" />
-              Your Exams
+              Your Examinations
             </CardTitle>
-          </CardHeader>
-          <CardContent>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 text-xs"
+              onClick={() => setBrowseOpen(true)}
+            >
+              <Plus className="h-3 w-3" />
+              Add Examination
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!data || data.selectedExams.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <GraduationCap className="text-muted-foreground h-10 w-10" />
+              <div>
+                <p className="font-medium">No examinations selected</p>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Add examinations you&apos;re preparing for to get started.
+                </p>
+              </div>
+              <Button
+                variant="default"
+                size="sm"
+                className="mt-2"
+                onClick={() => setBrowseOpen(true)}
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Browse Examinations
+              </Button>
+            </div>
+          ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {data.selectedExams.map((exam) => (
                 <div key={exam.examId} className="rounded-lg border p-4">
@@ -270,9 +304,10 @@ export default function DashboardPage(): React.ReactElement {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
+      <BrowseExamsDialog open={browseOpen} onOpenChange={setBrowseOpen} />
 
       {/* Three Column: My Topics + Continue Learning + Recent Exams */}
       <div className="grid gap-6 lg:grid-cols-3">

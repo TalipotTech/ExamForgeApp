@@ -39,6 +39,7 @@ export function BrowseExamsDialog({
       toast.success("Exam added to your list");
       utils.exam.listForUser.invalidate();
       utils.exam.listBrowsable.invalidate();
+      utils.learn.getDashboardData.invalidate();
     },
     onError: (err) => {
       toast.error(err.message);

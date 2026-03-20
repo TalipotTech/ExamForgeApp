@@ -1,14 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Clock, FileText, ArrowRight } from "lucide-react";
+import { BookOpen, Clock, FileText, ArrowRight, Plus, GraduationCap } from "lucide-react";
+import { BrowseExamsDialog } from "@/components/exam/browse-exams-dialog";
 
 export default function LearnPage(): React.ReactElement {
   const syllabiQuery = trpc.learn.listSyllabiWithTutorials.useQuery();
+  const [browseOpen, setBrowseOpen] = useState(false);
 
   if (syllabiQuery.isLoading) {
     return (
@@ -21,41 +25,57 @@ export default function LearnPage(): React.ReactElement {
 
   const syllabi = syllabiQuery.data ?? [];
 
-  if (syllabi.length === 0) {
-    return (
-      <div className="mx-auto max-w-4xl p-6">
-        <h1 className="mb-6 text-2xl font-bold">Learn</h1>
-        <Card>
-          <CardContent className="py-12 text-center">
-            <BookOpen className="text-muted-foreground mx-auto mb-4 h-12 w-12" />
-            <p className="text-muted-foreground">
-              No tutorials available yet. Generate tutorials from the admin panel first.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Learn</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Browse tutorials by syllabus. Track your learning progress.
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Learn</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Browse tutorials by syllabus. Track your learning progress.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" className="gap-1" onClick={() => setBrowseOpen(true)}>
+          <Plus className="h-4 w-4" />
+          Add Examination
+        </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {syllabi.map((syl) => (
-          <SyllabusCard
-            key={syl.syllabusId}
-            syllabusId={syl.syllabusId}
-            syllabusName={syl.syllabusName}
-            examName={syl.examName}
-          />
-        ))}
-      </div>
+      {syllabi.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <GraduationCap className="text-muted-foreground h-12 w-12" />
+            <div>
+              <p className="font-medium">No tutorials available yet</p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Add examinations to your preparation list, then tutorials will appear here once
+                generated.
+              </p>
+            </div>
+            <Button
+              variant="default"
+              size="sm"
+              className="mt-2"
+              onClick={() => setBrowseOpen(true)}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Browse Examinations
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {syllabi.map((syl) => (
+            <SyllabusCard
+              key={syl.syllabusId}
+              syllabusId={syl.syllabusId}
+              syllabusName={syl.syllabusName}
+              examName={syl.examName}
+            />
+          ))}
+        </div>
+      )}
+
+      <BrowseExamsDialog open={browseOpen} onOpenChange={setBrowseOpen} />
     </div>
   );
 }
