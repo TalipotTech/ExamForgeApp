@@ -66,6 +66,20 @@ export const AI_PROVIDER_INFO = {
     strengths: ["Fast generation", "Lower cost", "Good for bulk"],
     avgTokensPerQuestion: 300,
   },
+  openai: {
+    name: "GPT-4o (OpenAI)",
+    model: "gpt-4o",
+    description: "Strong structured output with reliable JSON formatting",
+    strengths: ["Structured output", "Consistent format", "Broad knowledge"],
+    avgTokensPerQuestion: 320,
+  },
+  google: {
+    name: "Gemini 2.0 Flash (Google)",
+    model: "gemini-2.0-flash",
+    description: "Ultra-fast and cost-effective with large context window",
+    strengths: ["Very fast", "Lowest cost", "Large context"],
+    avgTokensPerQuestion: 280,
+  },
 } as const;
 
 export const QUESTION_TYPE_LABELS = {

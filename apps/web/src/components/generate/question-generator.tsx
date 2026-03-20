@@ -5,10 +5,7 @@ import { experimental_useObject as useObject } from "@ai-sdk/react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { questionOutputSchema } from "@/lib/ai-schemas";
-import type {
-  GenerateQuestionsInput,
-  GeneratedQuestion,
-} from "@examforge/shared";
+import type { GenerateQuestionsInput, GeneratedQuestion } from "@examforge/shared";
 import { GenerateForm } from "./generate-form";
 import { ProviderInfoPanel } from "./provider-info-panel";
 import { GenerationProgress } from "./generation-progress";
@@ -16,9 +13,10 @@ import { ResultsPreview } from "./results-preview";
 import { CostSummary } from "./cost-summary";
 
 type Phase = "form" | "generating" | "results";
+type Provider = "anthropic" | "mistral" | "openai" | "google";
 
 interface UsageInfo {
-  provider: "anthropic" | "mistral";
+  provider: Provider;
   startTime: number;
   endTime?: number;
 }
@@ -28,7 +26,7 @@ export function QuestionGenerator(): React.ReactElement {
   const [formData, setFormData] = useState<GenerateQuestionsInput | null>(null);
   const [finalQuestions, setFinalQuestions] = useState<GeneratedQuestion[]>([]);
   const [usageInfo, setUsageInfo] = useState<UsageInfo | null>(null);
-  const [previewProvider, setPreviewProvider] = useState<"anthropic" | "mistral">("anthropic");
+  const [previewProvider, setPreviewProvider] = useState<Provider>("anthropic");
   const [previewCount, setPreviewCount] = useState(10);
 
   const { object, submit, isLoading, stop, error } = useObject({
@@ -37,9 +35,7 @@ export function QuestionGenerator(): React.ReactElement {
     onFinish: ({ object: result }) => {
       if (result?.questions) {
         setFinalQuestions(result.questions as GeneratedQuestion[]);
-        setUsageInfo((prev) =>
-          prev ? { ...prev, endTime: Date.now() } : null,
-        );
+        setUsageInfo((prev) => (prev ? { ...prev, endTime: Date.now() } : null));
         setPhase("results");
       }
     },
@@ -58,24 +54,49 @@ export function QuestionGenerator(): React.ReactElement {
     },
   });
 
+  const utils = trpc.useUtils();
+
   const handleGenerate = useCallback(
-    (input: GenerateQuestionsInput) => {
+    async (input: GenerateQuestionsInput) => {
       setFormData(input);
       setPhase("generating");
       setFinalQuestions([]);
       setUsageInfo({ provider: input.provider, startTime: Date.now() });
-      submit(input);
+
+      // Fetch syllabus context and existing questions for dedup in parallel
+      const [syllabusContext, existingTexts] = await Promise.allSettled([
+        utils.syllabus.getTopicContent.fetch({
+          examId: input.examId,
+          topicTitle: input.topic,
+        }),
+        utils.question.getExistingForTopic.fetch({
+          examId: input.examId,
+          topic: input.topic,
+        }),
+      ]);
+
+      const enrichedInput: GenerateQuestionsInput = {
+        ...input,
+        syllabusContext:
+          syllabusContext.status === "fulfilled" && syllabusContext.value
+            ? syllabusContext.value
+            : undefined,
+        existingQuestionTexts:
+          existingTexts.status === "fulfilled" && existingTexts.value.length > 0
+            ? existingTexts.value
+            : undefined,
+      };
+
+      submit(enrichedInput);
     },
-    [submit],
+    [submit, utils],
   );
 
   const handleStop = useCallback(() => {
     stop();
     if (object?.questions && object.questions.length > 0) {
       setFinalQuestions(object.questions as GeneratedQuestion[]);
-      setUsageInfo((prev) =>
-        prev ? { ...prev, endTime: Date.now() } : null,
-      );
+      setUsageInfo((prev) => (prev ? { ...prev, endTime: Date.now() } : null));
       setPhase("results");
     } else {
       setPhase("form");
@@ -110,12 +131,8 @@ export function QuestionGenerator(): React.ReactElement {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          AI Question Generator
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Generate exam questions using AI providers
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">AI Question Generator</h1>
+        <p className="text-muted-foreground mt-1">Generate exam questions using AI providers</p>
       </div>
 
       {phase === "form" && (
@@ -129,10 +146,7 @@ export function QuestionGenerator(): React.ReactElement {
             />
           </div>
           <div>
-            <ProviderInfoPanel
-              provider={previewProvider}
-              count={previewCount}
-            />
+            <ProviderInfoPanel provider={previewProvider} count={previewCount} />
           </div>
         </div>
       )}
@@ -159,9 +173,7 @@ export function QuestionGenerator(): React.ReactElement {
             <CostSummary
               provider={usageInfo.provider}
               questionCount={finalQuestions.length}
-              durationMs={
-                (usageInfo.endTime ?? Date.now()) - usageInfo.startTime
-              }
+              durationMs={(usageInfo.endTime ?? Date.now()) - usageInfo.startTime}
             />
           )}
         </div>

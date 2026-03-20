@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, sql, ilike, gte } from "drizzle-orm";
 import {
   syllabi,
   syllabusNodes,
@@ -639,6 +639,142 @@ export const syllabusRouter = router({
         return rows;
       },
     ),
+
+  // ─── Get Topics for Exam (for autocomplete in generate form) ───
+  getTopicsForExam: protectedProcedure
+    .input(
+      z.object({
+        examId: z.string().uuid(),
+        search: z.string().max(200).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      // Find processed syllabi for this exam
+      const syllabusRows = await ctx.db
+        .select({ id: syllabi.id })
+        .from(syllabi)
+        .where(and(eq(syllabi.examId, input.examId), eq(syllabi.status, "processed")));
+
+      if (syllabusRows.length === 0) return [];
+
+      const syllabusIds = syllabusRows.map((r) => r.id);
+
+      const conditions = [
+        inArray(syllabusNodes.syllabusId, syllabusIds),
+        gte(syllabusNodes.depth, 2),
+      ];
+
+      if (input.search) {
+        conditions.push(ilike(syllabusNodes.title, `%${input.search}%`));
+      }
+
+      const nodes = await ctx.db
+        .select({
+          nodeId: syllabusNodes.id,
+          title: syllabusNodes.title,
+          depth: syllabusNodes.depth,
+          nodeType: syllabusNodes.nodeType,
+          parentId: syllabusNodes.parentId,
+          tutorialStatus: syllabusNodes.tutorialStatus,
+        })
+        .from(syllabusNodes)
+        .where(and(...conditions))
+        .orderBy(syllabusNodes.depth, syllabusNodes.sortOrder)
+        .limit(50);
+
+      // Batch-fetch parent titles
+      const parentIds = [...new Set(nodes.map((n) => n.parentId).filter(Boolean))] as number[];
+      const parentMap = new Map<number, string>();
+      if (parentIds.length > 0) {
+        const parents = await ctx.db
+          .select({ id: syllabusNodes.id, title: syllabusNodes.title })
+          .from(syllabusNodes)
+          .where(inArray(syllabusNodes.id, parentIds));
+        for (const p of parents) parentMap.set(p.id, p.title);
+      }
+
+      return nodes.map((n) => ({
+        nodeId: n.nodeId,
+        title: n.title,
+        depth: n.depth,
+        nodeType: n.nodeType,
+        parentTitle: n.parentId ? (parentMap.get(n.parentId) ?? null) : null,
+        hasTutorial:
+          n.tutorialStatus === "generated" ||
+          n.tutorialStatus === "approved" ||
+          n.tutorialStatus === "published",
+      }));
+    }),
+
+  // ─── Get Topic Content for Syllabus-Aware Generation ───
+  getTopicContent: protectedProcedure
+    .input(
+      z.object({
+        nodeId: z.number().int().positive().optional(),
+        examId: z.string().uuid().optional(),
+        topicTitle: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }): Promise<string | null> => {
+      let nodeId = input.nodeId;
+
+      // If no nodeId, try to find by examId + topicTitle
+      if (!nodeId && input.examId && input.topicTitle) {
+        const syllabusRows = await ctx.db
+          .select({ id: syllabi.id })
+          .from(syllabi)
+          .where(and(eq(syllabi.examId, input.examId), eq(syllabi.status, "processed")));
+
+        if (syllabusRows.length === 0) return null;
+
+        const [matchingNode] = await ctx.db
+          .select({ id: syllabusNodes.id })
+          .from(syllabusNodes)
+          .where(
+            and(
+              inArray(
+                syllabusNodes.syllabusId,
+                syllabusRows.map((r) => r.id),
+              ),
+              ilike(syllabusNodes.title, `%${input.topicTitle}%`),
+            ),
+          )
+          .limit(1);
+
+        if (!matchingNode) return null;
+        nodeId = matchingNode.id;
+      }
+
+      if (!nodeId) return null;
+
+      // Get node content
+      const [node] = await ctx.db
+        .select({
+          content: syllabusNodes.content,
+          description: syllabusNodes.description,
+        })
+        .from(syllabusNodes)
+        .where(eq(syllabusNodes.id, nodeId))
+        .limit(1);
+
+      // Get tutorial content if available
+      const [tutorial] = await ctx.db
+        .select({ contentText: tutorials.contentText })
+        .from(tutorials)
+        .where(and(eq(tutorials.syllabusNodeId, nodeId), eq(tutorials.isCurrent, true)))
+        .limit(1);
+
+      const parts: string[] = [];
+      if (node?.description) parts.push(node.description);
+      if (node?.content) parts.push(node.content);
+      if (tutorial?.contentText) parts.push(tutorial.contentText);
+
+      if (parts.length === 0) return null;
+
+      // Truncate to ~16000 chars to avoid exceeding token limits
+      const combined = parts.join("\n\n");
+      return combined.length > 16000 ? combined.substring(0, 16000) + "..." : combined;
+    }),
 
   // ─── Create Exam from Selected Nodes ───
   createExamFromNodes: protectedProcedure
