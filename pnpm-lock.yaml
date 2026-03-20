@@ -162,6 +162,9 @@ importers:
       '@ai-sdk/openai':
         specifier: ^3.0.41
         version: 3.0.41(zod@3.25.76)
+      '@ai-sdk/perplexity':
+        specifier: ^3.0.23
+        version: 3.0.23(zod@3.25.76)
       '@ai-sdk/react':
         specifier: ^3.0.118
         version: 3.0.118(react@19.2.4)(zod@3.25.76)
@@ -377,6 +380,12 @@ packages:
 
   '@ai-sdk/openai@3.0.41':
     resolution: {integrity: sha512-IZ42A+FO+vuEQCVNqlnAPYQnnUpUfdJIwn1BEDOBywiEHa23fw7PahxVtlX9zm3/zMvTW4JKPzWyvAgDu+SQ2A==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/perplexity@3.0.23':
+    resolution: {integrity: sha512-LyizJlT3rVJ9WgU7C8RqCf4/QuV/aZT/D3s77sa2M0FtzA9tX5VsWDBR3GN0eAKnXxbC3Lhp5PaNuvqQgoMDiw==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -5593,6 +5602,12 @@ snapshots:
       zod: 3.25.76
 
   '@ai-sdk/openai@3.0.41(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.19(zod@3.25.76)
+      zod: 3.25.76
+
+  '@ai-sdk/perplexity@3.0.23(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.19(zod@3.25.76)

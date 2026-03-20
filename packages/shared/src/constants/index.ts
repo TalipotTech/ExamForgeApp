@@ -80,6 +80,13 @@ export const AI_PROVIDER_INFO = {
     strengths: ["Very fast", "Lowest cost", "Large context"],
     avgTokensPerQuestion: 280,
   },
+  perplexity: {
+    name: "Sonar Pro (Perplexity)",
+    model: "sonar-pro",
+    description: "Web-backed answers with real-time search and current references",
+    strengths: ["Live web search", "Current data", "Source citations"],
+    avgTokensPerQuestion: 400,
+  },
 } as const;
 
 export const QUESTION_TYPE_LABELS = {

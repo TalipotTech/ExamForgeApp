@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { questionContentSchema } from "./question";
 
-export const aiProviderEnum = z.enum(["anthropic", "mistral", "openai", "google"]);
+export const aiProviderEnum = z.enum(["anthropic", "mistral", "openai", "google", "perplexity"]);
 
 export const generateQuestionsInputSchema = z.object({
   provider: aiProviderEnum,

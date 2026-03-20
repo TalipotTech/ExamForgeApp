@@ -6,11 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { AI_PROVIDER_INFO, AI_COST_PER_1K_TOKENS } from "@examforge/shared/constants";
 
 interface ProviderInfoPanelProps {
-  provider: "anthropic" | "mistral" | "openai" | "google";
+  provider: "anthropic" | "mistral" | "openai" | "google" | "perplexity";
   count: number;
 }
 
-type Provider = "anthropic" | "mistral" | "openai" | "google";
+type Provider = "anthropic" | "mistral" | "openai" | "google" | "perplexity";
 
 function estimateCost(
   provider: Provider,
