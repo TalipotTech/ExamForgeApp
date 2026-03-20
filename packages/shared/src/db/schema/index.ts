@@ -35,6 +35,7 @@ export { userCredits } from "./user-credits";
 export { userExams } from "./user-exams";
 export { userProgress } from "./user-progress";
 export { topicConversations } from "./topic-conversations";
+export { aiConversations } from "./ai-conversations";
 export { topicNotes } from "./topic-notes";
 export { topicNoteSummaries } from "./topic-note-summaries";
 

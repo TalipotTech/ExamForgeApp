@@ -26,7 +26,8 @@ export type AITask =
   | "extract_descriptive_questions"
   | "extract_examination_schedule"
   | "generate_tutorial_html"
-  | "topic_chat";
+  | "topic_chat"
+  | "general_chat";
 
 export type ProviderMapping = {
   primary: AiProvider;

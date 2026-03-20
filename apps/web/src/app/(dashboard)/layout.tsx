@@ -25,6 +25,7 @@ import {
   Home,
   Settings,
   StickyNote,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -72,6 +73,7 @@ const STUDENT_NAV: NavItem[] = [
   { href: "/dashboard/my-exams", label: "My Exams", icon: FileQuestion },
   { href: "/dashboard/notes", label: "My Notes", icon: StickyNote },
   { href: "/dashboard/topics", label: "My Topics", icon: BookMarked },
+  { href: "/dashboard/ai-chat", label: "AI Chat", icon: MessageSquare },
   { href: "/dashboard/profile", label: "Profile", icon: User },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];

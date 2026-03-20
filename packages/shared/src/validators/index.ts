@@ -269,3 +269,17 @@ export type {
 
 export { saveSelectedExamsSchema, getOnboardingStatusSchema } from "./onboarding";
 export type { SaveSelectedExams, GetOnboardingStatus } from "./onboarding";
+
+export {
+  aiChatProviderEnum,
+  sendAiChatMessageSchema,
+  listAiConversationsSchema,
+  getAiConversationSchema,
+  deleteAiConversationSchema,
+} from "./ai-chat";
+export type {
+  SendAiChatMessage,
+  ListAiConversations,
+  GetAiConversation,
+  DeleteAiConversation,
+} from "./ai-chat";

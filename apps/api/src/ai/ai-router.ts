@@ -157,6 +157,12 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     fallback: "openai",
     fallbackModel: "gpt-4o",
   },
+  general_chat: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
 };
 
 // ─── Provider → Default Model mapping ───
@@ -200,6 +206,7 @@ function taskToFeature(task: AITask): string {
     extract_examination_schedule: "scrape",
     generate_tutorial_html: "tutorial",
     topic_chat: "chat",
+    general_chat: "chat",
   };
   return map[task];
 }
