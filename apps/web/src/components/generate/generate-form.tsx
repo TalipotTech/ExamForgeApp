@@ -317,14 +317,14 @@ export function GenerateForm({
                             )}
                           </div>
                           <div className="flex w-full flex-wrap items-center gap-1.5 pl-6">
-                            {exam.category && (
+                            {exam.category ? (
                               <Badge
                                 variant="outline"
                                 className="border-blue-200 bg-blue-50 px-1.5 py-0 text-[10px] text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300"
                               >
-                                {exam.category}
+                                {String(exam.category)}
                               </Badge>
-                            )}
+                            ) : null}
                             {exam.questionCount != null && exam.questionCount > 0 && (
                               <Badge
                                 variant="outline"
@@ -333,11 +333,11 @@ export function GenerateForm({
                                 {exam.questionCount} Qs
                               </Badge>
                             )}
-                            {exam.conductingBody && (
+                            {exam.conductingBody ? (
                               <span className="text-muted-foreground max-w-[150px] truncate text-[10px]">
-                                {exam.conductingBody}
+                                {String(exam.conductingBody)}
                               </span>
-                            )}
+                            ) : null}
                           </div>
                         </CommandItem>
                       ))}
@@ -441,24 +441,24 @@ export function GenerateForm({
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="font-medium">{firstEntry.examName as string}</span>
-                    {firstEntry.categoryNumber && (
+                    {firstEntry.categoryNumber ? (
                       <Badge className="border-0 bg-purple-100 px-1.5 py-0 text-[10px] text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
                         <Hash className="mr-0.5 size-2.5" />
-                        Cat. {firstEntry.categoryNumber as string}
+                        Cat. {String(firstEntry.categoryNumber)}
                       </Badge>
-                    )}
-                    {firstEntry.examDate && (
+                    ) : null}
+                    {firstEntry.examDate ? (
                       <Badge className="border-0 bg-orange-100 px-1.5 py-0 text-[10px] text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
                         <Calendar className="mr-0.5 size-2.5" />
-                        {firstEntry.examDate as string}
+                        {String(firstEntry.examDate)}
                       </Badge>
-                    )}
-                    {firstEntry.department && (
+                    ) : null}
+                    {firstEntry.department ? (
                       <Badge className="border-0 bg-teal-100 px-1.5 py-0 text-[10px] text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
                         <Briefcase className="mr-0.5 size-2.5" />
-                        {firstEntry.department as string}
+                        {String(firstEntry.department)}
                       </Badge>
-                    )}
+                    ) : null}
                   </div>
                   {examDetails.examEntries.length > 1 && (
                     <div className="text-muted-foreground mt-1 text-[10px]">
@@ -892,7 +892,7 @@ function ExamFullDetailsDialog({
         <div className="space-y-4 text-sm">
           {/* Exam Info Grid */}
           <div className="grid grid-cols-2 gap-3 rounded-lg border bg-slate-50/50 p-3 dark:bg-slate-900/30">
-            {exam.category && (
+            {exam.category ? (
               <div className="flex items-center gap-2">
                 <FileText className="size-4 text-blue-500" />
                 <div>
@@ -901,60 +901,60 @@ function ExamFullDetailsDialog({
                     variant="outline"
                     className="border-blue-200 bg-blue-50 text-[11px] text-blue-700 dark:border-blue-800 dark:bg-blue-950/30"
                   >
-                    {exam.category as string}
+                    {String(exam.category)}
                   </Badge>
                 </div>
               </div>
-            )}
-            {exam.conductingBody && (
+            ) : null}
+            {exam.conductingBody ? (
               <div className="flex items-center gap-2">
                 <Building className="size-4 text-indigo-500" />
                 <div>
                   <div className="text-muted-foreground text-[10px]">Conducting Body</div>
                   <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">
-                    {exam.conductingBody as string}
+                    {String(exam.conductingBody)}
                   </span>
                 </div>
               </div>
-            )}
-            {exam.examDate && (
+            ) : null}
+            {exam.examDate ? (
               <div className="flex items-center gap-2">
                 <Calendar className="size-4 text-orange-500" />
                 <div>
                   <div className="text-muted-foreground text-[10px]">Exam Date</div>
                   <span className="text-xs font-medium text-orange-700 dark:text-orange-300">
-                    {new Date(exam.examDate as string).toLocaleDateString()}
+                    {new Date(String(exam.examDate)).toLocaleDateString()}
                   </span>
                 </div>
               </div>
-            )}
-            {exam.status && (
+            ) : null}
+            {exam.status ? (
               <div className="flex items-center gap-2">
                 <Info className="size-4 text-slate-500" />
                 <div>
                   <div className="text-muted-foreground text-[10px]">Status</div>
                   <Badge variant="outline" className="text-[11px]">
-                    {exam.status as string}
+                    {String(exam.status)}
                   </Badge>
                 </div>
               </div>
-            )}
-            {exam.discoverySource && (
+            ) : null}
+            {exam.discoverySource ? (
               <div className="flex items-center gap-2">
                 <Globe className="size-4 text-teal-500" />
                 <div>
                   <div className="text-muted-foreground text-[10px]">Source</div>
-                  <span className="text-xs font-medium">{exam.discoverySource as string}</span>
+                  <span className="text-xs font-medium">{String(exam.discoverySource)}</span>
                 </div>
               </div>
-            )}
-            {exam.officialUrl && (
+            ) : null}
+            {exam.officialUrl ? (
               <div className="flex items-center gap-2">
                 <ExternalLink className="size-4 text-cyan-500" />
                 <div>
                   <div className="text-muted-foreground text-[10px]">Official URL</div>
                   <a
-                    href={exam.officialUrl as string}
+                    href={String(exam.officialUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
@@ -963,7 +963,7 @@ function ExamFullDetailsDialog({
                   </a>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Examination Entries from Portal */}
@@ -981,35 +981,35 @@ function ExamFullDetailsDialog({
                   >
                     <div className="mb-1.5 text-sm font-medium">{entry.examName as string}</div>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {entry.categoryNumber && (
+                      {entry.categoryNumber ? (
                         <Badge className="border-0 bg-purple-100 px-1.5 py-0 text-[10px] text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
                           <Hash className="mr-0.5 size-2.5" />
-                          Cat. {entry.categoryNumber as string}
+                          Cat. {String(entry.categoryNumber)}
                         </Badge>
-                      )}
-                      {entry.examDate && (
+                      ) : null}
+                      {entry.examDate ? (
                         <Badge className="border-0 bg-orange-100 px-1.5 py-0 text-[10px] text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
                           <Calendar className="mr-0.5 size-2.5" />
-                          {entry.examDate as string}
+                          {String(entry.examDate)}
                         </Badge>
-                      )}
-                      {entry.department && (
+                      ) : null}
+                      {entry.department ? (
                         <Badge className="border-0 bg-teal-100 px-1.5 py-0 text-[10px] text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
                           <Briefcase className="mr-0.5 size-2.5" />
-                          {entry.department as string}
+                          {String(entry.department)}
                         </Badge>
-                      )}
-                      {entry.venue && (
+                      ) : null}
+                      {entry.venue ? (
                         <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-                          {entry.venue as string}
+                          {String(entry.venue)}
                         </Badge>
-                      )}
-                      {entry.syllabusUrl && (
+                      ) : null}
+                      {entry.syllabusUrl ? (
                         <Badge className="border-0 bg-emerald-100 px-1.5 py-0 text-[10px] text-emerald-700 dark:bg-emerald-900/40">
                           <BookOpen className="mr-0.5 size-2.5" />
                           Has Syllabus Link
                         </Badge>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 ))}

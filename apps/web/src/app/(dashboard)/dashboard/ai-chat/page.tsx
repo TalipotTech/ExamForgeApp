@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { Suspense, useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,7 @@ const PROVIDER_BADGE_COLORS: Record<string, string> = {
   perplexity: "bg-cyan-100 text-cyan-700 border-cyan-200",
 };
 
-export default function AiChatPage(): React.ReactElement {
+function AiChatPageInner(): React.ReactElement {
   const router = useRouter();
   const searchParams = useSearchParams();
   const conversationParam = searchParams.get("conversation");
@@ -403,5 +403,13 @@ export default function AiChatPage(): React.ReactElement {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AiChatPage(): React.ReactElement {
+  return (
+    <Suspense fallback={<div />}>
+      <AiChatPageInner />
+    </Suspense>
   );
 }
