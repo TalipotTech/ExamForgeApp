@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { questionContentSchema } from "./question";
 
+export const aiProviderEnum = z.enum(["anthropic", "mistral", "openai", "google"]);
+
 export const generateQuestionsInputSchema = z.object({
-  provider: z.enum(["anthropic", "mistral"]),
+  provider: aiProviderEnum,
   examId: z.string().uuid(),
   subject: z.string().min(1),
   topic: z.string().min(1),
@@ -10,6 +12,8 @@ export const generateQuestionsInputSchema = z.object({
   difficulty: z.enum(["easy", "medium", "hard"]),
   questionType: z.enum(["mcq", "true_false", "fill_blank", "match", "assertion"]),
   customPrompt: z.string().optional(),
+  syllabusContext: z.string().optional(),
+  existingQuestionTexts: z.array(z.string()).max(100).optional(),
 });
 
 export const generatedQuestionSchema = z.object({

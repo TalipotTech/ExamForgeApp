@@ -6,27 +6,15 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Play } from "lucide-react";
+import { Play, Search } from "lucide-react";
+import { ExamCombobox } from "@/components/exam/exam-combobox";
+import { BrowseExamsDialog } from "@/components/exam/browse-exams-dialog";
 
 export default function ExamStartPage(): React.ReactElement {
   const router = useRouter();
-  const { data: filters, isLoading: filtersLoading } =
-    trpc.question.filters.useQuery();
+  const { data: examList, isLoading: examsLoading } = trpc.exam.listForUser.useQuery();
 
   const startMutation = trpc.examSession.start.useMutation({
     onSuccess: (data) => {
@@ -39,9 +27,8 @@ export default function ExamStartPage(): React.ReactElement {
 
   const [examId, setExamId] = useState("");
   const [totalQuestions, setTotalQuestions] = useState(10);
-  const [durationMinutes, setDurationMinutes] = useState<number | undefined>(
-    undefined,
-  );
+  const [durationMinutes, setDurationMinutes] = useState<number | undefined>(undefined);
+  const [browseOpen, setBrowseOpen] = useState(false);
 
   function handleStart(e: React.FormEvent): void {
     e.preventDefault();
@@ -60,38 +47,37 @@ export default function ExamStartPage(): React.ReactElement {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Start an Exam</h1>
-        <p className="text-muted-foreground">
-          Configure and begin a practice exam session.
-        </p>
+        <p className="text-muted-foreground">Configure and begin a practice exam session.</p>
       </div>
 
       <Card className="max-w-lg">
         <CardHeader>
           <CardTitle>Exam Configuration</CardTitle>
-          <CardDescription>
-            Select your exam and set the number of questions.
-          </CardDescription>
+          <CardDescription>Select your exam and set the number of questions.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleStart} className="flex flex-col gap-5">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="exam">Exam</Label>
-              <Select value={examId} onValueChange={setExamId}>
-                <SelectTrigger id="exam">
-                  <SelectValue
-                    placeholder={
-                      filtersLoading ? "Loading exams..." : "Select an exam"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {filters?.exams.map((exam) => (
-                    <SelectItem key={exam.id} value={exam.id}>
-                      {exam.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="exam">Exam</Label>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs"
+                  onClick={() => setBrowseOpen(true)}
+                >
+                  <Search className="mr-1 size-3" />
+                  Browse more exams
+                </Button>
+              </div>
+              <ExamCombobox
+                exams={examList ?? []}
+                value={examId}
+                onValueChange={setExamId}
+                isLoading={examsLoading}
+                placeholder="Search and select an exam..."
+              />
             </div>
 
             <div className="flex flex-col gap-2">
@@ -104,15 +90,12 @@ export default function ExamStartPage(): React.ReactElement {
                 value={totalQuestions}
                 onChange={(e) => setTotalQuestions(Number(e.target.value))}
               />
-              <p className="text-xs text-muted-foreground">
-                Between 1 and 200 questions
-              </p>
+              <p className="text-muted-foreground text-xs">Between 1 and 200 questions</p>
             </div>
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="duration">
-                Time Limit (minutes){" "}
-                <span className="text-muted-foreground">(optional)</span>
+                Time Limit (minutes) <span className="text-muted-foreground">(optional)</span>
               </Label>
               <Input
                 id="duration"
@@ -122,24 +105,20 @@ export default function ExamStartPage(): React.ReactElement {
                 placeholder="Auto: 1.5 min per question"
                 value={durationMinutes ?? ""}
                 onChange={(e) =>
-                  setDurationMinutes(
-                    e.target.value ? Number(e.target.value) : undefined,
-                  )
+                  setDurationMinutes(e.target.value ? Number(e.target.value) : undefined)
                 }
               />
             </div>
 
-            <Button
-              type="submit"
-              disabled={startMutation.isPending || !examId}
-              className="w-full"
-            >
+            <Button type="submit" disabled={startMutation.isPending || !examId} className="w-full">
               <Play className="size-4" />
               {startMutation.isPending ? "Starting..." : "Start Exam"}
             </Button>
           </form>
         </CardContent>
       </Card>
+
+      <BrowseExamsDialog open={browseOpen} onOpenChange={setBrowseOpen} />
     </div>
   );
 }

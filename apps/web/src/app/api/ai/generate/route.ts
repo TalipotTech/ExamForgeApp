@@ -1,20 +1,27 @@
-import { streamText, Output } from "ai";
+import { streamText, Output, type LanguageModel } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { mistral } from "@ai-sdk/mistral";
+import { openai } from "@ai-sdk/openai";
+import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import { generateQuestionsInputSchema } from "@examforge/shared/validators";
-import {
-  AI_PROVIDER_INFO,
-  QUESTION_TYPE_LABELS,
-} from "@examforge/shared/constants";
+import { AI_PROVIDER_INFO, QUESTION_TYPE_LABELS } from "@examforge/shared/constants";
 import { questionOutputSchema } from "@/lib/ai-schemas";
 
-function getModel(provider: "anthropic" | "mistral") {
+type Provider = "anthropic" | "mistral" | "openai" | "google";
+
+function getModel(provider: Provider): LanguageModel {
   const info = AI_PROVIDER_INFO[provider];
-  if (provider === "anthropic") {
-    return anthropic(info.model);
+  switch (provider) {
+    case "anthropic":
+      return anthropic(info.model);
+    case "mistral":
+      return mistral(info.model);
+    case "openai":
+      return openai(info.model);
+    case "google":
+      return google(info.model);
   }
-  return mistral(info.model);
 }
 
 function buildPrompt(input: z.infer<typeof generateQuestionsInputSchema>): string {
@@ -28,7 +35,17 @@ function buildPrompt(input: z.infer<typeof generateQuestionsInputSchema>): strin
     assertion: `Each question must have "assertion", "reason", and "answer" which is one of: "both_true_reason_correct", "both_true_reason_incorrect", "assertion_true_reason_false", "both_false".`,
   };
 
-  const base = `You are an expert exam question generator for Indian competitive exams.
+  const parts: string[] = [];
+
+  if (input.syllabusContext) {
+    parts.push(`=== STUDY MATERIAL CONTEXT (PRIMARY SOURCE) ===
+The following is the official study material for this topic. Base your questions primarily on this content. Prefer facts, definitions, and concepts from this material over your general knowledge:
+
+${input.syllabusContext}
+=== END STUDY MATERIAL ===`);
+  }
+
+  parts.push(`You are an expert exam question generator for Indian competitive exams.
 
 Generate exactly ${input.count} ${typeLabel} questions for the following:
 - Subject: ${input.subject}
@@ -47,13 +64,21 @@ Requirements:
 - Questions must be factually accurate and exam-appropriate
 - Explanations should be educational and reference key concepts
 - Avoid duplicate or near-duplicate questions
-- Difficulty should match: easy (recall), medium (application), hard (analysis/synthesis)`;
+- Difficulty should match: easy (recall), medium (application), hard (analysis/synthesis)`);
 
-  if (input.customPrompt) {
-    return `${base}\n\nAdditional instructions from user:\n${input.customPrompt}`;
+  if (input.existingQuestionTexts && input.existingQuestionTexts.length > 0) {
+    const existing = input.existingQuestionTexts.slice(0, 50).join("\n- ");
+    parts.push(`\n=== EXISTING QUESTIONS (DO NOT DUPLICATE) ===
+The following questions already exist for this topic. Generate completely different questions that do NOT overlap with or paraphrase these:
+- ${existing}
+=== END EXISTING QUESTIONS ===`);
   }
 
-  return base;
+  if (input.customPrompt) {
+    parts.push(`\nAdditional instructions from user:\n${input.customPrompt}`);
+  }
+
+  return parts.join("\n\n");
 }
 
 export const maxDuration = 60;

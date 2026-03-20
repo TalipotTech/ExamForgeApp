@@ -16,9 +16,11 @@ const listInputSchema = z.object({
 });
 
 export const questionRouter = router({
-  list: publicProcedure
-    .input(listInputSchema)
-    .query(async ({ ctx, input }): Promise<{
+  list: publicProcedure.input(listInputSchema).query(
+    async ({
+      ctx,
+      input,
+    }): Promise<{
       items: Array<{
         id: string;
         examId: string;
@@ -58,7 +60,7 @@ export const questionRouter = router({
       }
       if (search) {
         conditions.push(
-          sql`(${questions.content}->>'question' ILIKE ${`%${search}%`} OR ${questions.subject} ILIKE ${`%${search}%`})`
+          sql`(${questions.content}->>'question' ILIKE ${`%${search}%`} OR ${questions.subject} ILIKE ${`%${search}%`})`,
         );
       }
 
@@ -100,7 +102,8 @@ export const questionRouter = router({
         page,
         totalPages: Math.ceil(total / limit),
       };
-    }),
+    },
+  ),
 
   delete: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
@@ -134,8 +137,37 @@ export const questionRouter = router({
       return { success: true, count: inserted.length };
     }),
 
-  filters: publicProcedure
-    .query(async ({ ctx }): Promise<{
+  /** Get existing question texts for dedup during generation */
+  getExistingForTopic: protectedProcedure
+    .input(
+      z.object({
+        examId: z.string().uuid(),
+        topic: z.string().min(1),
+      }),
+    )
+    .query(async ({ ctx, input }): Promise<string[]> => {
+      const rows = await ctx.db
+        .select({
+          content: questions.content,
+        })
+        .from(questions)
+        .where(and(eq(questions.examId, input.examId), ilike(questions.topic, `%${input.topic}%`)))
+        .orderBy(sql`${questions.createdAt} DESC`)
+        .limit(50);
+
+      return rows
+        .map((r) => {
+          const c = r.content as Record<string, unknown>;
+          const text = (c.question as string) ?? "";
+          return text.length > 150 ? text.substring(0, 150) + "..." : text;
+        })
+        .filter((t) => t.length > 0);
+    }),
+
+  filters: publicProcedure.query(
+    async ({
+      ctx,
+    }): Promise<{
       subjects: string[];
       sources: string[];
       exams: Array<{ id: string; name: string }>;
@@ -161,5 +193,6 @@ export const questionRouter = router({
         sources: sourceRows.map((r) => r.source).filter((s): s is string => s !== null),
         exams: examRows,
       };
-    }),
+    },
+  ),
 });

@@ -153,9 +153,15 @@ importers:
       '@ai-sdk/anthropic':
         specifier: ^3.0.58
         version: 3.0.58(zod@3.25.76)
+      '@ai-sdk/google':
+        specifier: ^3.0.43
+        version: 3.0.43(zod@3.25.76)
       '@ai-sdk/mistral':
         specifier: ^3.0.24
         version: 3.0.24(zod@3.25.76)
+      '@ai-sdk/openai':
+        specifier: ^3.0.41
+        version: 3.0.41(zod@3.25.76)
       '@ai-sdk/react':
         specifier: ^3.0.118
         version: 3.0.118(react@19.2.4)(zod@3.25.76)

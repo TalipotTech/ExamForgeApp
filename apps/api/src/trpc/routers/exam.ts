@@ -1,13 +1,23 @@
 import { z } from "zod";
-import { eq, and, desc, asc, ilike, or, gt, count } from "drizzle-orm";
-import { exams, examNotifications, questions, discoveryRuns } from "@examforge/shared/db/schema";
+import { eq, and, desc, asc, ilike, or, gt, count, sql, notInArray } from "drizzle-orm";
+import {
+  exams,
+  examNotifications,
+  questions,
+  discoveryRuns,
+  userExams,
+  subscriptionPlans,
+  userSubscriptions,
+} from "@examforge/shared/db/schema";
 import {
   examListingFilterSchema,
   updateExamAdminSchema,
   runDiscoveryInputSchema,
 } from "@examforge/shared/validators";
-import { router, publicProcedure, adminProcedure } from "../trpc.js";
+import { router, publicProcedure, protectedProcedure, adminProcedure } from "../trpc.js";
 import { runExamDiscovery } from "../../workers/discovery-agent.js";
+
+const FREE_TIER_MAX_EXAMS = 3;
 
 export const examRouter = router({
   /** Public: paginated, filterable exam listing */
@@ -306,6 +316,146 @@ export const examRouter = router({
         .where(whereClause)
         .orderBy(desc(examNotifications.detectedAt))
         .limit(limit);
+    }),
+
+  /** Protected: list exams for the current user (role-aware) with metadata */
+  listForUser: protectedProcedure
+    .input(z.object({ search: z.string().max(200).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const isAdmin = ctx.userRole === "admin" || ctx.userRole === "superadmin";
+      const search = input?.search;
+
+      const hasSyllabusSubquery = sql<boolean>`EXISTS (
+        SELECT 1 FROM syllabi WHERE syllabi.exam_id = ${exams.id} AND syllabi.status = 'processed'
+      )`.as("has_syllabus");
+
+      const baseSelect = {
+        id: exams.id,
+        name: exams.name,
+        category: exams.category,
+        conductingBody: exams.conductingBody,
+        examDate: exams.examDate,
+        questionCount: exams.questionCount,
+        subjects: exams.subjects,
+        status: exams.status,
+        officialUrl: exams.officialUrl,
+        hasSyllabus: hasSyllabusSubquery,
+      };
+
+      const conditions = [eq(exams.isActive, true)];
+      if (search) {
+        const pattern = `%${search}%`;
+        conditions.push(
+          or(
+            ilike(exams.name, pattern),
+            ilike(exams.conductingBody, pattern),
+            ilike(exams.category, pattern),
+          )!,
+        );
+      }
+
+      if (isAdmin) {
+        return ctx.db
+          .select(baseSelect)
+          .from(exams)
+          .where(and(...conditions))
+          .orderBy(asc(exams.name));
+      }
+
+      // Regular user: only exams they've opted into
+      return ctx.db
+        .select(baseSelect)
+        .from(exams)
+        .innerJoin(
+          userExams,
+          and(
+            eq(userExams.examId, exams.id),
+            eq(userExams.userId, ctx.userId),
+            eq(userExams.isActive, true),
+          ),
+        )
+        .where(and(...conditions))
+        .orderBy(asc(exams.name));
+    }),
+
+  /** Protected: browse exams not yet opted into, with plan limit info */
+  listBrowsable: protectedProcedure
+    .input(
+      z
+        .object({
+          search: z.string().max(200).optional(),
+          category: z.string().max(100).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const search = input?.search;
+      const category = input?.category;
+
+      // Get user's current exam IDs
+      const userExamRows = await ctx.db
+        .select({ examId: userExams.examId })
+        .from(userExams)
+        .where(and(eq(userExams.userId, ctx.userId), eq(userExams.isActive, true)));
+
+      const userExamIds = userExamRows.map((r) => r.examId);
+      const userExamCount = userExamIds.length;
+
+      // Get plan limits
+      const [subscription] = await ctx.db
+        .select({
+          planName: subscriptionPlans.displayName,
+          maxExams: subscriptionPlans.maxExams,
+        })
+        .from(userSubscriptions)
+        .innerJoin(subscriptionPlans, eq(subscriptionPlans.id, userSubscriptions.planId))
+        .where(
+          and(eq(userSubscriptions.userId, ctx.userId), eq(userSubscriptions.status, "active")),
+        )
+        .limit(1);
+
+      const maxExams = subscription?.maxExams ?? FREE_TIER_MAX_EXAMS;
+      const planName = subscription?.planName ?? "Free";
+
+      const hasSyllabusSubquery = sql<boolean>`EXISTS (
+        SELECT 1 FROM syllabi WHERE syllabi.exam_id = ${exams.id} AND syllabi.status = 'processed'
+      )`.as("has_syllabus");
+
+      const conditions = [eq(exams.isActive, true)];
+      if (userExamIds.length > 0) {
+        conditions.push(notInArray(exams.id, userExamIds));
+      }
+      if (search) {
+        const pattern = `%${search}%`;
+        conditions.push(or(ilike(exams.name, pattern), ilike(exams.conductingBody, pattern))!);
+      }
+      if (category) {
+        conditions.push(eq(exams.category, category));
+      }
+
+      const examRows = await ctx.db
+        .select({
+          id: exams.id,
+          name: exams.name,
+          category: exams.category,
+          conductingBody: exams.conductingBody,
+          examDate: exams.examDate,
+          questionCount: exams.questionCount,
+          subjects: exams.subjects,
+          status: exams.status,
+          officialUrl: exams.officialUrl,
+          hasSyllabus: hasSyllabusSubquery,
+        })
+        .from(exams)
+        .where(and(...conditions))
+        .orderBy(asc(exams.name));
+
+      return {
+        exams: examRows,
+        userExamCount,
+        maxExams,
+        planName,
+      };
     }),
 
   /** Admin: approve a discovered exam (draft → upcoming/active) */
