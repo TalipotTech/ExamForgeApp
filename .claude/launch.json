@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "pnpm --filter @examforge/web exec next dev"],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}
