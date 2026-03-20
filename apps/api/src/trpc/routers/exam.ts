@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc, asc, ilike, or, gt, count, sql, notInArray } from "drizzle-orm";
+import { eq, and, desc, asc, ilike, or, gt, count, notInArray } from "drizzle-orm";
 import {
   exams,
   examNotifications,
@@ -326,10 +326,6 @@ export const examRouter = router({
       const isAdmin = ctx.userRole === "admin" || ctx.userRole === "superadmin";
       const search = input?.search;
 
-      const hasSyllabusSubquery = sql<boolean>`EXISTS (
-        SELECT 1 FROM ${syllabi} WHERE ${syllabi.examId} = ${exams.id} AND ${syllabi.status} = 'processed'
-      )`.as("has_syllabus");
-
       const baseSelect = {
         id: exams.id,
         name: exams.name,
@@ -340,7 +336,6 @@ export const examRouter = router({
         subjects: exams.subjects,
         status: exams.status,
         officialUrl: exams.officialUrl,
-        hasSyllabus: hasSyllabusSubquery,
       };
 
       const conditions = [eq(exams.isActive, true)];
@@ -355,28 +350,46 @@ export const examRouter = router({
         );
       }
 
+      let examRows;
       if (isAdmin) {
-        return ctx.db
+        examRows = await ctx.db
           .select(baseSelect)
           .from(exams)
           .where(and(...conditions))
           .orderBy(asc(exams.name));
+      } else {
+        // Regular user: only exams they've opted into
+        examRows = await ctx.db
+          .select(baseSelect)
+          .from(exams)
+          .innerJoin(
+            userExams,
+            and(
+              eq(userExams.examId, exams.id),
+              eq(userExams.userId, ctx.userId),
+              eq(userExams.isActive, true),
+            ),
+          )
+          .where(and(...conditions))
+          .orderBy(asc(exams.name));
       }
 
-      // Regular user: only exams they've opted into
-      return ctx.db
-        .select(baseSelect)
-        .from(exams)
-        .innerJoin(
-          userExams,
-          and(
-            eq(userExams.examId, exams.id),
-            eq(userExams.userId, ctx.userId),
-            eq(userExams.isActive, true),
-          ),
-        )
-        .where(and(...conditions))
-        .orderBy(asc(exams.name));
+      // Batch-check syllabus availability separately to avoid type issues
+      let syllabusExamIds: Set<string> = new Set();
+      try {
+        const syllabusRows = await ctx.db
+          .select({ examId: syllabi.examId })
+          .from(syllabi)
+          .where(eq(syllabi.status, "processed"));
+        syllabusExamIds = new Set(syllabusRows.map((r) => r.examId));
+      } catch {
+        // syllabi table may not exist yet
+      }
+
+      return examRows.map((e) => ({
+        ...e,
+        hasSyllabus: syllabusExamIds.has(e.id),
+      }));
     }),
 
   /** Protected: browse exams not yet opted into, with plan limit info */
@@ -418,10 +431,6 @@ export const examRouter = router({
       const maxExams = subscription?.maxExams ?? FREE_TIER_MAX_EXAMS;
       const planName = subscription?.planName ?? "Free";
 
-      const hasSyllabusSubquery = sql<boolean>`EXISTS (
-        SELECT 1 FROM ${syllabi} WHERE ${syllabi.examId} = ${exams.id} AND ${syllabi.status} = 'processed'
-      )`.as("has_syllabus");
-
       const conditions = [eq(exams.isActive, true)];
       if (userExamIds.length > 0) {
         conditions.push(notInArray(exams.id, userExamIds));
@@ -445,14 +454,25 @@ export const examRouter = router({
           subjects: exams.subjects,
           status: exams.status,
           officialUrl: exams.officialUrl,
-          hasSyllabus: hasSyllabusSubquery,
         })
         .from(exams)
         .where(and(...conditions))
         .orderBy(asc(exams.name));
 
+      // Batch-check syllabus availability separately
+      let syllabusExamIds: Set<string> = new Set();
+      try {
+        const syllabusRows = await ctx.db
+          .select({ examId: syllabi.examId })
+          .from(syllabi)
+          .where(eq(syllabi.status, "processed"));
+        syllabusExamIds = new Set(syllabusRows.map((r) => r.examId));
+      } catch {
+        // syllabi table may not exist yet
+      }
+
       return {
-        exams: examRows,
+        exams: examRows.map((e) => ({ ...e, hasSyllabus: syllabusExamIds.has(e.id) })),
         userExamCount,
         maxExams,
         planName,
