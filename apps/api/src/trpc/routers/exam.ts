@@ -6,6 +6,7 @@ import {
   questions,
   discoveryRuns,
   userExams,
+  syllabi,
   subscriptionPlans,
   userSubscriptions,
 } from "@examforge/shared/db/schema";
@@ -326,7 +327,7 @@ export const examRouter = router({
       const search = input?.search;
 
       const hasSyllabusSubquery = sql<boolean>`EXISTS (
-        SELECT 1 FROM syllabi WHERE syllabi.exam_id = ${exams.id} AND syllabi.status = 'processed'
+        SELECT 1 FROM ${syllabi} WHERE ${syllabi.examId} = ${exams.id} AND ${syllabi.status} = 'processed'
       )`.as("has_syllabus");
 
       const baseSelect = {
@@ -418,7 +419,7 @@ export const examRouter = router({
       const planName = subscription?.planName ?? "Free";
 
       const hasSyllabusSubquery = sql<boolean>`EXISTS (
-        SELECT 1 FROM syllabi WHERE syllabi.exam_id = ${exams.id} AND syllabi.status = 'processed'
+        SELECT 1 FROM ${syllabi} WHERE ${syllabi.examId} = ${exams.id} AND ${syllabi.status} = 'processed'
       )`.as("has_syllabus");
 
       const conditions = [eq(exams.isActive, true)];
