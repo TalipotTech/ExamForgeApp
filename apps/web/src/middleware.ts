@@ -88,6 +88,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(new URL(getDefaultRoute(role, onboardingCompleted), request.url));
   }
 
+  // Admin users: redirect /dashboard to /admin (admin has its own dashboard)
+  if (ADMIN_ROLES.includes(role) && pathname === "/dashboard") {
+    return NextResponse.redirect(new URL("/admin", request.url));
+  }
+
   // Admin-only routes: redirect non-admins to their default page
   if (isAdminOnlyPath(pathname) && !ADMIN_ROLES.includes(role)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));

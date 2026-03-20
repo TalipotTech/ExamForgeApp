@@ -8,7 +8,6 @@ import { UserMenu } from "@/components/user-menu";
 import { VerificationBanner } from "@/components/verification-banner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
-  Shield,
   BookOpen,
   Sparkles,
   Play,
@@ -39,6 +38,7 @@ interface NavItem {
 }
 
 const ADMIN_NAV: NavItem[] = [
+  { href: "/admin", label: "Dashboard", icon: Home, adminOnly: true },
   { href: "/questions", label: "Question Bank", icon: BookOpen, adminOnly: true },
   { href: "/generate", label: "Generate", icon: Sparkles, adminOnly: true },
   { href: "/exams/start", label: "Start Exam", icon: Play, adminOnly: true },
@@ -66,6 +66,7 @@ const STUDENT_NAV: NavItem[] = [
 function isLinkActive(pathname: string, href: string): boolean {
   if (href === "/exams/start") return pathname === "/exams/start";
   if (href === "/dashboard") return pathname === "/dashboard";
+  if (href === "/admin") return pathname === "/admin";
   return pathname.startsWith(href);
 }
 
@@ -116,19 +117,6 @@ export default function DashboardLayout({
                 </Link>
               );
             })}
-            {isAdmin && (
-              <Link
-                href={"/admin" as "/"}
-                className={`flex items-center gap-1.5 transition-colors ${
-                  pathname.startsWith("/admin")
-                    ? "text-foreground font-medium"
-                    : "text-foreground/60 hover:text-foreground"
-                }`}
-              >
-                <Shield className="size-3.5" />
-                Admin
-              </Link>
-            )}
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
@@ -165,23 +153,6 @@ export default function DashboardLayout({
                       </Link>
                     );
                   })}
-                  {isAdmin && (
-                    <>
-                      <div className="my-2 border-t" />
-                      <Link
-                        href={"/admin" as "/"}
-                        onClick={() => setMobileOpen(false)}
-                        className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
-                          pathname.startsWith("/admin")
-                            ? "bg-accent text-accent-foreground font-medium"
-                            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                        }`}
-                      >
-                        <Shield className="size-4" />
-                        Admin Panel
-                      </Link>
-                    </>
-                  )}
                 </nav>
               </SheetContent>
             </Sheet>
