@@ -88,16 +88,70 @@ The following questions already exist for this topic. Generate completely differ
 export const maxDuration = 60;
 
 export async function POST(req: Request): Promise<Response> {
-  const body = await req.json();
-  const input = generateQuestionsInputSchema.parse(body);
-  const model = getModel(input.provider);
+  try {
+    const body = await req.json();
+    const input = generateQuestionsInputSchema.parse(body);
+    const model = getModel(input.provider);
 
-  const result = streamText({
-    model,
-    output: Output.object({ schema: questionOutputSchema }),
-    prompt: buildPrompt(input),
-    maxRetries: 3,
-  });
+    const result = streamText({
+      model,
+      output: Output.object({ schema: questionOutputSchema }),
+      prompt: buildPrompt(input),
+      maxRetries: 3,
+    });
 
-  return result.toTextStreamResponse();
+    return result.toTextStreamResponse();
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    // Detect quota/rate limit errors
+    if (
+      message.includes("quota") ||
+      message.includes("rate") ||
+      message.includes("429") ||
+      message.includes("RESOURCE_EXHAUSTED")
+    ) {
+      return new Response(
+        JSON.stringify({
+          error: "QUOTA_EXCEEDED",
+          message: `Provider quota exceeded. Please try a different provider or check your billing. Details: ${message.slice(0, 200)}`,
+        }),
+        { status: 429, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    // Detect invalid API key errors
+    if (
+      message.includes("401") ||
+      message.includes("authentication") ||
+      message.includes("API key")
+    ) {
+      return new Response(
+        JSON.stringify({
+          error: "AUTH_ERROR",
+          message: `Provider authentication failed. Check your API key configuration.`,
+        }),
+        { status: 401, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    // Zod validation errors
+    if (message.includes("ZodError") || message.includes("invalid_type")) {
+      return new Response(
+        JSON.stringify({
+          error: "VALIDATION_ERROR",
+          message: `Invalid input: ${message.slice(0, 300)}`,
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        error: "GENERATION_ERROR",
+        message: `Question generation failed: ${message.slice(0, 300)}`,
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
 }

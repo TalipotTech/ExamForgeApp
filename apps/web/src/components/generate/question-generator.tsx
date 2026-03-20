@@ -40,7 +40,20 @@ export function QuestionGenerator(): React.ReactElement {
       }
     },
     onError: (err) => {
-      toast.error(`Generation failed: ${err.message}`);
+      const msg = err.message ?? String(err);
+      if (msg.includes("quota") || msg.includes("429") || msg.includes("QUOTA_EXCEEDED")) {
+        toast.error(
+          "Provider quota exceeded. Please try a different AI provider or check your billing.",
+          { duration: 8000 },
+        );
+      } else if (msg.includes("401") || msg.includes("AUTH_ERROR") || msg.includes("API key")) {
+        toast.error(
+          "Provider authentication failed. Check the API key configuration for this provider.",
+          { duration: 8000 },
+        );
+      } else {
+        toast.error(`Generation failed: ${msg.slice(0, 200)}`);
+      }
       setPhase("form");
     },
   });
