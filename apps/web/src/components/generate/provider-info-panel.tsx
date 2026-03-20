@@ -17,7 +17,13 @@ function estimateCost(
   count: number,
 ): { inputCost: number; outputCost: number; total: number } {
   const info = AI_PROVIDER_INFO[provider];
-  const costs = AI_COST_PER_1K_TOKENS[info.model];
+  if (!info) {
+    return { inputCost: 0, outputCost: 0, total: 0 };
+  }
+  const costs = AI_COST_PER_1K_TOKENS[info.model as keyof typeof AI_COST_PER_1K_TOKENS];
+  if (!costs) {
+    return { inputCost: 0, outputCost: 0, total: 0 };
+  }
 
   const estimatedInputTokens = 500;
   const estimatedOutputTokens = info.avgTokensPerQuestion * count;
@@ -34,6 +40,15 @@ function estimateCost(
 
 export function ProviderInfoPanel({ provider, count }: ProviderInfoPanelProps): React.ReactElement {
   const info = AI_PROVIDER_INFO[provider];
+  if (!info) {
+    return (
+      <Card>
+        <CardContent className="py-6">
+          <p className="text-muted-foreground text-sm">Unknown provider: {provider}</p>
+        </CardContent>
+      </Card>
+    );
+  }
   const cost = estimateCost(provider, count);
 
   return (
