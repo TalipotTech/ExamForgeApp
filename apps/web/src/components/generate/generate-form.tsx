@@ -174,7 +174,7 @@ export function GenerateForm({
       provider,
       examId: examId || undefined,
       examName: examName || undefined,
-      subject,
+      subject: subject || undefined,
       topic: topicNodeName || topic,
       count,
       difficulty,
@@ -187,7 +187,7 @@ export function GenerateForm({
     });
   };
 
-  const isValid = examId && subject && (topic.trim() || topicNodeName);
+  const isValid = examId && (topic.trim() || topicNodeName);
 
   return (
     <Card>

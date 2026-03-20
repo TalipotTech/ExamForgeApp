@@ -49,10 +49,10 @@ ${input.syllabusContext}
   }
 
   const examContext = input.examName ? `\n- Exam: ${input.examName}` : "";
+  const subjectLine = input.subject ? `\n- Subject: ${input.subject}` : "";
   parts.push(`You are an expert exam question generator for Indian competitive exams.
 
-Generate exactly ${input.count} ${typeLabel} questions for the following:${examContext}
-- Subject: ${input.subject}
+Generate exactly ${input.count} ${typeLabel} questions for the following:${examContext}${subjectLine}
 - Topic: ${input.topic}
 - Difficulty: ${input.difficulty}
 - Question Type: ${typeLabel}
@@ -62,7 +62,7 @@ ${typeInstructions[input.questionType]}
 Every question MUST include an "explanation" field (minimum 20 characters) that thoroughly explains why the answer is correct.
 
 Each question's "content" object must have a "type" field set to "${input.questionType}".
-Set "subject" to "${input.subject}", "topic" to "${input.topic}", and "difficulty" to "${input.difficulty}" for each question.
+Set "subject" to "${input.subject ?? "General"}", "topic" to "${input.topic}", and "difficulty" to "${input.difficulty}" for each question.
 
 Requirements:
 - Questions must be factually accurate and exam-appropriate
