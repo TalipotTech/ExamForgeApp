@@ -5,7 +5,9 @@ import { signOut, useSession } from "next-auth/react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, User, Crown, Sparkles, Zap } from "lucide-react";
+import { LogOut, User, Crown, Sparkles, Zap, Shield } from "lucide-react";
+
+const ADMIN_ROLES = ["admin", "superadmin"];
 
 const PLAN_BADGE_CONFIG: Record<
   string,
@@ -33,49 +35,64 @@ const PLAN_BADGE_CONFIG: Record<
 export function UserMenu(): React.ReactElement | null {
   const { data: session, status } = useSession();
   const isLoggedIn = status === "authenticated";
+  const isAdmin = ADMIN_ROLES.includes(session?.user?.role ?? "");
 
-  // Fetch current subscription to show plan badge
+  // Fetch current subscription to show plan badge (only for non-admin users)
   const currentSubQuery = trpc.payment.getCurrentSubscription.useQuery(undefined, {
-    enabled: isLoggedIn,
+    enabled: isLoggedIn && !isAdmin,
     staleTime: 5 * 60_000,
   });
 
   if (!session?.user) return null;
 
-  const emailVerified = (session.user as { emailVerified?: boolean }).emailVerified;
   const planName = currentSubQuery.data?.subscription?.planName ?? "free";
   const badgeConfig = PLAN_BADGE_CONFIG[planName] ?? PLAN_BADGE_CONFIG.free!;
 
+  // Admin profile link goes to /admin/settings, non-admin to /dashboard/profile
+  const profileHref = isAdmin ? "/admin/settings" : "/dashboard/profile";
+
   return (
-    <div className="flex items-center gap-3">
-      {/* Plan badge */}
-      <Link href="/pricing">
+    <div className="flex items-center gap-2">
+      {/* Plan badge — only for non-admin users */}
+      {!isAdmin && (
+        <Link href="/pricing">
+          <Badge
+            variant="outline"
+            className={`gap-1 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeConfig.className}`}
+          >
+            {badgeConfig.icon}
+            {badgeConfig.label}
+          </Badge>
+        </Link>
+      )}
+
+      {/* Admin role badge */}
+      {isAdmin && (
         <Badge
           variant="outline"
-          className={`gap-1 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeConfig.className}`}
+          className="gap-1 border-violet-200 bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:border-violet-800 dark:bg-violet-900/40 dark:text-violet-300"
         >
-          {badgeConfig.icon}
-          {badgeConfig.label}
+          <Shield className="size-2.5" />
+          Admin
         </Badge>
-      </Link>
+      )}
 
       <Link
-        href="/dashboard/profile"
-        className="hover:text-foreground flex items-center gap-2 text-sm transition-colors"
+        href={profileHref}
+        className="hover:text-foreground flex items-center gap-1.5 text-sm transition-colors"
       >
         <User className="text-muted-foreground size-4" />
-        <span className="text-foreground/80 hidden sm:inline">{session.user.name}</span>
-        {emailVerified === false && (
-          <Badge variant="destructive" className="hidden text-[10px] sm:inline-flex">
-            Unverified
-          </Badge>
-        )}
+        <span className="text-foreground/80 hidden max-w-[100px] truncate sm:inline">
+          {session.user.name}
+        </span>
       </Link>
+
       <Button
         variant="ghost"
         size="icon-sm"
         onClick={() => signOut({ callbackUrl: "/" })}
         aria-label="Sign out"
+        title="Sign out"
       >
         <LogOut className="size-4" />
       </Button>

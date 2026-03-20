@@ -184,6 +184,19 @@ export function QuestionGenerator(): React.ReactElement {
           isLoading={isLoading}
           error={error}
           onStop={handleStop}
+          settings={
+            formData
+              ? {
+                  examName: formData.examName,
+                  provider: formData.provider,
+                  syllabusName: formData.syllabusName,
+                  topicName: formData.topicName,
+                  subject: formData.subject,
+                  difficulty: formData.difficulty,
+                  questionType: formData.questionType,
+                }
+              : undefined
+          }
         />
       )}
 
