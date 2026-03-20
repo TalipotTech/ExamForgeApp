@@ -13,7 +13,7 @@ import { ResultsPreview } from "./results-preview";
 import { CostSummary } from "./cost-summary";
 
 type Phase = "form" | "generating" | "results";
-type Provider = "anthropic" | "mistral" | "openai" | "google";
+type Provider = "anthropic" | "mistral" | "openai" | "google" | "perplexity";
 
 interface UsageInfo {
   provider: Provider;

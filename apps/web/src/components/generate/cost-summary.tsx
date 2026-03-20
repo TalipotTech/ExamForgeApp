@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AI_PROVIDER_INFO, AI_COST_PER_1K_TOKENS } from "@examforge/shared/constants";
 
 interface CostSummaryProps {
-  provider: "anthropic" | "mistral" | "openai" | "google";
+  provider: "anthropic" | "mistral" | "openai" | "google" | "perplexity";
   questionCount: number;
   durationMs: number;
 }
@@ -16,7 +16,25 @@ export function CostSummary({
   durationMs,
 }: CostSummaryProps): React.ReactElement {
   const info = AI_PROVIDER_INFO[provider];
-  const costs = AI_COST_PER_1K_TOKENS[info.model];
+  if (!info) {
+    return (
+      <Card>
+        <CardContent className="py-4">
+          <p className="text-muted-foreground text-sm">Unknown provider</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  const costs = AI_COST_PER_1K_TOKENS[info.model as keyof typeof AI_COST_PER_1K_TOKENS];
+  if (!costs) {
+    return (
+      <Card>
+        <CardContent className="py-4">
+          <p className="text-muted-foreground text-sm">Cost data unavailable</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const estimatedOutputTokens = info.avgTokensPerQuestion * questionCount;
   const estimatedInputTokens = 500;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Cpu, Zap, Brain, Flame, BookOpen } from "lucide-react";
+import { Sparkles, Cpu, Zap, Brain, Flame, Globe, BookOpen } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,7 +29,7 @@ import { QUESTION_TYPE_LABELS } from "@examforge/shared/constants";
 import { ExamCombobox } from "@/components/exam/exam-combobox";
 import type { GenerateQuestionsInput } from "@examforge/shared";
 
-type Provider = "anthropic" | "mistral" | "openai" | "google";
+type Provider = "anthropic" | "mistral" | "openai" | "google" | "perplexity";
 type Difficulty = "easy" | "medium" | "hard";
 type QuestionType = keyof typeof QUESTION_TYPE_LABELS;
 
@@ -67,6 +67,13 @@ const PROVIDERS: {
     description: "Fast & cheap",
     icon: Flame,
     iconColor: "text-purple-500",
+  },
+  {
+    id: "perplexity",
+    name: "Perplexity",
+    description: "Web-backed, current",
+    icon: Globe,
+    iconColor: "text-teal-500",
   },
 ];
 
@@ -142,7 +149,7 @@ export function GenerateForm({
           {/* AI Provider */}
           <div className="space-y-2">
             <Label>AI Provider</Label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
               {PROVIDERS.map((p) => {
                 const Icon = p.icon;
                 return (

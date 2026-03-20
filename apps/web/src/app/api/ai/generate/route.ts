@@ -3,12 +3,13 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { mistral } from "@ai-sdk/mistral";
 import { openai } from "@ai-sdk/openai";
 import { google } from "@ai-sdk/google";
+import { perplexity } from "@ai-sdk/perplexity";
 import { z } from "zod";
 import { generateQuestionsInputSchema } from "@examforge/shared/validators";
 import { AI_PROVIDER_INFO, QUESTION_TYPE_LABELS } from "@examforge/shared/constants";
 import { questionOutputSchema } from "@/lib/ai-schemas";
 
-type Provider = "anthropic" | "mistral" | "openai" | "google";
+type Provider = "anthropic" | "mistral" | "openai" | "google" | "perplexity";
 
 function getModel(provider: Provider): LanguageModel {
   const info = AI_PROVIDER_INFO[provider];
@@ -21,6 +22,8 @@ function getModel(provider: Provider): LanguageModel {
       return openai(info.model);
     case "google":
       return google(info.model);
+    case "perplexity":
+      return perplexity(info.model);
   }
 }
 
