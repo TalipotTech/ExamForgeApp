@@ -19,7 +19,7 @@ export const onboardingRouter = router({
         syllabusUrl: exams.syllabusUrl,
         isFeatured: exams.isFeatured,
         syllabusCount:
-          sql<number>`(SELECT COUNT(*) FROM syllabi WHERE syllabi.exam_id = ${exams.id} AND syllabi.status = 'processed')`.as(
+          sql<number>`(SELECT COUNT(*) FROM syllabi WHERE syllabi.exam_id = ${exams.id} AND syllabi.status = 'parsed')`.as(
             "syllabus_count",
           ),
       })

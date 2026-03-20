@@ -381,7 +381,7 @@ export const examRouter = router({
         const syllabusRows = await ctx.db
           .select({ examId: syllabi.examId })
           .from(syllabi)
-          .where(eq(syllabi.status, "processed"));
+          .where(eq(syllabi.status, "parsed"));
         syllabusExamIds = new Set(syllabusRows.map((r) => r.examId));
       } catch {
         // syllabi table may not exist yet
@@ -466,7 +466,7 @@ export const examRouter = router({
         const syllabusRows = await ctx.db
           .select({ examId: syllabi.examId })
           .from(syllabi)
-          .where(eq(syllabi.status, "processed"));
+          .where(eq(syllabi.status, "parsed"));
         syllabusExamIds = new Set(syllabusRows.map((r) => r.examId));
       } catch {
         // syllabi table may not exist yet
@@ -520,7 +520,7 @@ export const examRouter = router({
       .select({
         examId: syllabi.examId,
         count: count(),
-        processedCount: sql<number>`count(*) filter (where ${syllabi.status} = 'processed')`,
+        processedCount: sql<number>`count(*) filter (where ${syllabi.status} = 'parsed')`,
       })
       .from(syllabi)
       .groupBy(syllabi.examId);

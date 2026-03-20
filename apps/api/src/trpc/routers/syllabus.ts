@@ -653,7 +653,7 @@ export const syllabusRouter = router({
       const syllabusRows = await ctx.db
         .select({ id: syllabi.id })
         .from(syllabi)
-        .where(and(eq(syllabi.examId, input.examId), eq(syllabi.status, "processed")));
+        .where(and(eq(syllabi.examId, input.examId), eq(syllabi.status, "parsed")));
 
       if (syllabusRows.length === 0) return [];
 
@@ -723,7 +723,7 @@ export const syllabusRouter = router({
         const syllabusRows = await ctx.db
           .select({ id: syllabi.id })
           .from(syllabi)
-          .where(and(eq(syllabi.examId, input.examId), eq(syllabi.status, "processed")));
+          .where(and(eq(syllabi.examId, input.examId), eq(syllabi.status, "parsed")));
 
         if (syllabusRows.length === 0) return null;
 

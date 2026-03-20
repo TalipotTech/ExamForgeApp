@@ -160,7 +160,7 @@ export function GenerateForm({
   const filters = trpc.question.filters.useQuery();
 
   const selectedExam = examList?.find((e) => e.id === examId);
-  const processedSyllabi = syllabiList?.filter((s) => s.status === "processed") ?? [];
+  const processedSyllabi = syllabiList?.filter((s) => s.status === "parsed") ?? [];
   const allSyllabi = syllabiList ?? [];
   const topicNodes = syllabusTree?.nodes?.filter((n) => n.depth >= 2) ?? [];
 
