@@ -282,11 +282,18 @@ export class ExamforgeStack extends cdk.Stack {
               port: "3000",
               runtimeEnvironmentVariables: [
                 { name: "NODE_ENV", value: envName === "prod" ? "production" : "development" },
-                { name: "NEXT_PUBLIC_API_URL", value: "https://api.examforge.in" },
+                {
+                  name: "NEXT_PUBLIC_API_URL",
+                  value:
+                    envName === "prod"
+                      ? "https://api.examforge.in"
+                      : "https://bkxwda6tmj.ap-south-1.awsapprunner.com",
+                },
                 {
                   name: "NEXTAUTH_URL",
-                  value: envName === "prod" ? "https://examforge.in" : "https://dev.examforge.in",
+                  value: envName === "prod" ? "https://examforge.in" : "https://ice.ensate.in",
                 },
+                { name: "AUTH_TRUST_HOST", value: "true" },
                 { name: "HOSTNAME", value: "0.0.0.0" },
               ],
               runtimeEnvironmentSecrets: [
