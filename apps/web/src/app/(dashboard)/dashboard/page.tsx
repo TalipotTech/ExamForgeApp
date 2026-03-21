@@ -24,6 +24,7 @@ import {
   LogIn,
   Zap,
   Plus,
+  Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrowseExamsDialog } from "@/components/exam/browse-exams-dialog";
@@ -91,7 +92,7 @@ export default function DashboardPage(): React.ReactElement {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
         <Link href="/learn">
           <Card className="hover:border-primary/50 cursor-pointer transition-all hover:shadow-md">
             <CardContent className="flex items-center gap-3 p-4">
@@ -177,6 +178,19 @@ export default function DashboardPage(): React.ReactElement {
                     {data.totalNotes}
                   </Badge>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/dashboard/voice-exam">
+          <Card className="hover:border-primary/50 cursor-pointer transition-all hover:shadow-md">
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className="rounded-lg bg-rose-100 p-2 dark:bg-rose-900/30">
+                <Mic className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+              </div>
+              <div>
+                <p className="font-medium">Voice Tutor</p>
+                <p className="text-muted-foreground text-xs">Speak your answers</p>
               </div>
             </CardContent>
           </Card>

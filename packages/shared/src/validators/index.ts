@@ -283,3 +283,24 @@ export type {
   GetAiConversation,
   DeleteAiConversation,
 } from "./ai-chat";
+
+export {
+  voiceTutorModeSchema,
+  startVoiceSessionSchema,
+  submitVoiceAnswerSchema,
+  teacherRespondSchema,
+  completeVoiceSessionSchema,
+  listVoiceSessionsSchema,
+  getVoiceSessionSchema,
+  teacherResponseSchema,
+} from "./voice-tutor";
+export type {
+  VoiceTutorMode,
+  StartVoiceSession,
+  SubmitVoiceAnswer,
+  TeacherRespond,
+  CompleteVoiceSession,
+  ListVoiceSessions,
+  GetVoiceSession,
+  TeacherResponse,
+} from "./voice-tutor";

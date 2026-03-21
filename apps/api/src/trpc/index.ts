@@ -17,6 +17,7 @@ import { learnRouter } from "./routers/learn.js";
 import { publicContentRouter } from "./routers/public-content.js";
 import { onboardingRouter } from "./routers/onboarding.js";
 import { aiChatRouter } from "./routers/ai-chat.js";
+import { voiceTutorRouter } from "./routers/voice-tutor.js";
 
 export const appRouter = router({
   health: healthRouter,
@@ -37,6 +38,7 @@ export const appRouter = router({
   publicContent: publicContentRouter,
   onboarding: onboardingRouter,
   aiChat: aiChatRouter,
+  voiceTutor: voiceTutorRouter,
 });
 
 export type AppRouter = typeof appRouter;
