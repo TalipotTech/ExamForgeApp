@@ -34,7 +34,8 @@ export async function getUserMonthlyUsage(db: Database, userId: string): Promise
     .select({ total: sql<number>`COALESCE(SUM(${ttsUsageLogs.charCount}), 0)` })
     .from(ttsUsageLogs)
     .where(and(eq(ttsUsageLogs.userId, userId), gte(ttsUsageLogs.createdAt, startOfMonth())));
-  return result?.total ?? 0;
+  // SUM returns bigint which node-postgres gives as string — force to number
+  return Number(result?.total ?? 0);
 }
 
 export async function getPlatformMonthlyUsage(db: Database): Promise<number> {
@@ -42,7 +43,7 @@ export async function getPlatformMonthlyUsage(db: Database): Promise<number> {
     .select({ total: sql<number>`COALESCE(SUM(${ttsUsageLogs.charCount}), 0)` })
     .from(ttsUsageLogs)
     .where(gte(ttsUsageLogs.createdAt, startOfMonth()));
-  return result?.total ?? 0;
+  return Number(result?.total ?? 0);
 }
 
 export async function canUserSynthesize(

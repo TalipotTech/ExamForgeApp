@@ -375,6 +375,7 @@ export default function AdminSettingsPage(): React.ReactElement {
               }
             />
           </div>
+          <VoicePlatformUsage />
           <VoiceTestButton />
         </CardContent>
       </Card>
@@ -416,6 +417,32 @@ function VoiceTestButton(): React.ReactElement {
           {testResult}
         </p>
       )}
+    </div>
+  );
+}
+
+function VoicePlatformUsage(): React.ReactElement {
+  const usageQuery = trpc.adminSettings.getTTSPlatformUsage.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+
+  if (!usageQuery.data) return <></>;
+
+  const used = usageQuery.data.used;
+
+  return (
+    <div className="rounded-md border p-3">
+      <p className="text-sm font-medium">Platform TTS Usage (this month)</p>
+      <p className="text-muted-foreground text-2xl font-bold">
+        {used.toLocaleString()} <span className="text-sm font-normal">chars used</span>
+      </p>
+      <div className="bg-muted mt-2 h-2 w-full rounded-full">
+        <div
+          className="h-2 rounded-full bg-blue-500 transition-all"
+          style={{ width: `${Math.min(100, (used / 500000) * 100)}%` }}
+        />
+      </div>
+      <p className="text-muted-foreground mt-1 text-xs">Azure free tier: 500K chars/month</p>
     </div>
   );
 }

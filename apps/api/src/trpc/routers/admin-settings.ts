@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, superAdminProcedure } from "../trpc.js";
 import { adminFeatureFlags } from "@examforge/shared/db/schema";
 import { setFlag } from "../../services/feature-flags.js";
+import { getPlatformMonthlyUsage } from "../../services/tts/tts-usage.js";
 
 export const adminSettingsRouter = router({
   getFlags: superAdminProcedure.query(async ({ ctx }) => {
@@ -42,6 +43,11 @@ export const adminSettingsRouter = router({
       await sendOtpSms(ctx.db, input.phone, "123456");
       return { success: true, message: "Test SMS sent (check console if no provider configured)" };
     }),
+
+  getTTSPlatformUsage: superAdminProcedure.query(async ({ ctx }) => {
+    const used = await getPlatformMonthlyUsage(ctx.db);
+    return { used };
+  }),
 
   testVoice: superAdminProcedure.mutation(async ({ ctx }) => {
     try {
