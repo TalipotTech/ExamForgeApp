@@ -1,4 +1,4 @@
-import { eq, and, sql, asc, desc } from "drizzle-orm";
+import { eq, and, asc, desc } from "drizzle-orm";
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../trpc.js";
 import { exams, users, userExams } from "@examforge/shared/db/schema";
@@ -7,7 +7,7 @@ import { saveSelectedExamsSchema } from "@examforge/shared/validators";
 export const onboardingRouter = router({
   // ─── List Available Exams ───
   listAvailableExams: publicProcedure.query(async ({ ctx }) => {
-    // Get exams with syllabus count
+    // Get active exams
     const examRows = await ctx.db
       .select({
         id: exams.id,
@@ -18,16 +18,28 @@ export const onboardingRouter = router({
         questionCount: exams.questionCount,
         syllabusUrl: exams.syllabusUrl,
         isFeatured: exams.isFeatured,
-        syllabusCount:
-          sql<number>`(SELECT COUNT(*) FROM syllabi WHERE syllabi.exam_id = ${exams.id} AND syllabi.status = 'parsed')`.as(
-            "syllabus_count",
-          ),
       })
       .from(exams)
       .where(eq(exams.isActive, true))
       .orderBy(desc(exams.isFeatured), asc(exams.examDate), asc(exams.name));
 
-    return examRows;
+    // Check syllabus availability separately (avoids uuid/bigint type mismatch in subquery)
+    let syllabusExamIds: Set<string> = new Set();
+    try {
+      const { syllabi } = await import("@examforge/shared/db/schema");
+      const syllabusRows = await ctx.db
+        .select({ examId: syllabi.examId })
+        .from(syllabi)
+        .where(eq(syllabi.status, "parsed"));
+      syllabusExamIds = new Set(syllabusRows.map((r) => r.examId));
+    } catch {
+      // syllabi table may not exist yet
+    }
+
+    return examRows.map((e) => ({
+      ...e,
+      syllabusCount: syllabusExamIds.has(e.id) ? 1 : 0,
+    }));
   }),
 
   // ─── Save Selected Exams ───
