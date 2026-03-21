@@ -21,6 +21,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { VoiceRecapButton } from "@/components/voice-tutor/voice-recap-button";
 
 export default function MyExamsPage(): React.ReactElement {
   const examsQuery = trpc.tutorialAgent.listUserExams.useQuery({});
@@ -197,12 +198,19 @@ export default function MyExamsPage(): React.ReactElement {
 
                   <div className="flex items-center gap-2">
                     {hasAttempts && (
-                      <Link href={`/dashboard/my-exams/results/${exam.id}` as "/"}>
-                        <Button variant="outline" size="sm" className="gap-1.5">
-                          <BarChart3 className="h-3.5 w-3.5" />
-                          Results
-                        </Button>
-                      </Link>
+                      <>
+                        <Link href={`/dashboard/my-exams/results/${exam.id}` as "/"}>
+                          <Button variant="outline" size="sm" className="gap-1.5">
+                            <BarChart3 className="h-3.5 w-3.5" />
+                            Results
+                          </Button>
+                        </Link>
+                        <VoiceRecapButton
+                          examId={(exam as Record<string, unknown>).examId as string | undefined}
+                          variant="outline"
+                          size="sm"
+                        />
+                      </>
                     )}
                     <Link href={`/practice/${exam.id}` as "/"}>
                       <Button variant="default" size="sm" className="gap-1.5">

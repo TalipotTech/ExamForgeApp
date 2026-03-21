@@ -1132,6 +1132,7 @@ export const tutorialAgentRouter = router({
     }): Promise<
       Array<{
         id: number;
+        examId: string;
         title: string;
         questionCount: number;
         timesAttempted: number | null;
@@ -1151,6 +1152,7 @@ export const tutorialAgentRouter = router({
       return ctx.db
         .select({
           id: userGeneratedExams.id,
+          examId: userGeneratedExams.examId,
           title: userGeneratedExams.title,
           questionCount: userGeneratedExams.questionCount,
           timesAttempted: userGeneratedExams.timesAttempted,
@@ -1240,6 +1242,7 @@ export const tutorialAgentRouter = router({
     const [exam] = await ctx.db
       .select({
         id: userGeneratedExams.id,
+        examId: userGeneratedExams.examId,
         title: userGeneratedExams.title,
         questions: userGeneratedExams.questions,
         questionCount: userGeneratedExams.questionCount,
@@ -1270,6 +1273,7 @@ export const tutorialAgentRouter = router({
 
     return {
       id: exam.id,
+      examId: exam.examId,
       title: exam.title,
       questions,
       questionCount: exam.questionCount,
@@ -1368,6 +1372,7 @@ export const tutorialAgentRouter = router({
       const [exam] = await ctx.db
         .select({
           id: userGeneratedExams.id,
+          examId: userGeneratedExams.examId,
           title: userGeneratedExams.title,
           questions: userGeneratedExams.questions,
           questionCount: userGeneratedExams.questionCount,
@@ -1410,6 +1415,7 @@ export const tutorialAgentRouter = router({
 
       return {
         id: exam.id,
+        examId: exam.examId,
         title: exam.title,
         questionCount: exam.questionCount,
         timesAttempted: exam.timesAttempted,

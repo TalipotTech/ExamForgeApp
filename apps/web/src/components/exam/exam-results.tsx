@@ -17,6 +17,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VoiceRecapButton } from "@/components/voice-tutor/voice-recap-button";
 
 type QuestionResult = {
   id: string;
@@ -30,6 +31,7 @@ type QuestionResult = {
 
 type ResultsData = {
   id: string;
+  examId?: string;
   examName: string;
   score: number;
   correct: number;
@@ -60,12 +62,15 @@ export function ExamResults({ data }: { data: ResultsData }): React.ReactElement
           <h1 className="text-2xl font-bold tracking-tight">Exam Results</h1>
           <p className="text-muted-foreground">{data.examName}</p>
         </div>
-        <Button asChild>
-          <Link href={"/exams/start" as "/"}>
-            <RotateCcw className="size-4" />
-            Take Another Exam
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <VoiceRecapButton examId={data.examId} />
+          <Button asChild>
+            <Link href={"/exams/start" as "/"}>
+              <RotateCcw className="size-4" />
+              Take Another Exam
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Score card */}

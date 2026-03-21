@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   Zap,
   Trophy,
+  Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ExamQuestion } from "@/stores/exam-store";
@@ -295,6 +296,19 @@ export default function PracticeExamPage(): React.ReactElement {
                 <Play className="size-5" />
                 {attempts > 0 ? "Retake Exam" : "Start Exam"}
               </Button>
+              <Link
+                href={
+                  data?.examId
+                    ? (`/dashboard/voice-exam?examId=${data.examId}` as "/")
+                    : ("/dashboard/voice-exam" as "/")
+                }
+                className="w-full"
+              >
+                <Button variant="outline" size="lg" className="w-full gap-2">
+                  <Mic className="size-4" />
+                  Take as Voice Exam
+                </Button>
+              </Link>
               <Link href="/dashboard/my-exams" className="w-full">
                 <Button variant="outline" size="lg" className="w-full gap-2">
                   <ListChecks className="size-4" />

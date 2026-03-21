@@ -13,6 +13,7 @@ import {
   ListChecks,
   X,
   Sparkles,
+  Mic,
 } from "lucide-react";
 
 type TreeNode = {
@@ -31,6 +32,7 @@ interface LearnSidebarProps {
   activeNodeId: number | null;
   onSelectNode: (nodeId: number) => void;
   onGenerateExam?: (nodeIds: number[]) => void;
+  examId?: string;
 }
 
 export function LearnSidebar({
@@ -38,6 +40,7 @@ export function LearnSidebar({
   activeNodeId,
   onSelectNode,
   onGenerateExam,
+  examId,
 }: LearnSidebarProps): React.ReactElement {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedNodes, setSelectedNodes] = useState<Set<number>>(new Set());
@@ -99,18 +102,26 @@ export function LearnSidebar({
           <p className="text-primary mb-2 text-xs">
             {selectedNodes.size} topic{selectedNodes.size > 1 ? "s" : ""} selected
           </p>
-          <Button
-            size="sm"
-            className="h-7 w-full gap-1.5 text-xs"
-            onClick={() => {
-              onGenerateExam?.(Array.from(selectedNodes));
-              setSelectionMode(false);
-              setSelectedNodes(new Set());
-            }}
-          >
-            <Sparkles className="h-3 w-3" />
-            Generate Exam
-          </Button>
+          <div className="flex flex-col gap-1.5">
+            <Button
+              size="sm"
+              className="h-7 w-full gap-1.5 text-xs"
+              onClick={() => {
+                onGenerateExam?.(Array.from(selectedNodes));
+                setSelectionMode(false);
+                setSelectedNodes(new Set());
+              }}
+            >
+              <Sparkles className="h-3 w-3" />
+              Generate Exam
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 w-full gap-1.5 text-xs" asChild>
+              <a href={examId ? `/dashboard/voice-exam?examId=${examId}` : "/dashboard/voice-exam"}>
+                <Mic className="h-3 w-3" />
+                Voice Quiz
+              </a>
+            </Button>
+          </div>
         </div>
       )}
 

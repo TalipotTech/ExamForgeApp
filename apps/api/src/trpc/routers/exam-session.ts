@@ -231,6 +231,7 @@ export const examSessionRouter = router({
       input,
     }): Promise<{
       id: string;
+      examId: string;
       examName: string;
       score: number;
       correct: number;
@@ -299,6 +300,7 @@ export const examSessionRouter = router({
 
       return {
         id: session.id,
+        examId: session.examId,
         examName: (metadata.examName as string) ?? "Exam",
         score: session.score ?? 0,
         correct,

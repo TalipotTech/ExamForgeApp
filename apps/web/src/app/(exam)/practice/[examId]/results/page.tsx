@@ -19,6 +19,7 @@ import {
   Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VoiceRecapButton } from "@/components/voice-tutor/voice-recap-button";
 
 type DetailedQuestion = {
   id: string;
@@ -191,6 +192,7 @@ export default function PracticeResultsPage(): React.ReactElement {
         <Button variant="outline" onClick={() => setShowReview(!showReview)}>
           {showReview ? "Hide Review" : "Review Answers"}
         </Button>
+        <VoiceRecapButton examId={serverResult?.examId} />
         <Button
           variant="outline"
           onClick={() => router.push("/dashboard/my-exams")}
