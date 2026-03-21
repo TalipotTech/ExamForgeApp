@@ -20,6 +20,7 @@ import {
   MessageCircleQuestion,
   Sparkles,
   ArrowRight,
+  MessageSquare,
 } from "lucide-react";
 import { GenerateExamFromNotesDialog } from "./generate-exam-from-notes-dialog";
 
@@ -227,14 +228,33 @@ export default function NotesPage(): React.ReactElement {
                           )}
                         </div>
 
-                        {/* Date */}
-                        <div className="text-muted-foreground mt-2 flex items-center gap-1 text-[10px]">
-                          <Clock className="h-2.5 w-2.5" />
-                          {new Date(note.createdAt).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
+                        {/* Date + Ask AI */}
+                        <div className="mt-2 flex items-center justify-between">
+                          <div className="text-muted-foreground flex items-center gap-1 text-[10px]">
+                            <Clock className="h-2.5 w-2.5" />
+                            {new Date(note.createdAt).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 gap-1 px-2 text-[10px]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const context = note.keyword
+                                ? `Based on this note:\n\nQuestion: ${note.keyword}\nAnswer: ${truncateText(note.noteContent ?? "", 500)}\n\nExplain this topic in more detail and help me understand it better.`
+                                : `Based on this note:\n\n${truncateText(note.noteContent ?? "", 500)}\n\nExplain this topic in more detail and help me understand it better.`;
+                              router.push(
+                                `/dashboard/ai-chat?prefill=${encodeURIComponent(context)}` as "/",
+                              );
+                            }}
+                          >
+                            <MessageSquare className="h-2.5 w-2.5" />
+                            Ask AI
+                          </Button>
                         </div>
                       </div>
                     </div>

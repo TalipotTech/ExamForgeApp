@@ -63,10 +63,12 @@ function AiChatPageInner(): React.ReactElement {
   const router = useRouter();
   const searchParams = useSearchParams();
   const conversationParam = searchParams.get("conversation");
+  const prefillParam = searchParams.get("prefill");
 
   const [conversationId, setConversationId] = useState<string | null>(conversationParam);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const [prefillSent, setPrefillSent] = useState(false);
   const [provider, setProvider] = useState<Provider>("claude");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarSearch, setSidebarSearch] = useState("");
@@ -156,6 +158,18 @@ function AiChatPageInner(): React.ReactElement {
     setInputValue("");
     router.replace("/dashboard/ai-chat", { scroll: false });
   }, [router]);
+
+  // Auto-send prefilled message from query param (e.g. Ask AI from Notes/Topics)
+  useEffect(() => {
+    if (prefillParam && !prefillSent && !sendMutation.isPending) {
+      setPrefillSent(true);
+      const decoded = decodeURIComponent(prefillParam);
+      // Small delay to let the page render first
+      const t = setTimeout(() => handleSend(decoded), 300);
+      return (): void => clearTimeout(t);
+    }
+    return undefined;
+  }, [prefillParam, prefillSent, sendMutation.isPending, handleSend]);
 
   const handleSelectConversation = useCallback(
     (id: string): void => {

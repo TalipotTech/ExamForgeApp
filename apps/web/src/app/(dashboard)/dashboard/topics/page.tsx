@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ import {
   Sparkles,
   X,
   CheckSquare,
+  MessageSquare,
 } from "lucide-react";
 import "@/styles/tutorial-content.css";
 
@@ -58,6 +60,7 @@ type TopicItem = {
 };
 
 export default function TopicDetailsPage(): React.ReactElement {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [offset, setOffset] = useState(0);
@@ -372,6 +375,20 @@ export default function TopicDetailsPage(): React.ReactElement {
                       })}
                     </span>
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 text-xs"
+                        onClick={() => {
+                          const context = `I'm studying the topic "${topic.nodeTitle}" from ${topic.syllabusName}${topic.examName ? ` (${topic.examName})` : ""}.\n\nHelp me understand this topic better. Explain the key concepts, important points to remember, and any common exam questions related to it.`;
+                          router.push(
+                            `/dashboard/ai-chat?prefill=${encodeURIComponent(context)}` as "/",
+                          );
+                        }}
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                        Ask AI
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
