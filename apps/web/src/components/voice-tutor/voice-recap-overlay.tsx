@@ -86,11 +86,14 @@ export function VoiceRecapOverlay({
   const premiumEnabled = premiumQuery.data?.premiumEnabled ?? false;
   const userUsage = premiumQuery.data?.userUsage;
 
-  // Init browser voice service
+  // Init browser voice service (once on mount)
   useEffect(() => {
     if (capabilities.ttsSupported || capabilities.sttSupported) {
       const svc = new BrowserVoiceService();
-      voiceRef.current = svc;
+      // Only set voiceRef if no premium service is already active
+      if (!voiceRef.current) {
+        voiceRef.current = svc;
+      }
       browserVoiceRef.current = svc;
 
       const loadVoices = (): void => {
@@ -98,7 +101,7 @@ export function VoiceRecapOverlay({
         if (voices.length > 0) {
           setBrowserVoices(voices);
           const current = svc.getSelectedVoiceName();
-          if (current && !selectedVoice) setSelectedVoice(current);
+          if (current) setSelectedVoice((prev) => prev || current);
         }
       };
       loadVoices();
@@ -112,7 +115,7 @@ export function VoiceRecapOverlay({
       };
     }
     return undefined;
-  }, [capabilities, selectedVoice]);
+  }, [capabilities]); // intentionally omit selectedVoice to avoid overwriting premium voice service
 
   const speakQuestion = useCallback(
     async (index: number): Promise<void> => {
