@@ -262,6 +262,15 @@ export function VoiceRecapOverlay({
     speakQuestion(0);
   }
 
+  function handleClose(): void {
+    voiceRef.current?.stopSpeaking();
+    voiceRef.current?.stopListening();
+    voiceRef.current?.dispose();
+    voiceRef.current = null;
+    browserVoiceRef.current = null;
+    onClose();
+  }
+
   function handlePause(): void {
     voiceRef.current?.stopSpeaking();
     voiceRef.current?.stopListening();
@@ -340,7 +349,7 @@ export function VoiceRecapOverlay({
             </Badge>
           )}
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose}>
+        <Button variant="ghost" size="icon" onClick={handleClose}>
           <X className="h-5 w-5" />
         </Button>
       </div>
@@ -601,7 +610,7 @@ export function VoiceRecapOverlay({
                   : "Keep practicing, you'll get there!"}
             </p>
             <p className="text-muted-foreground text-sm">Score: {scorePercent}%</p>
-            <Button onClick={onClose} className="mt-4">
+            <Button onClick={handleClose} className="mt-4">
               Close
             </Button>
           </div>
