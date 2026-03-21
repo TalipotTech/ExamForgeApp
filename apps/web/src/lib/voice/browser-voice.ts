@@ -122,7 +122,6 @@ export class BrowserVoiceService implements VoiceService {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = options?.rate ?? 0.9;
       utterance.pitch = options?.pitch ?? 1.0;
-      utterance.lang = "en-IN";
 
       // Use cached voice, or try to find one now
       if (!this.cachedVoice) {
@@ -134,6 +133,9 @@ export class BrowserVoiceService implements VoiceService {
 
       if (this.cachedVoice) {
         utterance.voice = this.cachedVoice;
+        utterance.lang = this.cachedVoice.lang;
+      } else {
+        utterance.lang = "en-IN";
       }
 
       this._isSpeaking = true;

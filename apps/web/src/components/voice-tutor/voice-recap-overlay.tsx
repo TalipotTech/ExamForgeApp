@@ -383,10 +383,13 @@ export function VoiceRecapOverlay({
                   } else {
                     setSelectedProvider("browser");
                     setSelectedVoice(name);
-                    // Switch back to browser
-                    const browserSvc = new BrowserVoiceService();
+                    // Reuse existing browser service (voices already loaded)
+                    const browserSvc = browserVoiceRef.current ?? new BrowserVoiceService();
                     browserSvc.setVoiceByName(name);
-                    voiceRef.current?.dispose();
+                    // Dispose premium service if switching away from it
+                    if (voiceRef.current && voiceRef.current !== browserSvc) {
+                      voiceRef.current.dispose();
+                    }
                     voiceRef.current = browserSvc;
                     browserVoiceRef.current = browserSvc;
                     browserSvc.speak("Hello, I am your exam tutor.", { rate: 0.9 });

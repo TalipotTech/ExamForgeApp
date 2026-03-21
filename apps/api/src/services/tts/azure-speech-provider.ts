@@ -55,7 +55,11 @@ function escapeXml(text: string): string {
 }
 
 function buildSSML(voiceId: string, text: string, rate?: number): string {
-  const rateStr = rate ? `${Math.round(rate * 100)}%` : "90%";
+  // Azure SSML prosody rate: "-10%" = 10% slower, "+20%" = 20% faster
+  // Convert 0.0-2.0 scale (where 1.0 = normal) to Azure format
+  const normalizedRate = rate ?? 0.85; // default slightly slower for clarity
+  const percentChange = Math.round((normalizedRate - 1.0) * 100);
+  const rateStr = percentChange >= 0 ? `+${percentChange}%` : `${percentChange}%`;
   const locale = voiceId.startsWith("en-IN")
     ? "en-IN"
     : voiceId.startsWith("en-GB")
