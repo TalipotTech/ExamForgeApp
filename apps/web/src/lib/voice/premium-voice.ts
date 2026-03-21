@@ -11,8 +11,8 @@ export class PremiumVoiceService implements VoiceService {
   private voiceId: string;
   private synthesizeFn: SynthesizeFn;
   private browserSTT: BrowserVoiceService;
-  private audioContext: AudioContext | null = null;
-  private currentSource: AudioBufferSourceNode | null = null;
+  private currentAudio: HTMLAudioElement | null = null;
+  private currentBlobUrl: string | null = null;
   private _isSpeaking = false;
 
   constructor(voiceId: string, synthesizeFn: SynthesizeFn) {
@@ -27,50 +27,60 @@ export class PremiumVoiceService implements VoiceService {
     try {
       const result = await this.synthesizeFn(text, this.voiceId, options?.rate ?? 0.9);
 
-      if (!this.audioContext) {
-        this.audioContext = new AudioContext();
-      }
-
-      // Decode base64 to ArrayBuffer
+      // Decode base64 to blob
       const binaryStr = atob(result.audioBase64);
       const bytes = new Uint8Array(binaryStr.length);
       for (let i = 0; i < binaryStr.length; i++) {
         bytes[i] = binaryStr.charCodeAt(i);
       }
+      const blob = new Blob([bytes], { type: result.contentType });
+      const url = URL.createObjectURL(blob);
 
-      const audioBuffer = await this.audioContext.decodeAudioData(bytes.buffer);
-      const source = this.audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(this.audioContext.destination);
-
+      this.currentBlobUrl = url;
+      const audio = new Audio(url);
+      this.currentAudio = audio;
       this._isSpeaking = true;
-      this.currentSource = source;
 
-      return new Promise((resolve) => {
-        source.onended = (): void => {
+      return new Promise((resolve, reject) => {
+        audio.onended = (): void => {
           this._isSpeaking = false;
-          this.currentSource = null;
+          this.cleanupAudio();
           options?.onEnd?.();
           resolve();
         };
-        source.start(0);
+        audio.onerror = (): void => {
+          this._isSpeaking = false;
+          this.cleanupAudio();
+          // Fallback to browser TTS
+          this.browserSTT.speak(text, options).then(resolve, reject);
+        };
+        audio.play().catch(() => {
+          this._isSpeaking = false;
+          this.cleanupAudio();
+          // Fallback to browser TTS on autoplay block
+          this.browserSTT.speak(text, options).then(resolve, reject);
+        });
       });
     } catch {
-      // Fallback to browser TTS if premium fails
       this._isSpeaking = false;
       return this.browserSTT.speak(text, options);
     }
   }
 
-  stopSpeaking(): void {
-    if (this.currentSource) {
-      try {
-        this.currentSource.stop();
-      } catch {
-        // Already stopped
-      }
-      this.currentSource = null;
+  private cleanupAudio(): void {
+    if (this.currentBlobUrl) {
+      URL.revokeObjectURL(this.currentBlobUrl);
+      this.currentBlobUrl = null;
     }
+    this.currentAudio = null;
+  }
+
+  stopSpeaking(): void {
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio.currentTime = 0;
+    }
+    this.cleanupAudio();
     this._isSpeaking = false;
     this.browserSTT.stopSpeaking();
   }
@@ -103,9 +113,5 @@ export class PremiumVoiceService implements VoiceService {
   dispose(): void {
     this.stopSpeaking();
     this.browserSTT.dispose();
-    if (this.audioContext) {
-      this.audioContext.close().catch(() => {});
-      this.audioContext = null;
-    }
   }
 }
