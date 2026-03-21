@@ -1,30 +1,48 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic } from "lucide-react";
+import { VoiceRecapOverlay } from "./voice-recap-overlay";
+import type { RecapQuestion } from "./voice-recap-overlay";
 
 interface VoiceRecapButtonProps {
-  examId?: string;
+  questions: RecapQuestion[];
+  title?: string;
   variant?: "default" | "outline" | "ghost";
   size?: "default" | "sm" | "lg" | "icon";
   className?: string;
 }
 
 export function VoiceRecapButton({
-  examId,
+  questions,
+  title,
   variant = "outline",
   size = "default",
   className,
 }: VoiceRecapButtonProps): React.ReactElement {
-  const href = examId ? `/dashboard/voice-exam?examId=${examId}` : "/dashboard/voice-exam";
+  const [showOverlay, setShowOverlay] = useState(false);
 
   return (
-    <Link href={href as "/"}>
-      <Button variant={variant} size={size} className={className}>
+    <>
+      <Button
+        variant={variant}
+        size={size}
+        className={className}
+        onClick={() => setShowOverlay(true)}
+        disabled={questions.length === 0}
+      >
         <Mic className="mr-1 h-4 w-4" />
         Voice Recap
       </Button>
-    </Link>
+
+      {showOverlay && questions.length > 0 && (
+        <VoiceRecapOverlay
+          questions={questions}
+          title={title}
+          onClose={() => setShowOverlay(false)}
+        />
+      )}
+    </>
   );
 }

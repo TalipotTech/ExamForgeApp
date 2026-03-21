@@ -192,7 +192,17 @@ export default function PracticeResultsPage(): React.ReactElement {
         <Button variant="outline" onClick={() => setShowReview(!showReview)}>
           {showReview ? "Hide Review" : "Review Answers"}
         </Button>
-        <VoiceRecapButton examId={serverResult?.examId} />
+        <VoiceRecapButton
+          questions={displayResult.questions.map((q) => ({
+            question: q.question,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            subject: q.subject,
+            difficulty: q.difficulty,
+          }))}
+          title="Practice Exam"
+        />
         <Button
           variant="outline"
           onClick={() => router.push("/dashboard/my-exams")}

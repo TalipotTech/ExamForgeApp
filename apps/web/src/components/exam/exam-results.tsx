@@ -63,7 +63,26 @@ export function ExamResults({ data }: { data: ResultsData }): React.ReactElement
           <p className="text-muted-foreground">{data.examName}</p>
         </div>
         <div className="flex items-center gap-2">
-          <VoiceRecapButton examId={data.examId} />
+          <VoiceRecapButton
+            questions={data.questions
+              .map((q) => {
+                const c = q.content as {
+                  question?: string;
+                  options?: string[];
+                  answer?: number;
+                  explanation?: string;
+                };
+                return {
+                  question: c.question ?? "",
+                  options: c.options ?? [],
+                  correctAnswer: c.answer ?? 0,
+                  explanation: q.explanation || c.explanation || "",
+                  subject: q.subject,
+                };
+              })
+              .filter((q) => q.question && q.options.length > 0)}
+            title={data.examName}
+          />
           <Button asChild>
             <Link href={"/exams/start" as "/"}>
               <RotateCcw className="size-4" />

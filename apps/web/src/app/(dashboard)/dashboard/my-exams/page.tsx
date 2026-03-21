@@ -11,6 +11,7 @@ import {
   BarChart3,
   Zap,
   Crown,
+  Mic,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,7 +22,6 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { VoiceRecapButton } from "@/components/voice-tutor/voice-recap-button";
 
 export default function MyExamsPage(): React.ReactElement {
   const examsQuery = trpc.tutorialAgent.listUserExams.useQuery({});
@@ -205,11 +205,12 @@ export default function MyExamsPage(): React.ReactElement {
                             Results
                           </Button>
                         </Link>
-                        <VoiceRecapButton
-                          examId={(exam as Record<string, unknown>).examId as string | undefined}
-                          variant="outline"
-                          size="sm"
-                        />
+                        <Link href={`/dashboard/my-exams/results/${exam.id}` as "/"}>
+                          <Button variant="outline" size="sm" className="gap-1.5">
+                            <Mic className="h-3.5 w-3.5" />
+                            Voice Recap
+                          </Button>
+                        </Link>
                       </>
                     )}
                     <Link href={`/practice/${exam.id}` as "/"}>
