@@ -93,6 +93,28 @@ export class BrowserVoiceService implements VoiceService {
     }
   }
 
+  /** Get all English voices available on this device */
+  getEnglishVoices(): Array<{ name: string; lang: string; uri: string }> {
+    const voices = this.synthesis.getVoices();
+    return voices
+      .filter((v) => v.lang.startsWith("en"))
+      .map((v) => ({ name: v.name, lang: v.lang, uri: v.voiceURI }));
+  }
+
+  /** Set a specific voice by name */
+  setVoiceByName(name: string): void {
+    const voices = this.synthesis.getVoices();
+    const match = voices.find((v) => v.name === name);
+    if (match) {
+      this.cachedVoice = match;
+    }
+  }
+
+  /** Get the currently selected voice name */
+  getSelectedVoiceName(): string | null {
+    return this.cachedVoice?.name ?? null;
+  }
+
   async speak(text: string, options?: SpeakOptions): Promise<void> {
     return new Promise((resolve) => {
       this.synthesis.cancel();

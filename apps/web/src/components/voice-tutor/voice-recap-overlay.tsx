@@ -17,6 +17,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { AudioWaveform } from "./audio-waveform";
 import { matchSpokenAnswer } from "@/lib/voice/answer-matcher";
@@ -54,7 +62,12 @@ export function VoiceRecapOverlay({
   const [textInput, setTextInput] = useState("");
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [capabilities] = useState(() => detectVoiceCapabilities());
+  const [availableVoices, setAvailableVoices] = useState<
+    Array<{ name: string; lang: string; uri: string }>
+  >([]);
+  const [selectedVoice, setSelectedVoice] = useState<string>("");
   const voiceRef = useRef<VoiceService | null>(null);
+  const browserVoiceRef = useRef<BrowserVoiceService | null>(null);
   const startTimeRef = useRef(Date.now());
 
   const currentQuestion = questions[currentIndex];
@@ -63,11 +76,31 @@ export function VoiceRecapOverlay({
   // Init voice service
   useEffect(() => {
     if (capabilities.ttsSupported || capabilities.sttSupported) {
-      voiceRef.current = new BrowserVoiceService();
+      const svc = new BrowserVoiceService();
+      voiceRef.current = svc;
+      browserVoiceRef.current = svc;
+
+      // Load available voices (may be async)
+      const loadVoices = (): void => {
+        const voices = svc.getEnglishVoices();
+        if (voices.length > 0) {
+          setAvailableVoices(voices);
+          const current = svc.getSelectedVoiceName();
+          if (current) setSelectedVoice(current);
+        }
+      };
+      loadVoices();
+      // Retry after voices load async
+      const timer = setTimeout(loadVoices, 500);
+      window.speechSynthesis?.addEventListener("voiceschanged", loadVoices);
+
+      return (): void => {
+        clearTimeout(timer);
+        window.speechSynthesis?.removeEventListener("voiceschanged", loadVoices);
+        svc.dispose();
+      };
     }
-    return (): void => {
-      voiceRef.current?.dispose();
-    };
+    return undefined;
   }, [capabilities]);
 
   const speakQuestion = useCallback(
@@ -309,6 +342,37 @@ export function VoiceRecapOverlay({
               I&apos;ll read through {questions.length} questions from your exam. Answer verbally or
               click A/B/C/D. Say &ldquo;skip&rdquo; to move on or &ldquo;explain&rdquo; for details.
             </p>
+
+            {/* Voice selector */}
+            {availableVoices.length > 0 && (
+              <div className="w-full max-w-xs space-y-2">
+                <Label className="text-sm">Voice</Label>
+                <Select
+                  value={selectedVoice}
+                  onValueChange={(name) => {
+                    setSelectedVoice(name);
+                    browserVoiceRef.current?.setVoiceByName(name);
+                    // Preview the voice
+                    browserVoiceRef.current?.speak("Hello, I am your exam tutor.", { rate: 0.9 });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a voice" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableVoices.map((v) => (
+                      <SelectItem key={v.name} value={v.name}>
+                        {v.name} ({v.lang})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-xs">
+                  Pick an English voice that sounds clear. Indian English (en-IN) recommended.
+                </p>
+              </div>
+            )}
+
             <Button size="lg" onClick={handleStart}>
               <Mic className="mr-2 h-4 w-4" />
               Start Voice Recap
