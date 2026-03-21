@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, Suspense } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { LearnSidebar } from "./learn-sidebar";
@@ -15,7 +15,7 @@ import { Menu, BookOpen } from "lucide-react";
 import { ScrollButtons } from "@/components/scroll-buttons";
 import "@/styles/tutorial-content.css";
 
-export default function LearnSyllabusPage(): React.ReactElement {
+function LearnSyllabusContent(): React.ReactElement {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -196,5 +196,13 @@ export default function LearnSyllabusPage(): React.ReactElement {
         tutorialFileId={contentQuery.data?.id}
       />
     </div>
+  );
+}
+
+export default function LearnSyllabusPage(): React.ReactElement {
+  return (
+    <Suspense fallback={<div />}>
+      <LearnSyllabusContent />
+    </Suspense>
   );
 }

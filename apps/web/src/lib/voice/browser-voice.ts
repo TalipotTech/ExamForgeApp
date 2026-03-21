@@ -1,9 +1,45 @@
 import type { VoiceService, SpeakOptions, ListenOptions } from "./voice-service";
 
+/* ---------- Web Speech API type shims (not in all TS libs) ---------- */
+interface SpeechRecognitionResult {
+  readonly length: number;
+  readonly isFinal: boolean;
+  [index: number]: { transcript: string; confidence: number };
+}
+
+interface SpeechRecognitionResultList {
+  readonly length: number;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionEventShim extends Event {
+  readonly results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEventShim extends Event {
+  readonly error: string;
+}
+
+interface SpeechRecognitionInstance extends EventTarget {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: SpeechRecognitionEventShim) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventShim) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+
+interface SpeechRecognitionCtor {
+  new (): SpeechRecognitionInstance;
+}
+
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
   }
 }
 
@@ -35,7 +71,7 @@ function pickEnglishVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice 
 
 export class BrowserVoiceService implements VoiceService {
   private synthesis: SpeechSynthesis;
-  private recognition: SpeechRecognition | null = null;
+  private recognition: SpeechRecognitionInstance | null = null;
   private resultCallbacks: Array<(transcript: string, isFinal: boolean) => void> = [];
   private errorCallbacks: Array<(error: string) => void> = [];
   private _isListening = false;
@@ -71,16 +107,16 @@ export class BrowserVoiceService implements VoiceService {
       this.recognition.interimResults = true;
       this.recognition.continuous = false;
 
-      this.recognition.onresult = (event: SpeechRecognitionEvent): void => {
+      this.recognition.onresult = (event: SpeechRecognitionEventShim): void => {
         const last = event.results[event.results.length - 1];
         if (last) {
-          const transcript = last[0].transcript;
+          const transcript = last[0]!.transcript;
           const isFinal = last.isFinal;
           this.resultCallbacks.forEach((cb) => cb(transcript, isFinal));
         }
       };
 
-      this.recognition.onerror = (event: SpeechRecognitionErrorEvent): void => {
+      this.recognition.onerror = (event: SpeechRecognitionErrorEventShim): void => {
         if (event.error !== "aborted" && event.error !== "no-speech") {
           this.errorCallbacks.forEach((cb) => cb(event.error));
         }

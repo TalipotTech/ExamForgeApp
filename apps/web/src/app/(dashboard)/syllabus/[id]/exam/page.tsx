@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CheckSquare, Clock, Loader2, Play } from "lucide-react";
@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
-export default function ExamBuilderPage(): React.ReactElement {
+function ExamBuilderContent(): React.ReactElement {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -235,5 +235,13 @@ export default function ExamBuilderPage(): React.ReactElement {
         Start Exam
       </Button>
     </div>
+  );
+}
+
+export default function ExamBuilderPage(): React.ReactElement {
+  return (
+    <Suspense fallback={<div />}>
+      <ExamBuilderContent />
+    </Suspense>
   );
 }

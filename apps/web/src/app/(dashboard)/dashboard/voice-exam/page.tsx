@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,7 @@ import { Mic, Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { VoiceTutorOverlay } from "@/components/voice-tutor/voice-tutor-overlay";
 
-export default function VoiceExamPage(): React.ReactElement {
+function VoiceExamContent(): React.ReactElement {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [selectedExamId, setSelectedExamId] = useState("");
@@ -169,5 +169,13 @@ export default function VoiceExamPage(): React.ReactElement {
         />
       )}
     </>
+  );
+}
+
+export default function VoiceExamPage(): React.ReactElement {
+  return (
+    <Suspense fallback={<div />}>
+      <VoiceExamContent />
+    </Suspense>
   );
 }

@@ -493,7 +493,9 @@ export function VoiceRecapOverlay({
                             "border-red-500 bg-red-100 dark:bg-red-900/30",
                           state === "listening" && "hover:border-primary cursor-pointer",
                         )}
-                        onClick={() => state === "listening" && processAnswer(optionLabels[i])}
+                        onClick={() =>
+                          state === "listening" && processAnswer(optionLabels[i] ?? "")
+                        }
                         disabled={state !== "listening"}
                       >
                         <span className="font-medium">{optionLabels[i]})</span> {option}
