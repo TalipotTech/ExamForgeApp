@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ExamQuestion } from "@/stores/exam-store";
+import { VoiceRecapOverlay } from "@/components/voice-tutor/voice-recap-overlay";
+import type { RecapQuestion } from "@/components/voice-tutor/voice-recap-overlay";
 
 function formatTime(totalSeconds: number): string {
   const h = Math.floor(totalSeconds / 3600);
@@ -45,6 +47,33 @@ export default function PracticeExamPage(): React.ReactElement {
   const params = useParams<{ examId: string }>();
   const router = useRouter();
   const examId = Number(params.examId);
+  const [showVoiceOverlay, setShowVoiceOverlay] = useState(false);
+
+  // Fetch full exam (with answers) for voice mode
+  const fullExamQuery = trpc.tutorialAgent.getUserExamById.useQuery(
+    { id: examId },
+    { enabled: showVoiceOverlay, refetchOnWindowFocus: false },
+  );
+
+  const voiceQuestions: RecapQuestion[] = fullExamQuery.data
+    ? (
+        (fullExamQuery.data.questions as Array<{
+          question: string;
+          options: string[];
+          answer: number;
+          explanation: string;
+          subject: string;
+          difficulty: string;
+        }>) ?? []
+      ).map((q) => ({
+        question: q.question,
+        options: q.options,
+        correctAnswer: q.answer,
+        explanation: q.explanation,
+        subject: q.subject,
+        difficulty: q.difficulty,
+      }))
+    : [];
 
   const {
     questions: practiceQuestions,
@@ -296,19 +325,15 @@ export default function PracticeExamPage(): React.ReactElement {
                 <Play className="size-5" />
                 {attempts > 0 ? "Retake Exam" : "Start Exam"}
               </Button>
-              <Link
-                href={
-                  data?.examId
-                    ? (`/dashboard/voice-exam?examId=${data.examId}` as "/")
-                    : ("/dashboard/voice-exam" as "/")
-                }
-                className="w-full"
+              <Button
+                variant="outline"
+                size="lg"
+                className="w-full gap-2"
+                onClick={() => setShowVoiceOverlay(true)}
               >
-                <Button variant="outline" size="lg" className="w-full gap-2">
-                  <Mic className="size-4" />
-                  Take as Voice Exam
-                </Button>
-              </Link>
+                <Mic className="size-4" />
+                Take as Voice Exam
+              </Button>
               <Link href="/dashboard/my-exams" className="w-full">
                 <Button variant="outline" size="lg" className="w-full gap-2">
                   <ListChecks className="size-4" />
@@ -318,6 +343,14 @@ export default function PracticeExamPage(): React.ReactElement {
             </div>
           </CardContent>
         </Card>
+
+        {showVoiceOverlay && voiceQuestions.length > 0 && (
+          <VoiceRecapOverlay
+            questions={voiceQuestions}
+            title={examTitle || data?.title}
+            onClose={() => setShowVoiceOverlay(false)}
+          />
+        )}
       </div>
     );
   }

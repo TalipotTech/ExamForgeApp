@@ -4,8 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, BookOpen, CheckCircle2, Mic } from "lucide-react";
-import Link from "next/link";
+import { Clock, BookOpen, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { LearnChat } from "./learn-chat";
 import { LearnNotes } from "./learn-notes";
@@ -20,7 +19,6 @@ type TutorialSection = {
 };
 
 interface LearnContentProps {
-  examId?: string;
   tutorial: {
     id: number;
     title: string;
@@ -45,7 +43,6 @@ interface LearnContentProps {
 }
 
 export function LearnContent({
-  examId,
   tutorial,
   syllabusId,
   syllabusNodeId,
@@ -146,22 +143,10 @@ export function LearnContent({
               {tutorial.progress.completionPercent}% complete
             </Badge>
           )}
-          <Link
-            href={
-              examId
-                ? (`/dashboard/voice-teacher?examId=${examId}&topic=${encodeURIComponent(tutorial.title)}` as "/")
-                : ("/dashboard/voice-teacher" as "/")
-            }
-          >
-            <Button variant="outline" size="sm" className="ml-auto gap-1.5">
-              <Mic className="h-3.5 w-3.5" />
-              Voice Quiz
-            </Button>
-          </Link>
           <Button
             variant={isComplete ? "outline" : "default"}
             size="sm"
-            className="gap-1.5"
+            className="ml-auto gap-1.5"
             disabled={isComplete || markCompleteMutation.isPending}
             onClick={() =>
               markCompleteMutation.mutate({

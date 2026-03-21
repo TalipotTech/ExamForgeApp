@@ -7,6 +7,32 @@ declare global {
   }
 }
 
+/**
+ * Pick the best English voice available, preferring Indian English.
+ * Falls back to any en-* voice, then US/UK English.
+ */
+function pickEnglishVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  // Priority 1: Indian English voices
+  const indian = voices.find(
+    (v) =>
+      v.lang === "en-IN" ||
+      v.name.toLowerCase().includes("india") ||
+      v.name.toLowerCase().includes("rishi") ||
+      v.name.toLowerCase().includes("veena"),
+  );
+  if (indian) return indian;
+
+  // Priority 2: Any English voice (en-US, en-GB, en-AU etc.)
+  const english = voices.find((v) => v.lang.startsWith("en"));
+  if (english) return english;
+
+  // Priority 3: Voice with "english" in name
+  const namedEnglish = voices.find((v) => v.name.toLowerCase().includes("english"));
+  if (namedEnglish) return namedEnglish;
+
+  return null;
+}
+
 export class BrowserVoiceService implements VoiceService {
   private synthesis: SpeechSynthesis;
   private recognition: SpeechRecognition | null = null;
@@ -15,9 +41,28 @@ export class BrowserVoiceService implements VoiceService {
   private _isListening = false;
   private _isSpeaking = false;
   private listenTimeout: ReturnType<typeof setTimeout> | null = null;
+  private cachedVoice: SpeechSynthesisVoice | null = null;
+  private voicesLoaded = false;
 
   constructor() {
     this.synthesis = window.speechSynthesis;
+
+    // Voices load asynchronously in most browsers — cache when ready
+    const loadVoices = (): void => {
+      const voices = this.synthesis.getVoices();
+      if (voices.length > 0) {
+        this.cachedVoice = pickEnglishVoice(voices);
+        this.voicesLoaded = true;
+      }
+    };
+
+    // Try immediately (works in Firefox)
+    loadVoices();
+
+    // Listen for async load (Chrome, Edge, Safari)
+    if (!this.voicesLoaded) {
+      this.synthesis.addEventListener("voiceschanged", loadVoices);
+    }
 
     const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognitionCtor) {
@@ -57,15 +102,17 @@ export class BrowserVoiceService implements VoiceService {
       utterance.pitch = options?.pitch ?? 1.0;
       utterance.lang = "en-IN";
 
-      // Try to find an Indian English voice
-      const voices = this.synthesis.getVoices();
-      const indianVoice = voices.find(
-        (v) =>
-          v.lang === "en-IN" ||
-          v.name.toLowerCase().includes("india") ||
-          v.name.toLowerCase().includes("rishi"),
-      );
-      if (indianVoice) utterance.voice = indianVoice;
+      // Use cached voice, or try to find one now
+      if (!this.cachedVoice) {
+        const voices = this.synthesis.getVoices();
+        if (voices.length > 0) {
+          this.cachedVoice = pickEnglishVoice(voices);
+        }
+      }
+
+      if (this.cachedVoice) {
+        utterance.voice = this.cachedVoice;
+      }
 
       this._isSpeaking = true;
 

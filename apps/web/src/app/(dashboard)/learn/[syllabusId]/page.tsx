@@ -116,7 +116,6 @@ export default function LearnSyllabusPage(): React.ReactElement {
           activeNodeId={effectiveNodeId}
           onSelectNode={handleSelectNode}
           onGenerateExam={handleGenerateExam}
-          examId={treeQuery.data?.syllabus?.examId}
         />
       </div>
     </div>
@@ -156,7 +155,6 @@ export default function LearnSyllabusPage(): React.ReactElement {
         {effectiveNodeId && contentQuery.data ? (
           <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
             <LearnContent
-              examId={treeQuery.data?.syllabus?.examId}
               tutorial={contentQuery.data}
               syllabusId={syllabusId}
               syllabusNodeId={effectiveNodeId}
