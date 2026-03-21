@@ -18,6 +18,7 @@
     "worker:dev": "tsx watch src/workers/index.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
     "@ai-sdk/anthropic": "^3.0.58",
     "@ai-sdk/google": "^3.0.43",
     "@ai-sdk/mistral": "^3.0.24",

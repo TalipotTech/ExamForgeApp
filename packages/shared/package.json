@@ -4,15 +4,39 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./db": "./src/db/index.ts",
-    "./db/schema": "./src/db/schema/index.ts",
-    "./validators": "./src/validators/index.ts",
-    "./types": "./src/types/index.ts",
-    "./constants": "./src/constants/index.ts"
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./db": {
+      "types": "./src/db/index.ts",
+      "import": "./dist/db/index.js",
+      "default": "./dist/db/index.js"
+    },
+    "./db/schema": {
+      "types": "./src/db/schema/index.ts",
+      "import": "./dist/db/schema/index.js",
+      "default": "./dist/db/schema/index.js"
+    },
+    "./validators": {
+      "types": "./src/validators/index.ts",
+      "import": "./dist/validators/index.js",
+      "default": "./dist/validators/index.js"
+    },
+    "./types": {
+      "types": "./src/types/index.ts",
+      "import": "./dist/types/index.js",
+      "default": "./dist/types/index.js"
+    },
+    "./constants": {
+      "types": "./src/constants/index.ts",
+      "import": "./dist/constants/index.js",
+      "default": "./dist/constants/index.js"
+    }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/fix-esm-imports.mjs",
     "lint": "eslint src/",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
