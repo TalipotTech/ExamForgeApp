@@ -17,8 +17,12 @@ import {
   getVoiceSessionSchema,
   teacherResponseSchema,
 } from "@examforge/shared/validators";
+import { z } from "zod";
 import { router, protectedProcedure } from "../trpc.js";
 import { routeAIRequest } from "../../ai/ai-router.js";
+import { getFlag } from "../../services/feature-flags.js";
+import { getTTSProvider } from "../../services/tts/tts-factory.js";
+import { logTTSUsage, canUserSynthesize } from "../../services/tts/tts-usage.js";
 import {
   VOICE_TEACHER_SYSTEM_PROMPT,
   buildVoiceTeacherPrompt,
@@ -574,6 +578,108 @@ export const voiceTutorRouter = router({
         startedAt: session.startedAt.toISOString(),
         completedAt: session.completedAt?.toISOString() ?? null,
       };
+    },
+  ),
+
+  // ─── Premium TTS ───
+
+  synthesize: protectedProcedure
+    .input(
+      z.object({
+        text: z.string().min(1).max(5000),
+        voiceId: z.string().min(1),
+        rate: z.number().min(0.5).max(2.0).optional(),
+        sessionId: z.string().uuid().optional(),
+      }),
+    )
+    .mutation(
+      async ({
+        ctx,
+        input,
+      }): Promise<{ audioBase64: string; contentType: string; charCount: number }> => {
+        const enabled = await getFlag(ctx.db, "voice.premium_tts_enabled");
+        if (!enabled) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Premium TTS is not enabled. Contact admin.",
+          });
+        }
+
+        const quota = await canUserSynthesize(ctx.db, ctx.userId, input.text.length);
+        if (!quota.allowed) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Monthly TTS limit reached (${quota.used}/${quota.limit} chars). Resets next month.`,
+          });
+        }
+
+        const provider = await getTTSProvider("azure", ctx.db);
+        const result = await provider.synthesize({
+          text: input.text,
+          voiceId: input.voiceId,
+          rate: input.rate,
+        });
+
+        // Azure free tier: ~$0 for first 500K, then ~$16/1M chars
+        const estimatedCost = result.charCount * 0.000016;
+
+        await logTTSUsage(ctx.db, {
+          userId: ctx.userId,
+          provider: "azure",
+          voiceId: input.voiceId,
+          charCount: result.charCount,
+          estimatedCostUsd: estimatedCost,
+          sessionId: input.sessionId,
+        });
+
+        return {
+          audioBase64: result.audioBase64,
+          contentType: result.contentType,
+          charCount: result.charCount,
+        };
+      },
+    ),
+
+  getAvailableVoices: protectedProcedure.query(
+    async ({
+      ctx,
+    }): Promise<{
+      premiumEnabled: boolean;
+      premiumVoices: Array<{
+        id: string;
+        name: string;
+        gender: string;
+        locale: string;
+        provider: string;
+      }>;
+      userUsage: { used: number; limit: number; remaining: number };
+    }> => {
+      const enabled = (await getFlag(ctx.db, "voice.premium_tts_enabled")) as boolean;
+
+      if (!enabled) {
+        return {
+          premiumEnabled: false,
+          premiumVoices: [],
+          userUsage: { used: 0, limit: 0, remaining: 0 },
+        };
+      }
+
+      const provider = await getTTSProvider("azure", ctx.db).catch(() => null);
+      const voices = provider?.listVoices() ?? [];
+      const quota = await canUserSynthesize(ctx.db, ctx.userId, 0);
+
+      return {
+        premiumEnabled: true,
+        premiumVoices: voices,
+        userUsage: { used: quota.used, limit: quota.limit, remaining: quota.remaining },
+      };
+    },
+  ),
+
+  getTTSUsage: protectedProcedure.query(
+    async ({ ctx }): Promise<{ used: number; limit: number; remaining: number }> => {
+      const quota = await canUserSynthesize(ctx.db, ctx.userId, 0);
+      return { used: quota.used, limit: quota.limit, remaining: quota.remaining };
     },
   ),
 });

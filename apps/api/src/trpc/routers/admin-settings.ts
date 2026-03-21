@@ -43,6 +43,31 @@ export const adminSettingsRouter = router({
       return { success: true, message: "Test SMS sent (check console if no provider configured)" };
     }),
 
+  testVoice: superAdminProcedure.mutation(async ({ ctx }) => {
+    try {
+      const { getTTSProvider } = await import("../../services/tts/tts-factory.js");
+      const provider = await getTTSProvider("azure", ctx.db);
+      const result = await provider.synthesize({
+        text: "Hello, I am your ExamForge tutor. Let us start studying!",
+        voiceId: "en-IN-NeerjaNeural",
+        rate: 0.9,
+      });
+      return {
+        success: true,
+        message: `Azure Speech connected. Audio: ${result.charCount} chars, ${result.durationMs}ms`,
+        audioBase64: result.audioBase64,
+        contentType: result.contentType,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        message: `Azure Speech test failed: ${(err as Error).message}`,
+        audioBase64: null,
+        contentType: null,
+      };
+    }
+  }),
+
   testPayment: superAdminProcedure.mutation(async ({ ctx: _ctx }) => {
     // Simple connection test
     const keyId = process.env.RAZORPAY_KEY_ID;

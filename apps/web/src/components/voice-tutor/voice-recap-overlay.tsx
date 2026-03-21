@@ -29,8 +29,10 @@ import { cn } from "@/lib/utils";
 import { AudioWaveform } from "./audio-waveform";
 import { matchSpokenAnswer } from "@/lib/voice/answer-matcher";
 import { BrowserVoiceService } from "@/lib/voice/browser-voice";
+import { PremiumVoiceService } from "@/lib/voice/premium-voice";
 import { detectVoiceCapabilities } from "@/lib/voice/voice-service";
 import type { VoiceService } from "@/lib/voice/voice-service";
+import { trpc } from "@/lib/trpc";
 
 export type RecapQuestion = {
   question: string;
@@ -62,10 +64,11 @@ export function VoiceRecapOverlay({
   const [textInput, setTextInput] = useState("");
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [capabilities] = useState(() => detectVoiceCapabilities());
-  const [availableVoices, setAvailableVoices] = useState<
+  const [browserVoices, setBrowserVoices] = useState<
     Array<{ name: string; lang: string; uri: string }>
   >([]);
   const [selectedVoice, setSelectedVoice] = useState<string>("");
+  const [selectedProvider, setSelectedProvider] = useState<"browser" | "premium">("browser");
   const voiceRef = useRef<VoiceService | null>(null);
   const browserVoiceRef = useRef<BrowserVoiceService | null>(null);
   const startTimeRef = useRef(Date.now());
@@ -73,24 +76,32 @@ export function VoiceRecapOverlay({
   const currentQuestion = questions[currentIndex];
   const optionLabels = ["A", "B", "C", "D"];
 
-  // Init voice service
+  // Fetch premium voices from server
+  const premiumQuery = trpc.voiceTutor.getAvailableVoices.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+  });
+  const synthesizeMutation = trpc.voiceTutor.synthesize.useMutation();
+
+  const premiumVoices = premiumQuery.data?.premiumVoices ?? [];
+  const premiumEnabled = premiumQuery.data?.premiumEnabled ?? false;
+  const userUsage = premiumQuery.data?.userUsage;
+
+  // Init browser voice service
   useEffect(() => {
     if (capabilities.ttsSupported || capabilities.sttSupported) {
       const svc = new BrowserVoiceService();
       voiceRef.current = svc;
       browserVoiceRef.current = svc;
 
-      // Load available voices (may be async)
       const loadVoices = (): void => {
         const voices = svc.getEnglishVoices();
         if (voices.length > 0) {
-          setAvailableVoices(voices);
+          setBrowserVoices(voices);
           const current = svc.getSelectedVoiceName();
-          if (current) setSelectedVoice(current);
+          if (current && !selectedVoice) setSelectedVoice(current);
         }
       };
       loadVoices();
-      // Retry after voices load async
       const timer = setTimeout(loadVoices, 500);
       window.speechSynthesis?.addEventListener("voiceschanged", loadVoices);
 
@@ -101,7 +112,7 @@ export function VoiceRecapOverlay({
       };
     }
     return undefined;
-  }, [capabilities]);
+  }, [capabilities, selectedVoice]);
 
   const speakQuestion = useCallback(
     async (index: number): Promise<void> => {
@@ -344,34 +355,80 @@ export function VoiceRecapOverlay({
             </p>
 
             {/* Voice selector */}
-            {availableVoices.length > 0 && (
-              <div className="w-full max-w-xs space-y-2">
-                <Label className="text-sm">Voice</Label>
-                <Select
-                  value={selectedVoice}
-                  onValueChange={(name) => {
+            <div className="w-full max-w-xs space-y-2">
+              <Label className="text-sm">Voice</Label>
+              <Select
+                value={`${selectedProvider}:${selectedVoice}`}
+                onValueChange={(val) => {
+                  const [provider, ...nameParts] = val.split(":");
+                  const name = nameParts.join(":");
+                  if (provider === "premium") {
+                    setSelectedProvider("premium");
                     setSelectedVoice(name);
-                    browserVoiceRef.current?.setVoiceByName(name);
-                    // Preview the voice
-                    browserVoiceRef.current?.speak("Hello, I am your exam tutor.", { rate: 0.9 });
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a voice" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableVoices.map((v) => (
-                      <SelectItem key={v.name} value={v.name}>
-                        {v.name} ({v.lang})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    // Switch to premium voice service
+                    const premiumSvc = new PremiumVoiceService(
+                      name,
+                      async (text, voiceId, rate) => {
+                        const res = await synthesizeMutation.mutateAsync({ text, voiceId, rate });
+                        return { audioBase64: res.audioBase64, contentType: res.contentType };
+                      },
+                    );
+                    voiceRef.current?.dispose();
+                    voiceRef.current = premiumSvc;
+                    // Preview
+                    premiumSvc.speak("Hello, I am your exam tutor.", { rate: 0.9 });
+                  } else {
+                    setSelectedProvider("browser");
+                    setSelectedVoice(name);
+                    // Switch back to browser
+                    const browserSvc = new BrowserVoiceService();
+                    browserSvc.setVoiceByName(name);
+                    voiceRef.current?.dispose();
+                    voiceRef.current = browserSvc;
+                    browserVoiceRef.current = browserSvc;
+                    browserSvc.speak("Hello, I am your exam tutor.", { rate: 0.9 });
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a voice" />
+                </SelectTrigger>
+                <SelectContent>
+                  {premiumEnabled && premiumVoices.length > 0 && (
+                    <>
+                      <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold">
+                        Premium Voices (Azure)
+                      </div>
+                      {premiumVoices.map((v) => (
+                        <SelectItem key={`premium:${v.id}`} value={`premium:${v.id}`}>
+                          {v.name}
+                        </SelectItem>
+                      ))}
+                      <div className="my-1 border-t" />
+                    </>
+                  )}
+                  <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold">
+                    Browser Voices
+                  </div>
+                  {browserVoices.map((v) => (
+                    <SelectItem key={`browser:${v.name}`} value={`browser:${v.name}`}>
+                      {v.name} ({v.lang})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {premiumEnabled && userUsage && (
                 <p className="text-muted-foreground text-xs">
-                  Pick an English voice that sounds clear. Indian English (en-IN) recommended.
+                  Premium usage: {userUsage.used.toLocaleString()} /{" "}
+                  {userUsage.limit.toLocaleString()} chars this month
                 </p>
-              </div>
-            )}
+              )}
+              {!premiumEnabled && (
+                <p className="text-muted-foreground text-xs">
+                  Pick an English voice. Indian English (en-IN) recommended.
+                </p>
+              )}
+            </div>
 
             <Button size="lg" onClick={handleStart}>
               <Mic className="mr-2 h-4 w-4" />

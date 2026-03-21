@@ -51,3 +51,4 @@ export type { GenerationProgressEntry } from "./tutorial-generation-jobs";
 // Voice Tutor
 export { voiceSessions } from "./voice-sessions";
 export type { VoiceSessionQuestion, VoiceConversationEntry } from "./voice-sessions";
+export { ttsUsageLogs } from "./tts-usage-logs";

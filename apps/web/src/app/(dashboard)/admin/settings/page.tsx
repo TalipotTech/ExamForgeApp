@@ -325,6 +325,97 @@ export default function AdminSettingsPage(): React.ReactElement {
           />
         </CardContent>
       </Card>
+
+      {/* Voice / TTS */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Voice / TTS</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <ToggleSwitch
+            checked={getValue("voice.premium_tts_enabled") as boolean}
+            onChange={(v) => setValue("voice.premium_tts_enabled", v)}
+            label="Premium TTS enabled"
+            description="Enable Azure Speech cloud voices for Voice Tutor"
+          />
+          <div>
+            <Label>Azure Speech API key</Label>
+            <Input
+              type="password"
+              value={(getValue("voice.azure_speech_key") as string) ?? ""}
+              onChange={(e) => setValue("voice.azure_speech_key", e.target.value)}
+              placeholder="Enter Azure Speech subscription key"
+            />
+          </div>
+          <div>
+            <Label>Azure Speech region</Label>
+            <Input
+              value={(getValue("voice.azure_speech_region") as string) ?? "centralindia"}
+              onChange={(e) => setValue("voice.azure_speech_region", e.target.value)}
+              placeholder="centralindia"
+            />
+          </div>
+          <div>
+            <Label>Per-user monthly char limit</Label>
+            <Input
+              type="number"
+              value={(getValue("voice.per_user_char_limit") as number) ?? 10000}
+              onChange={(e) =>
+                setValue("voice.per_user_char_limit", parseInt(e.target.value) || 10000)
+              }
+            />
+          </div>
+          <div>
+            <Label>Platform monthly char limit</Label>
+            <Input
+              type="number"
+              value={(getValue("voice.monthly_char_limit") as number) ?? 500000}
+              onChange={(e) =>
+                setValue("voice.monthly_char_limit", parseInt(e.target.value) || 500000)
+              }
+            />
+          </div>
+          <VoiceTestButton />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function VoiceTestButton(): React.ReactElement {
+  const testMutation = trpc.adminSettings.testVoice.useMutation();
+  const [testResult, setTestResult] = useState<string | null>(null);
+
+  async function handleTest(): Promise<void> {
+    setTestResult(null);
+    const result = await testMutation.mutateAsync();
+    setTestResult(result.message);
+
+    // Play the audio if available
+    if (result.success && result.audioBase64 && result.contentType) {
+      try {
+        const audioData = Uint8Array.from(atob(result.audioBase64), (c) => c.charCodeAt(0));
+        const blob = new Blob([audioData], { type: result.contentType });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.play();
+        audio.onended = (): void => URL.revokeObjectURL(url);
+      } catch {
+        // Audio playback failed silently
+      }
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <Button variant="outline" size="sm" onClick={handleTest} disabled={testMutation.isPending}>
+        {testMutation.isPending ? "Testing..." : "Test Azure Voice"}
+      </Button>
+      {testResult && (
+        <p className={`text-xs ${testMutation.data?.success ? "text-green-600" : "text-red-500"}`}>
+          {testResult}
+        </p>
+      )}
     </div>
   );
 }

@@ -33,6 +33,14 @@ export interface VoiceCapabilities {
   sttProvider: "browser" | "premium";
 }
 
+export type PremiumVoiceInfo = {
+  id: string;
+  name: string;
+  gender: string;
+  locale: string;
+  provider: string;
+};
+
 export function detectVoiceCapabilities(): VoiceCapabilities {
   const ttsSupported = typeof window !== "undefined" && "speechSynthesis" in window;
   const sttSupported =
