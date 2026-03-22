@@ -183,6 +183,16 @@ export class ExamforgeStack extends cdk.Stack {
       "ImportedRedisUrl",
       `examforge/${envName}/app-redis-url`,
     );
+    secretRefs["gmail-user"] = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "ImportedGmailUser",
+      `examforge/${envName}/gmail-user`,
+    );
+    secretRefs["gmail-app-password"] = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "ImportedGmailAppPassword",
+      `examforge/${envName}/gmail-app-password`,
+    );
 
     // ──── SNS Alerts ────
     const alertsTopic = new sns.Topic(this, "AlertsTopic", {
@@ -354,6 +364,8 @@ export class ExamforgeStack extends cdk.Stack {
                 },
                 { name: "MISTRAL_API_KEY", value: secretRefs["mistral-api-key"]!.secretArn },
                 { name: "NEXTAUTH_SECRET", value: secretRefs["nextauth-secret"]!.secretArn },
+                { name: "GMAIL_USER", value: secretRefs["gmail-user"]!.secretArn },
+                { name: "GMAIL_APP_PASSWORD", value: secretRefs["gmail-app-password"]!.secretArn },
               ],
             },
           },
