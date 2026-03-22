@@ -287,7 +287,7 @@ export class ExamforgeStack extends cdk.Stack {
                   value:
                     envName === "prod"
                       ? "https://api.examforge.in"
-                      : "https://bkxwda6tmj.ap-south-1.awsapprunner.com",
+                      : "https://rjns6ey2ie.ap-south-1.awsapprunner.com",
                 },
                 {
                   name: "NEXTAUTH_URL",
