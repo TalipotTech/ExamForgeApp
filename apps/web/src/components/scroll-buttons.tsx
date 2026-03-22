@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowUp, ArrowDown } from "lucide-react";
 
 interface ScrollButtonsProps {
-  containerRef: RefObject<HTMLElement | null>;
+  /** If provided, scroll within this container. Otherwise, scroll the window. */
+  containerRef?: RefObject<HTMLElement | null>;
 }
 
 export function ScrollButtons({ containerRef }: ScrollButtonsProps): React.ReactElement | null {
@@ -13,48 +14,67 @@ export function ScrollButtons({ containerRef }: ScrollButtonsProps): React.React
   const [showBottom, setShowBottom] = useState(false);
 
   const updateVisibility = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const { scrollTop, scrollHeight, clientHeight } = el;
-    setShowTop(scrollTop > 200);
-    // Show bottom button when there's more than 200px left to scroll
-    setShowBottom(scrollHeight - scrollTop - clientHeight > 200);
+    if (containerRef?.current) {
+      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+      setShowTop(scrollTop > 200);
+      setShowBottom(scrollHeight - scrollTop - clientHeight > 200);
+    } else {
+      const scrollY = window.scrollY;
+      const windowH = window.innerHeight;
+      const docH = document.documentElement.scrollHeight;
+      setShowTop(scrollY > 300);
+      setShowBottom(scrollY + windowH < docH - 300);
+    }
   }, [containerRef]);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    const el = containerRef?.current;
 
     updateVisibility();
-    el.addEventListener("scroll", updateVisibility, { passive: true });
-    // Also check on resize
-    const ro = new ResizeObserver(updateVisibility);
-    ro.observe(el);
 
-    return () => {
-      el.removeEventListener("scroll", updateVisibility);
-      ro.disconnect();
-    };
+    if (el) {
+      el.addEventListener("scroll", updateVisibility, { passive: true });
+      const ro = new ResizeObserver(updateVisibility);
+      ro.observe(el);
+      return (): void => {
+        el.removeEventListener("scroll", updateVisibility);
+        ro.disconnect();
+      };
+    } else {
+      window.addEventListener("scroll", updateVisibility, { passive: true });
+      window.addEventListener("resize", updateVisibility, { passive: true });
+      return (): void => {
+        window.removeEventListener("scroll", updateVisibility);
+        window.removeEventListener("resize", updateVisibility);
+      };
+    }
   }, [containerRef, updateVisibility]);
 
-  const scrollToTop = useCallback(() => {
-    containerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  const scrollToTop = useCallback((): void => {
+    if (containerRef?.current) {
+      containerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }, [containerRef]);
 
-  const scrollToBottom = useCallback(() => {
-    const el = containerRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  const scrollToBottom = useCallback((): void => {
+    if (containerRef?.current) {
+      containerRef.current.scrollTo({ top: containerRef.current.scrollHeight, behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+    }
   }, [containerRef]);
 
   if (!showTop && !showBottom) return null;
 
   return (
-    <div className="fixed bottom-20 right-4 z-30 flex flex-col gap-2">
+    <div className="fixed bottom-24 right-5 z-40 flex flex-col gap-2">
       {showTop && (
         <Button
           variant="outline"
           size="icon"
-          className="bg-background h-9 w-9 rounded-full shadow-lg transition-opacity"
+          className="h-9 w-9 rounded-full border-slate-300 bg-white/90 shadow-md backdrop-blur-sm transition-all hover:bg-indigo-50 hover:shadow-lg dark:border-slate-600 dark:bg-slate-800/90 dark:hover:bg-slate-700"
           onClick={scrollToTop}
           title="Scroll to top"
         >
@@ -65,7 +85,7 @@ export function ScrollButtons({ containerRef }: ScrollButtonsProps): React.React
         <Button
           variant="outline"
           size="icon"
-          className="bg-background h-9 w-9 rounded-full shadow-lg transition-opacity"
+          className="h-9 w-9 rounded-full border-slate-300 bg-white/90 shadow-md backdrop-blur-sm transition-all hover:bg-indigo-50 hover:shadow-lg dark:border-slate-600 dark:bg-slate-800/90 dark:hover:bg-slate-700"
           onClick={scrollToBottom}
           title="Scroll to bottom"
         >

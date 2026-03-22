@@ -31,7 +31,7 @@ export const aiChatRouter = router({
   sendMessage: protectedProcedure
     .input(sendAiChatMessageSchema)
     .mutation(async ({ ctx, input }) => {
-      const { conversationId, message, provider, keyword } = input;
+      const { conversationId, message, provider, keyword, pageContext } = input;
 
       type ConvMessage = { role: "user" | "assistant"; content: string; timestamp: string };
 
@@ -152,6 +152,7 @@ export const aiChatRouter = router({
             totalTokens: aiResult.usage.totalTokens,
             estimatedCostUsd: aiResult.estimatedCostUsd ?? 0,
             keyword: keyword ?? null,
+            pageContext: pageContext ?? null,
           })
           .returning({ id: aiConversations.id });
         savedConversationId = inserted!.id;
@@ -172,8 +173,12 @@ export const aiChatRouter = router({
       const limit = input?.limit ?? 20;
       const offset = input?.offset ?? 0;
       const search = input?.search;
+      const pageContext = input?.pageContext;
 
       const conditions = [eq(aiConversations.userId, ctx.userId)];
+      if (pageContext) {
+        conditions.push(eq(aiConversations.pageContext, pageContext));
+      }
       if (search) {
         const pattern = `%${search}%`;
         conditions.push(

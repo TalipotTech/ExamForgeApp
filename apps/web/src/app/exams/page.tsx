@@ -2,141 +2,160 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Search, BookOpen, ArrowRight, ChevronDown, MinusCircle } from "lucide-react";
+import {
+  Search,
+  BookOpen,
+  ArrowRight,
+  ChevronDown,
+  Calendar,
+  MapPin,
+  Building2,
+  Hash,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 
-const CATEGORIES = [
-  {
-    id: "pharmacy",
-    label: "Pharmacy",
-    color: "text-indigo-600 bg-indigo-100 dark:bg-indigo-900 dark:text-indigo-300",
-  },
-  {
-    id: "medical",
-    label: "Medical",
-    color: "text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-300",
-  },
-  {
-    id: "civil_services",
-    label: "Civil Services",
-    color: "text-yellow-600 bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-300",
-  },
-  {
-    id: "state_psc",
-    label: "State PSC",
-    color: "text-emerald-600 bg-emerald-100 dark:bg-emerald-900 dark:text-emerald-300",
-  },
-  {
-    id: "engineering",
-    label: "Engineering",
-    color: "text-purple-600 bg-purple-100 dark:bg-purple-900 dark:text-purple-300",
-  },
-] as const;
-
-const STATUSES = ["all", "upcoming", "active", "past"] as const;
-
-const SORTS = [
-  { value: "date", label: "Exam Date" },
-  { value: "popularity", label: "Popularity" },
-  { value: "questions", label: "Questions Available" },
-  { value: "name", label: "Name (A-Z)" },
-] as const;
-
-function daysUntil(dateStr: string | null): number | null {
+function daysUntil(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
-  const d = new Date(dateStr);
+  // Handle DD/MM/YYYY format
+  const parts = dateStr.split("/");
+  let d: Date;
+  if (parts.length === 3 && parts[0]!.length <= 2) {
+    d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+  } else {
+    d = new Date(dateStr);
+  }
+  if (isNaN(d.getTime())) return null;
   const now = new Date();
   return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function getCategoryStyle(category: string): string {
-  const cat = CATEGORIES.find((c) => c.id === category);
-  return cat?.color ?? "text-gray-600 bg-gray-100 dark:bg-gray-900 dark:text-gray-300";
-}
-
-function getCategoryLabel(category: string): string {
-  const cat = CATEGORIES.find((c) => c.id === category);
-  return cat?.label ?? category;
-}
-
-function formatExamDate(
-  examDate: string | Date | null,
-  dateConfidence?: string | null,
-): { text: string; suffix: string; className: string } {
-  if (!examDate) return { text: "TBA", suffix: "", className: "text-muted-foreground" };
-  const d = new Date(examDate as string);
-  const formatted = d.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  switch (dateConfidence) {
-    case "confirmed":
-      return { text: formatted, suffix: " \u2713", className: "text-green-600" };
-    case "approximate":
-      return { text: `~${formatted}`, suffix: "", className: "text-yellow-600" };
-    case "inferred":
-      return { text: `~${formatted}`, suffix: " ?", className: "text-orange-500" };
-    default:
-      return { text: formatted, suffix: "", className: "" };
+function formatExamDate(dateStr: string | null | undefined): {
+  text: string;
+  className: string;
+} {
+  if (!dateStr) return { text: "TBA", className: "text-muted-foreground" };
+  const parts = dateStr.split("/");
+  let d: Date;
+  if (parts.length === 3 && parts[0]!.length <= 2) {
+    d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+  } else {
+    d = new Date(dateStr);
   }
+  if (isNaN(d.getTime())) return { text: dateStr, className: "" };
+  return {
+    text: d.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }),
+    className: "",
+  };
 }
+
+function getStatusBadge(
+  status: string | null | undefined,
+  days: number | null,
+): { label: string; className: string } {
+  if (status === "postponed")
+    return {
+      label: "Postponed",
+      className: "border-yellow-500/50 bg-yellow-500/10 text-yellow-600",
+    };
+  if (status === "cancelled")
+    return {
+      label: "Cancelled",
+      className: "border-red-500/50 bg-red-500/10 text-red-600",
+    };
+  if (days !== null && days > 0)
+    return {
+      label: "Upcoming",
+      className: "border-green-500/50 bg-green-500/10 text-green-600",
+    };
+  if (days !== null && days <= 0)
+    return {
+      label: "Completed",
+      className: "border-slate-500/50 bg-slate-500/10 text-slate-600",
+    };
+  return {
+    label: "Scheduled",
+    className: "border-blue-500/50 bg-blue-500/10 text-blue-600",
+  };
+}
+
+const ITEMS_PER_PAGE = 20;
 
 export default function ExamCatalogPage(): React.ReactElement {
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sort, setSort] = useState("date");
-  const [page, setPage] = useState(1);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
 
-  const queryInput = useMemo(
-    () => ({
-      category: categoryFilter.length === 1 ? categoryFilter[0] : undefined,
-      status: statusFilter !== "all" ? (statusFilter as "upcoming" | "active" | "past") : undefined,
-      search: search || undefined,
-      sort: sort as "date" | "popularity" | "questions" | "name",
-      page,
-      limit: 12,
-    }),
-    [categoryFilter, statusFilter, search, sort, page],
+  const { data: allExams, isLoading } = trpc.portalIngestion.listAllExaminations.useQuery(
+    undefined,
+    { staleTime: 5 * 60 * 1000 },
   );
 
-  const examQuery = trpc.exam.listPublic.useQuery(queryInput, {
-    staleTime: 5 * 60 * 1000,
-  });
+  // Extract categories with counts
+  const categories = useMemo(() => {
+    if (!allExams) return [];
+    const catMap = new Map<string, number>();
+    for (const exam of allExams) {
+      const cat = exam.examCategory ?? "Other";
+      catMap.set(cat, (catMap.get(cat) ?? 0) + 1);
+    }
+    return Array.from(catMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+  }, [allExams]);
 
-  const allExams = examQuery.data?.exams ?? [];
-  const total = examQuery.data?.total ?? 0;
-  const totalPages = examQuery.data?.totalPages ?? 1;
+  // Filter
+  const filtered = useMemo(() => {
+    if (!allExams) return [];
+    let result = allExams;
 
-  // Client-side multi-category filter (API only supports 1 category)
-  const filteredExams =
-    categoryFilter.length > 1
-      ? allExams.filter((e) => categoryFilter.includes(e.category))
-      : allExams;
+    if (categoryFilter) {
+      result = result.filter((e) => (e.examCategory ?? "Other") === categoryFilter);
+    }
 
-  function toggleCategory(cat: string): void {
-    setCategoryFilter((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
-    );
-    setPage(1);
-  }
+    if (search) {
+      const term = search.toLowerCase();
+      result = result.filter(
+        (e) =>
+          e.examName.toLowerCase().includes(term) ||
+          e.postName?.toLowerCase().includes(term) ||
+          e.categoryNumber?.toLowerCase().includes(term) ||
+          e.department?.toLowerCase().includes(term) ||
+          e.portalName?.toLowerCase().includes(term),
+      );
+    }
+
+    // Sort by days left (upcoming first, nearest first)
+    return [...result].sort((a, b) => {
+      const daysA = daysUntil(a.examDate);
+      const daysB = daysUntil(b.examDate);
+      // Upcoming exams (positive days) first, sorted nearest first
+      if (daysA !== null && daysA > 0 && daysB !== null && daysB > 0) return daysA - daysB;
+      if (daysA !== null && daysA > 0) return -1;
+      if (daysB !== null && daysB > 0) return 1;
+      // Past exams next (most recent first)
+      if (daysA !== null && daysB !== null) return daysB - daysA;
+      if (daysA !== null) return -1;
+      if (daysB !== null) return 1;
+      // No date last
+      return a.examName.localeCompare(b.examName);
+    });
+  }, [allExams, categoryFilter, search]);
+
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
 
   return (
     <div className="bg-background min-h-screen">
-      {/* Simple Nav */}
+      {/* Nav */}
       <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 border-b backdrop-blur">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
           <Link href="/" className="text-lg font-bold tracking-tight">
@@ -160,10 +179,7 @@ export default function ExamCatalogPage(): React.ReactElement {
         <div className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight">Exam Catalog</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            {total} exams tracked &bull;{" "}
-            {filteredExams.filter((e) => e.status === "upcoming").length} upcoming &bull;{" "}
-            {filteredExams.reduce((a, e) => a + (e.questionCount ?? 0), 0).toLocaleString()}{" "}
-            questions available
+            {filtered.length} examinations available &bull; Browse schedules, practice, and prepare
           </p>
         </div>
 
@@ -182,7 +198,7 @@ export default function ExamCatalogPage(): React.ReactElement {
                     value={search}
                     onChange={(e) => {
                       setSearch(e.target.value);
-                      setPage(1);
+                      setVisibleCount(ITEMS_PER_PAGE);
                     }}
                     placeholder="Exam name, keyword..."
                     className="pl-9"
@@ -190,86 +206,58 @@ export default function ExamCatalogPage(): React.ReactElement {
                 </div>
               </div>
 
-              {/* Category */}
-              <div>
-                <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wide">
-                  Category
-                </label>
-                <div className="space-y-1.5">
-                  {CATEGORIES.map((cat) => (
-                    <label key={cat.id} className="flex cursor-pointer items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={categoryFilter.includes(cat.id)}
-                        onChange={() => toggleCategory(cat.id)}
-                        className="accent-primary size-3.5 rounded"
-                      />
-                      <span
-                        className={
-                          categoryFilter.includes(cat.id)
-                            ? "text-foreground"
-                            : "text-muted-foreground"
-                        }
+              {/* Categories */}
+              {categories.length > 0 && (
+                <div>
+                  <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wide">
+                    Category
+                  </label>
+                  <div className="space-y-1.5">
+                    {categories.map((cat) => (
+                      <label
+                        key={cat.name}
+                        className="flex cursor-pointer items-center gap-2 text-sm"
                       >
-                        {cat.label}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wide">
-                  Status
-                </label>
-                <div className="space-y-1.5">
-                  {STATUSES.map((s) => (
-                    <label key={s} className="flex cursor-pointer items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        name="status"
-                        checked={statusFilter === s}
-                        onChange={() => {
-                          setStatusFilter(s);
-                          setPage(1);
-                        }}
-                        className="accent-primary size-3.5"
-                      />
-                      <span
-                        className={statusFilter === s ? "text-foreground" : "text-muted-foreground"}
-                      >
-                        {s.charAt(0).toUpperCase() + s.slice(1)}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sort */}
-              <div>
-                <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wide">
-                  Sort By
-                </label>
-                <Select
-                  value={sort}
-                  onValueChange={(v) => {
-                    setSort(v);
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SORTS.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        {s.label}
-                      </SelectItem>
+                        <input
+                          type="radio"
+                          name="category"
+                          checked={categoryFilter === cat.name}
+                          onChange={() => {
+                            setCategoryFilter((prev) => (prev === cat.name ? null : cat.name));
+                            setVisibleCount(ITEMS_PER_PAGE);
+                          }}
+                          className="accent-primary size-3.5"
+                        />
+                        <span
+                          className={
+                            categoryFilter === cat.name
+                              ? "text-foreground"
+                              : "text-muted-foreground"
+                          }
+                        >
+                          {cat.name}
+                        </span>
+                        <span className="text-muted-foreground/60 ml-auto text-[10px]">
+                          {cat.count}
+                        </span>
+                      </label>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    {categoryFilter && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2 w-full text-xs"
+                        onClick={() => {
+                          setCategoryFilter(null);
+                          setVisibleCount(ITEMS_PER_PAGE);
+                        }}
+                      >
+                        Clear filter
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </aside>
 
@@ -283,7 +271,7 @@ export default function ExamCatalogPage(): React.ReactElement {
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);
-                    setPage(1);
+                    setVisibleCount(ITEMS_PER_PAGE);
                   }}
                   placeholder="Search exams..."
                   className="pl-9"
@@ -291,17 +279,17 @@ export default function ExamCatalogPage(): React.ReactElement {
               </div>
             </div>
 
-            {examQuery.isLoading ? (
+            {isLoading ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <Skeleton key={i} className="h-56 rounded-xl" />
                 ))}
               </div>
-            ) : filteredExams.length === 0 ? (
+            ) : visible.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-16">
                   <Search className="text-muted-foreground/50 mb-4 size-12" />
-                  <h3 className="text-lg font-medium">No exams match your filters</h3>
+                  <h3 className="text-lg font-medium">No exams match your search</h3>
                   <p className="text-muted-foreground mt-1 text-sm">
                     Try adjusting your search or filters
                   </p>
@@ -310,54 +298,49 @@ export default function ExamCatalogPage(): React.ReactElement {
             ) : (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {filteredExams.map((exam) => {
-                    const days = daysUntil(
-                      exam.examDate ? (exam.examDate as unknown as string) : null,
-                    );
-                    const isFeatured = exam.isFeatured;
+                  {visible.map((exam, idx) => {
+                    const days = daysUntil(exam.examDate);
+                    const dateInfo = formatExamDate(exam.examDate);
+                    const statusBadge = getStatusBadge(null, days);
 
                     return (
-                      <Link key={exam.id} href={`/exams/${exam.id}` as "/"}>
-                        <Card
-                          className={`group relative cursor-pointer overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-md ${isFeatured ? "border-primary/30" : ""}`}
-                        >
-                          {isFeatured && (
-                            <div className="absolute right-3 top-3">
-                              <Badge
-                                variant="outline"
-                                className="border-yellow-500/50 bg-yellow-500/10 text-xs text-yellow-600"
-                              >
-                                ★ Featured
-                              </Badge>
-                            </div>
-                          )}
-
+                      <Link
+                        key={`${exam.id}-${idx}`}
+                        href={
+                          `/examinations/${exam.documentId}?search=${encodeURIComponent(exam.examName)}` as "/"
+                        }
+                      >
+                        <Card className="group relative h-full cursor-pointer overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-md">
                           <CardContent className="pt-5">
                             {/* Badges */}
                             <div className="mb-3 flex flex-wrap gap-1.5">
+                              {exam.examCategory && (
+                                <Badge variant="secondary" className="text-xs capitalize">
+                                  {exam.examCategory}
+                                </Badge>
+                              )}
                               <Badge
-                                variant="secondary"
-                                className={`text-xs ${getCategoryStyle(exam.category)}`}
+                                variant="outline"
+                                className={`text-xs ${statusBadge.className}`}
                               >
-                                {getCategoryLabel(exam.category)}
+                                {statusBadge.label}
                               </Badge>
-                              <Badge variant="outline" className="text-xs capitalize">
-                                {exam.status ?? "active"}
-                              </Badge>
-                              {exam.level && (
+                              {exam.stage && (
                                 <Badge variant="outline" className="text-xs capitalize">
-                                  {exam.level}
+                                  {exam.stage}
                                 </Badge>
                               )}
                             </div>
 
-                            {/* Name + Body */}
-                            <h3 className="group-hover:text-primary mb-1 text-base font-bold leading-tight">
-                              {exam.name}
+                            {/* Name */}
+                            <h3 className="group-hover:text-primary mb-1 text-sm font-semibold capitalize leading-snug">
+                              {exam.examName.toLowerCase()}
                             </h3>
-                            <p className="text-muted-foreground mb-3 text-xs">
-                              {exam.conductingBody ?? ""}
-                            </p>
+                            {exam.postName && (
+                              <p className="text-muted-foreground mb-3 text-xs capitalize">
+                                {exam.postName.toLowerCase()}
+                              </p>
+                            )}
 
                             {/* Date + Countdown */}
                             <div className="mb-3 grid grid-cols-2 gap-2">
@@ -365,22 +348,11 @@ export default function ExamCatalogPage(): React.ReactElement {
                                 <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
                                   Exam Date
                                 </p>
-                                {((): React.ReactElement => {
-                                  const dateInfo = formatExamDate(
-                                    exam.examDate as unknown as string | null,
-                                    (exam as Record<string, unknown>).dateConfidence as
-                                      | string
-                                      | undefined,
-                                  );
-                                  return (
-                                    <p
-                                      className={`font-mono text-xs font-semibold ${dateInfo.className}`}
-                                    >
-                                      {dateInfo.text}
-                                      {dateInfo.suffix}
-                                    </p>
-                                  );
-                                })()}
+                                <p
+                                  className={`font-mono text-xs font-semibold ${dateInfo.className}`}
+                                >
+                                  {dateInfo.text}
+                                </p>
                               </div>
                               <div className="bg-muted/30 rounded-lg border px-3 py-2">
                                 <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
@@ -395,9 +367,41 @@ export default function ExamCatalogPage(): React.ReactElement {
                                         : "text-muted-foreground"
                                   }`}
                                 >
-                                  {days !== null && days > 0 ? `${days} days left` : "Completed"}
+                                  {days !== null && days > 0
+                                    ? `${days} days left`
+                                    : days !== null
+                                      ? "Completed"
+                                      : "TBA"}
                                 </p>
                               </div>
+                            </div>
+
+                            {/* Meta row */}
+                            <div className="text-muted-foreground mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                              {exam.categoryNumber && (
+                                <span className="flex items-center gap-0.5">
+                                  <Hash className="size-3" />
+                                  Cat. {String(exam.categoryNumber)}
+                                </span>
+                              )}
+                              {exam.venue && (
+                                <span className="flex items-center gap-0.5">
+                                  <MapPin className="size-3" />
+                                  {String(exam.venue)}
+                                </span>
+                              )}
+                              {exam.department && (
+                                <span className="flex items-center gap-0.5">
+                                  <Building2 className="size-3" />
+                                  {String(exam.department)}
+                                </span>
+                              )}
+                              {exam.portalName && (
+                                <span className="flex items-center gap-0.5">
+                                  <Calendar className="size-3" />
+                                  {exam.portalName}
+                                </span>
+                              )}
                             </div>
 
                             {/* Footer */}
@@ -405,17 +409,8 @@ export default function ExamCatalogPage(): React.ReactElement {
                               <div className="text-muted-foreground flex items-center gap-3 text-xs">
                                 <span className="flex items-center gap-1">
                                   <BookOpen className="size-3" />
-                                  <strong className="text-foreground">
-                                    {(exam.questionCount ?? 0).toLocaleString()}
-                                  </strong>{" "}
-                                  Qs
+                                  View Details
                                 </span>
-                                {exam.negativeMarking && (
-                                  <span className="flex items-center gap-1 text-red-500">
-                                    <MinusCircle className="size-3" />
-                                    Negative
-                                  </span>
-                                )}
                               </div>
                               <Button size="sm" variant="default" className="h-7 gap-1 text-xs">
                                 Start Practice
@@ -430,16 +425,19 @@ export default function ExamCatalogPage(): React.ReactElement {
                 </div>
 
                 {/* Load More */}
-                {page < totalPages && (
+                {hasMore && (
                   <div className="mt-8 text-center">
                     <Button
                       variant="outline"
-                      onClick={() => setPage((p) => p + 1)}
+                      onClick={() => setVisibleCount((c) => c + ITEMS_PER_PAGE)}
                       className="gap-2"
                     >
                       Load More
                       <ChevronDown className="size-4" />
                     </Button>
+                    <p className="text-muted-foreground mt-2 text-xs">
+                      Showing {visible.length} of {filtered.length}
+                    </p>
                   </div>
                 )}
               </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
@@ -193,13 +193,29 @@ function ExaminationDetailContent(): React.ReactElement {
 
   const { data, isLoading } = trpc.portalIngestion.getExaminationEntries.useQuery({
     documentId,
-    search: searchTerm || undefined,
   });
 
   const syllabusQuery = trpc.portalIngestion.getPublicSyllabusData.useQuery(
     { syllabusId: viewingSyllabusId! },
     { enabled: viewingSyllabusId !== null },
   );
+
+  const allExaminations = data?.examinations ?? [];
+  const doc = data?.document;
+  const syllabusLinks = data?.syllabusLinks ?? [];
+
+  // Client-side filtering — no API call on search
+  const examinations = useMemo(() => {
+    if (!searchTerm) return allExaminations;
+    const term = searchTerm.toLowerCase();
+    return allExaminations.filter(
+      (e) =>
+        e.examName.toLowerCase().includes(term) ||
+        e.postName?.toLowerCase().includes(term) ||
+        e.categoryNumber?.toLowerCase().includes(term) ||
+        e.department?.toLowerCase().includes(term),
+    );
+  }, [allExaminations, searchTerm]);
 
   if (isLoading) {
     return (
@@ -209,7 +225,7 @@ function ExaminationDetailContent(): React.ReactElement {
     );
   }
 
-  if (!data) {
+  if (!doc) {
     return (
       <div className="text-muted-foreground py-20 text-center">
         <FileText className="mx-auto mb-3 size-10 opacity-30" />
@@ -222,8 +238,6 @@ function ExaminationDetailContent(): React.ReactElement {
       </div>
     );
   }
-
-  const { document: doc, examinations, syllabusLinks } = data;
 
   function entryKey(entry: ExaminationEntry): string {
     return `${entry.examName}::${entry.categoryNumber ?? ""}`;
@@ -256,8 +270,8 @@ function ExaminationDetailContent(): React.ReactElement {
             </Badge>
           )}
         </div>
-        <h1 className="text-xl font-bold leading-snug sm:text-2xl">
-          {doc.title ?? doc.examName ?? "Examination Schedule"}
+        <h1 className="text-lg font-semibold capitalize leading-snug sm:text-xl">
+          {(doc.title ?? doc.examName ?? "Examination Schedule").toLowerCase()}
         </h1>
       </div>
 

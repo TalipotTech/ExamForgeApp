@@ -96,9 +96,9 @@ export function ExaminationList(): React.ReactElement {
                         </Badge>
                       )}
                     </div>
-                    <h4 className="group-hover:text-primary mb-1 font-bold leading-snug">
-                      {doc.title ?? doc.examName ?? "Examination Schedule"}
-                    </h4>
+                    <h5 className="group-hover:text-primary mb-1 text-sm font-semibold capitalize leading-snug">
+                      {(doc.title ?? doc.examName ?? "Examination Schedule").toLowerCase()}
+                    </h5>
                     <div className="text-muted-foreground mt-3 flex items-center gap-4 text-xs">
                       <span className="flex items-center gap-1">
                         <FileText className="size-3" />

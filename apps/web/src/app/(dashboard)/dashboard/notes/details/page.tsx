@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { MarkdownMessage } from "@/components/markdown-message";
 import { TextHighlighter } from "@/components/text-highlighter";
 import { ScrollButtons } from "@/components/scroll-buttons";
+import { AiChatFloatingButton } from "@/components/ai-chat-floating-button";
+import { TextSelectionChat } from "@/components/text-selection-chat";
 import {
   StickyNote,
   Search,
@@ -303,7 +305,9 @@ function NoteDetailsContent(): React.ReactElement {
         </div>
       )}
 
-      <ScrollButtons containerRef={containerRef} />
+      <TextSelectionChat />
+      <AiChatFloatingButton pageContext="notes-details" />
+      <ScrollButtons />
     </div>
   );
 }

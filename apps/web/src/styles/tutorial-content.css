@@ -66,16 +66,53 @@
   margin-bottom: 1rem;
 }
 
-.tutorial-reader ul,
+.tutorial-reader ul {
+  padding-left: 0.25rem;
+  margin-bottom: 1rem;
+  list-style: none;
+}
+
 .tutorial-reader ol {
   padding-left: 1.5rem;
   margin-bottom: 1rem;
 }
 
-.tutorial-reader li {
+.tutorial-reader ul > li {
+  position: relative;
+  padding-left: 1.25rem;
   font-size: 0.9375rem;
   line-height: 1.7;
   margin-bottom: 0.375rem;
+}
+
+.tutorial-reader ul > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.625rem;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--indigo-400, #818cf8);
+}
+
+.tutorial-reader ol > li {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  margin-bottom: 0.375rem;
+}
+
+/* Nested list bullets */
+.tutorial-reader ul ul > li::before {
+  background: var(--purple-400, #c084fc);
+  width: 5px;
+  height: 5px;
+}
+
+.tutorial-reader ul ul ul > li::before {
+  background: var(--teal-400, #2dd4bf);
+  width: 4px;
+  height: 4px;
 }
 
 .tutorial-reader strong {
@@ -266,22 +303,38 @@
 /* ── Tables ── */
 .tutorial-reader table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   margin: 1.25rem 0;
   font-size: 0.875rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  overflow: hidden;
 }
 .tutorial-reader thead {
-  background: hsl(var(--muted));
+  background: var(--indigo-50, #eef2ff);
+}
+:is(.dark) .tutorial-reader thead {
+  background: rgba(79, 70, 229, 0.15);
 }
 .tutorial-reader th {
   font-weight: 600;
   text-align: left;
   padding: 0.625rem 0.75rem;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--indigo-700, #4338ca);
+}
+:is(.dark) .tutorial-reader th {
+  color: var(--indigo-300, #a5b4fc);
 }
 .tutorial-reader td {
   padding: 0.625rem 0.75rem;
-  border-bottom: 1px solid hsl(var(--border));
+  border-top: 1px solid hsl(var(--border));
+}
+.tutorial-reader tbody tr:hover {
+  background: hsl(var(--muted) / 0.5);
 }
 .tutorial-reader tbody tr:last-child td {
   border-bottom: none;
@@ -291,10 +344,14 @@
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid hsl(var(--border));
-  border-radius: var(--radius-lg);
+  border-radius: 0.5rem;
   margin: 1.25rem 0;
 }
-.tutorial-reader .table-wrapper table { margin: 0; }
+.tutorial-reader .table-wrapper table {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+}
 
 /* ── Highlight ── */
 .tutorial-reader mark,

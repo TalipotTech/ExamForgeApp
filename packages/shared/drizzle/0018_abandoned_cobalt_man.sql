@@ -1,0 +1,1 @@
+ALTER TABLE "ai_conversations" ADD COLUMN "page_context" varchar(100);

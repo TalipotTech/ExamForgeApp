@@ -29,6 +29,7 @@ export const aiConversations = pgTable(
     totalTokens: integer("total_tokens").notNull().default(0),
     estimatedCostUsd: real("estimated_cost_usd").notNull().default(0),
     keyword: varchar("keyword", { length: 200 }),
+    pageContext: varchar("page_context", { length: 100 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
