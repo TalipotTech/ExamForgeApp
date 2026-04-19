@@ -2,7 +2,7 @@ import cors from "@fastify/cors";
 import type { FastifyInstance } from "fastify";
 
 export async function registerCors(app: FastifyInstance): Promise<void> {
-  const allowedOrigins = (process.env.APP_URL || "http://localhost:3000")
+  const allowedOrigins = (process.env.APP_URL || "http://localhost:3100")
     .split(",")
     .map((o) => o.trim());
 

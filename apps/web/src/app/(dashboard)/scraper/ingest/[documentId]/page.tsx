@@ -526,7 +526,7 @@ function ExaminationScheduleView({
                     size="sm"
                     className="ml-auto h-5 gap-1 px-2 text-[10px]"
                     onClick={() => {
-                      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+                      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100";
                       window.open(`${apiBase}${syllabusQuery.data!.fileUrl}`, "_blank");
                     }}
                   >

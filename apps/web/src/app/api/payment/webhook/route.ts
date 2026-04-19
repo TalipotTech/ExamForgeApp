@@ -22,7 +22,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const event = payload.event as string;
 
     // Forward to API server for processing
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4100";
     await fetch(`${apiUrl}/trpc/payment.handleWebhook`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

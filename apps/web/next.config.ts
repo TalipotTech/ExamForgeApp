@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 
 config({ path: "../../.env.local" });
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4100";
 
 const nextConfig: NextConfig = {
   output: "standalone",
