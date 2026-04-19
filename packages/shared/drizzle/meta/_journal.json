@@ -134,6 +134,13 @@
       "when": 1774144925591,
       "tag": "0018_abandoned_cobalt_man",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1774286609216,
+      "tag": "0019_flimsy_songbird",
+      "breakpoints": true
     }
   ]
 }

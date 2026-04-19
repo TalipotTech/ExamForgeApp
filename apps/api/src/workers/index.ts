@@ -13,6 +13,8 @@ import { createTutorialAgentWorker } from "./tutorial-agent-worker.js";
 import { closeTutorialAgentQueue } from "../queues/tutorial-agent-queue.js";
 import { createNoteSummaryWorker } from "./note-summary-worker.js";
 import { closeNoteSummaryQueue, scheduleNoteSummaryJob } from "../queues/note-summary-queue.js";
+import { createPatternAnalysisWorker } from "./pattern-analysis-worker.js";
+import { closePatternAnalysisQueue } from "../queues/pattern-analysis-queue.js";
 
 async function main(): Promise<void> {
   console.log("[workers] Starting ExamForge workers...");
@@ -23,6 +25,7 @@ async function main(): Promise<void> {
   const syllabusWorker = createSyllabusWorker();
   const tutorialAgentWorker = createTutorialAgentWorker();
   const noteSummaryWorker = createNoteSummaryWorker();
+  const patternAnalysisWorker = createPatternAnalysisWorker();
 
   // Schedule daily note summary generation
   await scheduleNoteSummaryJob();
@@ -35,12 +38,14 @@ async function main(): Promise<void> {
     await syllabusWorker.close();
     await tutorialAgentWorker.close();
     await noteSummaryWorker.close();
+    await patternAnalysisWorker.close();
     await closeScraperQueue();
     await closePortalIngestionQueue();
     await closePortalProcessingQueue();
     await closeSyllabusQueue();
     await closeTutorialAgentQueue();
     await closeNoteSummaryQueue();
+    await closePatternAnalysisQueue();
     console.log("[workers] Shutdown complete.");
     process.exit(0);
   };
@@ -49,7 +54,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   console.log(
-    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary workers started. Waiting for jobs...",
+    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis workers started. Waiting for jobs...",
   );
 }
 

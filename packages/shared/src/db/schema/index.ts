@@ -52,3 +52,18 @@ export type { GenerationProgressEntry } from "./tutorial-generation-jobs";
 export { voiceSessions } from "./voice-sessions";
 export type { VoiceSessionQuestion, VoiceConversationEntry } from "./voice-sessions";
 export { ttsUsageLogs } from "./tts-usage-logs";
+
+// Exam Pattern Intelligence
+export { examPatterns } from "./exam-patterns";
+export type {
+  ExamFingerprint,
+  SubjectWeightage,
+  TopicFrequency,
+  DifficultyDistribution,
+  StyleDistribution,
+  RepeatAnalysis,
+  LanguagePatterns,
+  SectionStructure,
+} from "./exam-patterns";
+export { paperAnalysis } from "./paper-analysis";
+export type { RepeatedFromEntry } from "./paper-analysis";

@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Play, Search } from "lucide-react";
+import { Play, Search, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { ExamCombobox } from "@/components/exam/exam-combobox";
 import { BrowseExamsDialog } from "@/components/exam/browse-exams-dialog";
 
@@ -29,6 +31,35 @@ export default function ExamStartPage(): React.ReactElement {
   const [totalQuestions, setTotalQuestions] = useState(10);
   const [durationMinutes, setDurationMinutes] = useState<number | undefined>(undefined);
   const [browseOpen, setBrowseOpen] = useState(false);
+
+  // Pattern Exam — only shows when a selected exam has an analyzed pattern
+  const { data: pattern } = trpc.examPattern.getPattern.useQuery(
+    { examId },
+    { enabled: Boolean(examId), staleTime: 5 * 60_000 },
+  );
+
+  const patternExamMutation = trpc.examPattern.generatePatternExam.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Generated ${data.questionCount}-question pattern exam`);
+      router.push(`/practice/${data.examId}` as "/");
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+
+  function handleStartPatternExam(): void {
+    if (!examId) {
+      toast.error("Please select an exam first");
+      return;
+    }
+    patternExamMutation.mutate({
+      examId,
+      questionCount: 100,
+      includeRepeats: true,
+      includeCurrentAffairs: true,
+    });
+  }
 
   function handleStart(e: React.FormEvent): void {
     e.preventDefault();
@@ -117,6 +148,42 @@ export default function ExamStartPage(): React.ReactElement {
           </form>
         </CardContent>
       </Card>
+
+      {/* Pattern Exam — appears when the selected exam has an analyzed pattern */}
+      {pattern && (
+        <>
+          <Separator className="max-w-lg" />
+          <Card className="border-primary/40 max-w-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="text-primary size-4" />
+                Pattern Exam
+                <Badge variant="outline" className="ml-auto text-green-600">
+                  Based on {pattern.papersAnalyzed} papers
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                100 questions matching the real exam&apos;s subject weightage, difficulty mix, and
+                question styles — generated from pattern analysis of past papers.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleStartPatternExam}
+                disabled={patternExamMutation.isPending}
+                className="w-full"
+              >
+                <Sparkles className="size-4" />
+                {patternExamMutation.isPending
+                  ? "Generating pattern exam..."
+                  : "Generate & Start Pattern Exam"}
+              </Button>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       <BrowseExamsDialog open={browseOpen} onOpenChange={setBrowseOpen} />
     </div>

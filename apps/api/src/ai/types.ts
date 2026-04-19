@@ -28,7 +28,10 @@ export type AITask =
   | "generate_tutorial_html"
   | "topic_chat"
   | "general_chat"
-  | "voice_teacher";
+  | "voice_teacher"
+  | "classify_questions"
+  | "analyze_exam_pattern"
+  | "generate_pattern_exam";
 
 export type ProviderMapping = {
   primary: AiProvider;
