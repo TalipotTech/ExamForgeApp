@@ -49,6 +49,8 @@ const SOURCE_IDS = {
   pharmQuiz: "d0000000-0000-0000-0000-000000000001",
   gpatPrep: "d0000000-0000-0000-0000-000000000002",
   keralaPscArchives: "d0000000-0000-0000-0000-000000000003",
+  keralaPscGk: "d0000000-0000-0000-0000-000000000004",
+  pscPdfBanks: "d0000000-0000-0000-0000-000000000005",
 };
 
 async function seed(): Promise<void> {
@@ -690,7 +692,7 @@ async function seed(): Promise<void> {
     ])
     .onConflictDoNothing();
 
-  console.log("  Creating scrape sources (3)...");
+  console.log("  Creating scrape sources (5)...");
   await db
     .insert(scrapeSources)
     .values([
@@ -765,6 +767,54 @@ async function seed(): Promise<void> {
         config: {
           crawlerType: "playwright",
           maxPages: 30,
+          fetchDelayMs: 3000,
+          questionTypes: ["mcq"],
+        },
+        orgId: ORG_ID,
+      },
+      {
+        id: SOURCE_IDS.keralaPscGk,
+        name: "Kerala PSC GK — Previous Question Papers",
+        url: "https://keralapscgk.com/p/previous-question-papers.html",
+        status: "active",
+        examId: EXAM_IDS.keralaPsc,
+        sourceType: "previous_year",
+        scrapeFrequency: "weekly",
+        scrapeDepth: 5,
+        contentFormat: "html",
+        aiProvider: "claude",
+        totalRuns: 0,
+        successfulRuns: 0,
+        totalQuestionsScraped: 0,
+        questionsCount: 0,
+        tags: ["kerala psc", "previous year", "community", "2001-2024"],
+        config: {
+          crawlerType: "cheerio",
+          maxPages: 200,
+          fetchDelayMs: 2000,
+          questionTypes: ["mcq"],
+        },
+        orgId: ORG_ID,
+      },
+      {
+        id: SOURCE_IDS.pscPdfBanks,
+        name: "PSC PDF Banks — Previous Question Papers",
+        url: "https://pscpdfbanks.in/p/previous-question-papers.html",
+        status: "active",
+        examId: EXAM_IDS.keralaPsc,
+        sourceType: "previous_year",
+        scrapeFrequency: "weekly",
+        scrapeDepth: 5,
+        contentFormat: "pdf",
+        aiProvider: "claude",
+        totalRuns: 0,
+        successfulRuns: 0,
+        totalQuestionsScraped: 0,
+        questionsCount: 0,
+        tags: ["kerala psc", "previous year", "pdf", "community", "with answers"],
+        config: {
+          crawlerType: "playwright",
+          maxPages: 200,
           fetchDelayMs: 3000,
           questionTypes: ["mcq"],
         },

@@ -26,6 +26,7 @@ import {
   Settings,
   StickyNote,
   MessageSquare,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -58,6 +59,13 @@ const ADMIN_NAV: NavItem[] = [
     href: "/admin/tutorials",
     label: "Tutorials",
     icon: BookMarked,
+    adminOnly: true,
+    group: "content",
+  },
+  {
+    href: "/admin/patterns",
+    label: "Patterns",
+    icon: BarChart3,
     adminOnly: true,
     group: "content",
   },

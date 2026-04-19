@@ -8,6 +8,7 @@ import {
   index,
   integer,
   bigint,
+  boolean,
   vector,
 } from "drizzle-orm/pg-core";
 import { exams } from "./exams";
@@ -69,6 +70,17 @@ export const questions = pgTable(
     ),
     topicName: varchar("topic_name", { length: 500 }),
 
+    // Pattern analysis (populated by classification worker)
+    analyzedSubject: varchar("analyzed_subject", { length: 255 }),
+    analyzedTopic: varchar("analyzed_topic", { length: 255 }),
+    analyzedSubtopic: varchar("analyzed_subtopic", { length: 255 }),
+    analyzedStyle: varchar("analyzed_style", { length: 50 }),
+    isRepeated: boolean("is_repeated").default(false),
+    repeatedFrom: jsonb("repeated_from")
+      .$type<{ year: number; paperNumber?: string; questionNumber?: number }[]>()
+      .default([]),
+    patternTags: jsonb("pattern_tags").$type<string[]>().default([]),
+
     orgId: uuid("org_id").references(() => organizations.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -77,5 +89,7 @@ export const questions = pgTable(
     index("questions_exam_id_idx").on(table.examId),
     index("questions_subject_idx").on(table.subject),
     index("questions_difficulty_idx").on(table.difficulty),
+    index("questions_analyzed_subject_idx").on(table.analyzedSubject),
+    index("questions_is_repeated_idx").on(table.isRepeated),
   ],
 );

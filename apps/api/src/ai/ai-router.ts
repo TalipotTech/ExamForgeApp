@@ -169,6 +169,24 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     fallback: "openai",
     fallbackModel: "gpt-4o",
   },
+  classify_questions: {
+    primary: "mistral",
+    model: "mistral-large-latest",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
+  analyze_exam_pattern: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
+  generate_pattern_exam: {
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
 };
 
 // ─── Provider → Default Model mapping ───
@@ -214,6 +232,9 @@ function taskToFeature(task: AITask): string {
     topic_chat: "chat",
     general_chat: "chat",
     voice_teacher: "chat",
+    classify_questions: "pattern",
+    analyze_exam_pattern: "pattern",
+    generate_pattern_exam: "pattern",
   };
   return map[task];
 }

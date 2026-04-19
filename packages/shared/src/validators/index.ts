@@ -304,3 +304,34 @@ export type {
   GetVoiceSession,
   TeacherResponse,
 } from "./voice-tutor";
+
+export {
+  questionStyleEnum,
+  classifiedQuestionSchema,
+  classifiedQuestionsResponseSchema,
+  subjectWeightageSchema,
+  topicFrequencySchema,
+  difficultyDistributionSchema,
+  styleDistributionSchema,
+  repeatAnalysisSchema,
+  languagePatternsSchema,
+  sectionStructureSchema,
+  examFingerprintSchema,
+  classifyPaperInputSchema,
+  analyzePatternInputSchema,
+  getPatternInputSchema,
+  getPaperAnalysisInputSchema,
+  generatePatternExamInputSchema,
+  getTopicPredictionsInputSchema,
+  getRepeatCandidatesInputSchema,
+  getClassificationStatusInputSchema,
+  patternGeneratedQuestionSchema,
+  patternGeneratedExamSchema,
+} from "./exam-pattern";
+export type {
+  QuestionStyle,
+  ClassifiedQuestion,
+  ClassifiedQuestionsResponse,
+  ExamFingerprintInput,
+  PatternGeneratedExam,
+} from "./exam-pattern";
