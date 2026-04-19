@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -45,6 +45,14 @@ import {
 import { trpc } from "@/lib/trpc";
 import { EXAM_PORTALS } from "@examforge/shared/constants";
 
+function safeHostname(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url.length > 30 ? url.slice(0, 30) + "…" : url;
+  }
+}
+
 // ─── Constants ───
 
 const AI_PROVIDERS = [
@@ -79,7 +87,7 @@ const CONFIDENCE_DISPLAY: Record<string, { prefix: string; suffix: string; class
 };
 
 const NOTIFICATION_TYPES = [
-  { value: "", label: "All Types" },
+  { value: "all", label: "All Types" },
   { value: "date_change", label: "Date Change" },
   { value: "registration_open", label: "Registration Open" },
   { value: "result_declared", label: "Result Declared" },
@@ -137,9 +145,9 @@ export default function DiscoveryPage(): React.ReactElement {
 
   // Tab search/filter state
   const [examSearch, setExamSearch] = useState("");
-  const [examStatusFilter, setExamStatusFilter] = useState("");
+  const [examStatusFilter, setExamStatusFilter] = useState("all");
   const [notifSearch, setNotifSearch] = useState("");
-  const [notifTypeFilter, setNotifTypeFilter] = useState("");
+  const [notifTypeFilter, setNotifTypeFilter] = useState("all");
 
   // Expanded discovery run rows
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
@@ -148,12 +156,17 @@ export default function DiscoveryPage(): React.ReactElement {
   const runsQuery = trpc.exam.getDiscoveryRuns.useQuery({ limit: 20 });
   const discoveredExamsQuery = trpc.exam.getDiscoveredExams.useQuery({
     search: examSearch || undefined,
-    status: (examStatusFilter || undefined) as "upcoming" | "active" | "past" | "draft" | undefined,
+    status: (examStatusFilter === "all" ? undefined : examStatusFilter) as
+      | "upcoming"
+      | "active"
+      | "past"
+      | "draft"
+      | undefined,
     limit: 50,
   });
   const notificationsQuery = trpc.exam.getAllNotifications.useQuery({
     search: notifSearch || undefined,
-    type: notifTypeFilter || undefined,
+    type: notifTypeFilter === "all" ? undefined : notifTypeFilter,
     limit: 50,
   });
 
@@ -455,9 +468,8 @@ export default function DiscoveryPage(): React.ReactElement {
                       const isExpanded = expandedRunId === run.id;
 
                       return (
-                        <>
+                        <Fragment key={run.id}>
                           <TableRow
-                            key={run.id}
                             className="hover:bg-muted/50 cursor-pointer"
                             onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
                           >
@@ -518,7 +530,7 @@ export default function DiscoveryPage(): React.ReactElement {
                             </TableCell>
                           </TableRow>
                           {isExpanded && (
-                            <TableRow key={`${run.id}-details`}>
+                            <TableRow>
                               <TableCell colSpan={12} className="bg-muted/30 p-4">
                                 <div className="space-y-2 text-sm">
                                   <div>
@@ -550,7 +562,7 @@ export default function DiscoveryPage(): React.ReactElement {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                        </Fragment>
                       );
                     })}
                   </TableBody>
@@ -579,7 +591,7 @@ export default function DiscoveryPage(): React.ReactElement {
                     <SelectValue placeholder="All Status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Status</SelectItem>
+                    <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="draft">Draft</SelectItem>
                     <SelectItem value="upcoming">Upcoming</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
@@ -656,7 +668,7 @@ export default function DiscoveryPage(): React.ReactElement {
                             {exam.conductingBody ?? "—"}
                           </TableCell>
                           <TableCell className="text-muted-foreground max-w-[120px] truncate font-mono text-xs">
-                            {exam.discoverySource ? new URL(exam.discoverySource).hostname : "—"}
+                            {exam.discoverySource ? safeHostname(exam.discoverySource) : "—"}
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
                             {formatRelative(exam.lastCheckedAt)}

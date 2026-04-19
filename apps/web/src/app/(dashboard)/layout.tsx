@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -101,11 +101,15 @@ export default function DashboardLayout({
 }): React.ReactElement {
   const { data: session } = useSession();
   const pathname = usePathname();
-  const isAdmin = ADMIN_ROLES.includes(session?.user?.role ?? "");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
+  const isAdmin = mounted && ADMIN_ROLES.includes(session?.user?.role ?? "");
   const isSubscriber =
-    (session?.user as { isSubscriber?: boolean } | undefined)?.isSubscriber ?? false;
+    mounted && ((session?.user as { isSubscriber?: boolean } | undefined)?.isSubscriber ?? false);
   const allNavItems = isAdmin ? ADMIN_NAV : STUDENT_NAV;
   const navItems = allNavItems.filter((item) => {
     if (item.href === "/dashboard/profile" && !isSubscriber && !isAdmin) return false;
