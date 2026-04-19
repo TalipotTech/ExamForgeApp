@@ -38,7 +38,8 @@ param(
 $ErrorActionPreference = "Continue"
 $REDIS_CONTAINER = "examforge-redis"
 $REDIS_PORT = 6379
-$API_PORT = 4000
+$API_PORT = 4100
+$WEB_PORT = 3100
 
 function Write-Status($icon, $msg) {
   Write-Host "  $icon " -NoNewline
@@ -112,7 +113,7 @@ function Start-Dev {
   Write-Host ""
   Write-Host "    pnpm dev" -ForegroundColor Yellow
   Write-Host ""
-  Write-Status "·" "Web: http://localhost:3000  API: http://localhost:$API_PORT"
+  Write-Status "·" "Web: http://localhost:$WEB_PORT  API: http://localhost:$API_PORT"
 }
 
 function Stop-Dev {
@@ -142,9 +143,9 @@ function Status-Dev {
   } else {
     Write-Status "·" "Not running"
   }
-  $webPid = Get-PortPid 3000
+  $webPid = Get-PortPid $WEB_PORT
   if ($webPid) {
-    Write-Status "✓" "Web server running (PID $webPid on port 3000)"
+    Write-Status "✓" "Web server running (PID $webPid on port $WEB_PORT)"
   } else {
     Write-Status "·" "Web server not running"
   }

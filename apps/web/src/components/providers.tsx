@@ -17,7 +17,7 @@ function getTrpcUrl(): string {
     return "/api/trpc";
   }
   // Server-side: call the API directly
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4100";
   return `${apiUrl}/trpc`;
 }
 

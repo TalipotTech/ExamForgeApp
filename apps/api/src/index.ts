@@ -8,7 +8,7 @@ import { appRouter } from "./trpc/index.js";
 import { createContextFactory } from "./trpc/context.js";
 import { registerCors } from "./plugins/cors.js";
 
-const PORT = Number(process.env.PORT) || 4000;
+const PORT = Number(process.env.PORT) || 4100;
 const HOST = process.env.HOST || "0.0.0.0";
 const DATABASE_URL = process.env.DATABASE_URL;
 

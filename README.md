@@ -4,12 +4,12 @@ AI-powered exam preparation platform for Indian competitive examinations.
 
 ## Supported Exams
 
-| Category | Exams |
-|----------|-------|
-| Pharmacy | BPharm Assistant Professor, GPAT, NIPER JEE |
-| Medical | NEET UG, NEET PG, AIIMS, FMGE |
-| Civil Services | UPSC Prelims/Mains, State PSCs |
-| Engineering | GATE, ESE/IES |
+| Category       | Exams                                       |
+| -------------- | ------------------------------------------- |
+| Pharmacy       | BPharm Assistant Professor, GPAT, NIPER JEE |
+| Medical        | NEET UG, NEET PG, AIIMS, FMGE               |
+| Civil Services | UPSC Prelims/Mains, State PSCs              |
+| Engineering    | GATE, ESE/IES                               |
 
 ## Tech Stack
 
@@ -41,8 +41,8 @@ pnpm db:migrate
 
 # 5. Start development
 pnpm dev
-# Web: http://localhost:3000
-# API: http://localhost:4000
+# Web: http://localhost:3100
+# API: http://localhost:4100
 ```
 
 ## Project Structure
@@ -69,11 +69,11 @@ examforge/
 
 This project is designed for parallel use of **Claude Code** (terminal) and **Cursor** (IDE).
 
-| Tool | Config File | Purpose |
-|------|-------------|---------|
+| Tool        | Config File                    | Purpose                                        |
+| ----------- | ------------------------------ | ---------------------------------------------- |
 | Claude Code | `CLAUDE.md` + `.claude/rules/` | Terminal-based coding, migrations, AWS deploys |
-| Cursor | `.cursor/rules/*.mdc` | IDE editing, component building, debugging |
-| Both | `AGENTS.md` | Shared project context |
+| Cursor      | `.cursor/rules/*.mdc`          | IDE editing, component building, debugging     |
+| Both        | `AGENTS.md`                    | Shared project context                         |
 
 See [`docs/prompts/DEVELOPMENT_PROMPTS.md`](docs/prompts/DEVELOPMENT_PROMPTS.md) for tested prompts.
 
