@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc, asc, ilike, or, gt, count, sql, notInArray } from "drizzle-orm";
+import { eq, and, desc, asc, ilike, or, gt, count, sql, notInArray, inArray } from "drizzle-orm";
 import {
   exams,
   examNotifications,
@@ -343,6 +343,56 @@ export const examRouter = router({
       };
     });
   }),
+
+  /**
+   * Admin: recent portal_documents (question papers, answer keys,
+   * syllabi) — what the discovery + ingestion pipelines actually
+   * produced. Each row can be opened in the ingest viewer UI via
+   * /scraper/ingest/[documentId] which already exists.
+   */
+  getRecentPortalDocuments: adminProcedure
+    .input(
+      z
+        .object({
+          documentTypes: z.array(z.string()).optional(),
+          limit: z.number().int().min(1).max(100).default(20),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const limit = input?.limit ?? 20;
+      const types = input?.documentTypes?.length
+        ? input.documentTypes
+        : [
+            "question_paper_mcq",
+            "answer_key",
+            "syllabus",
+            "descriptive_questions",
+            "examination_schedule",
+          ];
+
+      const rows = await ctx.db
+        .select({
+          id: portalDocuments.id,
+          title: portalDocuments.title,
+          documentType: portalDocuments.documentType,
+          portalName: portalDocuments.portalName,
+          examName: portalDocuments.examName,
+          examYear: portalDocuments.examYear,
+          examCategory: portalDocuments.examCategory,
+          processingStatus: portalDocuments.processingStatus,
+          questionsExtracted: portalDocuments.questionsExtracted,
+          originalUrl: portalDocuments.originalUrl,
+          createdAt: portalDocuments.createdAt,
+          updatedAt: portalDocuments.updatedAt,
+        })
+        .from(portalDocuments)
+        .where(inArray(portalDocuments.documentType, types))
+        .orderBy(desc(portalDocuments.createdAt))
+        .limit(limit);
+
+      return rows;
+    }),
 
   /**
    * Admin: list all exams with their content completeness for the

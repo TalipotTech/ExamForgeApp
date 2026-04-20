@@ -21,6 +21,9 @@ import {
 import {
   AlertTriangle,
   BarChart3,
+  Calendar,
+  ExternalLink,
+  FileText,
   Globe2,
   History,
   RefreshCw,
@@ -58,7 +61,21 @@ export default function AdminDiscoveryPage(): React.ReactElement {
   );
   const runsQuery = trpc.exam.getDiscoveryRuns.useQuery({ limit: 10 }, { staleTime: 30_000 });
 
+  // Same data source the public /exams catalog uses — keeps the admin
+  // and public view in sync.
+  const examinationsQuery = trpc.portalIngestion.listAllExaminations.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+
+  // Recent portal_documents (papers, answer keys, syllabi) — "View Document"
+  // targets for the items a run produced.
+  const recentDocsQuery = trpc.exam.getRecentPortalDocuments.useQuery(
+    { limit: 20 },
+    { staleTime: 30_000 },
+  );
+
   const [inventorySearch, setInventorySearch] = useState("");
+  const [examCalendarSearch, setExamCalendarSearch] = useState("");
 
   const runDiscoveryMutation = trpc.exam.runUniversalDiscovery.useMutation({
     onSuccess: (data) => {
@@ -224,6 +241,208 @@ export default function AdminDiscoveryPage(): React.ReactElement {
           </CardContent>
         </Card>
       )}
+
+      {/* Recent Documents — papers/keys/syllabi produced by discovery + ingestion */}
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileText className="size-4" />
+            Question Papers &amp; Documents
+          </CardTitle>
+          <span className="text-muted-foreground text-xs">
+            Discovered by universal + portal-ingestion pipelines
+          </span>
+        </CardHeader>
+        <CardContent>
+          {recentDocsQuery.isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : !recentDocsQuery.data || recentDocsQuery.data.length === 0 ? (
+            <p className="text-muted-foreground py-4 text-center text-sm">
+              No documents ingested yet. Run deep discovery on an exam (content gaps above) or add a
+              scrape source.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Exam / Year</TableHead>
+                  <TableHead>Portal</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Qs</TableHead>
+                  <TableHead>Added</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentDocsQuery.data.map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell className="max-w-xs truncate font-medium">{d.title}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-[10px]">
+                        {d.documentType.replace(/_/g, " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <div className="max-w-[14ch] truncate">{d.examName ?? "—"}</div>
+                      {d.examYear && (
+                        <div className="text-muted-foreground text-xs">{d.examYear}</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs">{d.portalName}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          d.processingStatus === "processed"
+                            ? "default"
+                            : d.processingStatus === "failed"
+                              ? "destructive"
+                              : "secondary"
+                        }
+                        className="text-[10px]"
+                      >
+                        {d.processingStatus}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">{d.questionsExtracted ?? 0}</TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {timeAgo(d.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Link href={`/scraper/ingest/${d.id}` as "/"}>
+                          <Button size="sm" variant="ghost" title="View document">
+                            <FileText className="size-3.5" />
+                          </Button>
+                        </Link>
+                        {d.originalUrl && (
+                          <a href={d.originalUrl} target="_blank" rel="noopener noreferrer">
+                            <Button size="sm" variant="ghost" title="Original URL">
+                              <ExternalLink className="size-3.5" />
+                            </Button>
+                          </a>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Examination Calendar — matches the public /exams page data source */}
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Calendar className="size-4" />
+            Examination Calendar
+          </CardTitle>
+          <div className="flex w-full max-w-xs items-center gap-2">
+            <SearchIcon className="text-muted-foreground size-3.5" />
+            <Input
+              placeholder="Search examinations..."
+              value={examCalendarSearch}
+              onChange={(e) => setExamCalendarSearch(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {examinationsQuery.isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : !examinationsQuery.data || examinationsQuery.data.length === 0 ? (
+            <p className="text-muted-foreground py-4 text-center text-sm">
+              No examinations processed yet. Ingest an examination-schedule PDF via the scraper to
+              populate this list.
+            </p>
+          ) : (
+            (() => {
+              const term = examCalendarSearch.toLowerCase();
+              const filtered = examinationsQuery.data.filter((e) => {
+                if (!term) return true;
+                return (
+                  e.examName.toLowerCase().includes(term) ||
+                  e.postName?.toLowerCase().includes(term) ||
+                  e.categoryNumber?.toLowerCase().includes(term) ||
+                  e.department?.toLowerCase().includes(term) ||
+                  e.portalName?.toLowerCase().includes(term)
+                );
+              });
+              const visible = filtered.slice(0, 50);
+              return filtered.length === 0 ? (
+                <p className="text-muted-foreground py-4 text-center text-sm">
+                  No examinations match your search.
+                </p>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Exam</TableHead>
+                        <TableHead>Category #</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Portal</TableHead>
+                        <TableHead>Syllabus</TableHead>
+                        <TableHead className="text-right">View</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {visible.map((e) => (
+                        <TableRow key={e.id}>
+                          <TableCell>
+                            <div className="font-medium">{e.examName}</div>
+                            {e.postName && (
+                              <div className="text-muted-foreground text-xs">{e.postName}</div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs">{e.categoryNumber ?? "—"}</TableCell>
+                          <TableCell className="text-sm">{e.examDate ?? "—"}</TableCell>
+                          <TableCell className="text-muted-foreground text-xs">
+                            {e.department ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-xs">
+                            {e.portalName ?? "—"}
+                          </TableCell>
+                          <TableCell>
+                            {e.hasSyllabus ? (
+                              <Badge variant="default" className="text-[10px]">
+                                Available
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="text-muted-foreground text-[10px]"
+                              >
+                                —
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Link href={`/scraper/ingest/${e.documentId}` as "/"}>
+                              <Button size="sm" variant="ghost" title="View source document">
+                                <FileText className="size-3.5" />
+                              </Button>
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {filtered.length > 50 && (
+                    <p className="text-muted-foreground mt-2 text-center text-xs">
+                      Showing 50 of {filtered.length} — refine search to narrow down.
+                    </p>
+                  )}
+                </>
+              );
+            })()
+          )}
+        </CardContent>
+      </Card>
 
       {/* Exam Content Inventory */}
       <Card>
