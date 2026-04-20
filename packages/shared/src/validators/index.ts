@@ -374,3 +374,39 @@ export type {
   RunDeepDiscoveryInput,
   RunExamValidationInput,
 } from "./discovery";
+
+// ─── Question verification pipeline ─────────────────────
+
+export {
+  sourceTypeEnum,
+  answerSourceEnum,
+  verificationStatusEnum,
+  verificationLayerEnum,
+  verificationResultEnum,
+  realPaperSourceDetailSchema,
+  textbookSourceDetailSchema,
+  aiSourceDetailSchema,
+  sourceDetailSchema,
+  verifierQualityEnum,
+  factualVerifierResponseSchema,
+  difficultyAppropriatenessEnum,
+  syllabusAlignmentResponseSchema,
+  compositeScoreBreakdownSchema,
+  topicSeededGenerationInputSchema,
+  listVerificationQueueInputSchema,
+  reviewQuestionInputSchema,
+} from "./question-verification";
+export type {
+  SourceType,
+  AnswerSource,
+  VerificationStatus,
+  VerificationLayer,
+  VerificationResult,
+  SourceDetail,
+  FactualVerifierResponse,
+  SyllabusAlignmentResponse,
+  CompositeScoreBreakdown,
+  TopicSeededGenerationInput,
+  ListVerificationQueueInput,
+  ReviewQuestionInput,
+} from "./question-verification";

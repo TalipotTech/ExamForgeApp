@@ -9,6 +9,7 @@ export { aiUsageLogs } from "./ai-usage-logs";
 export { scrapeSources, scrapeStatusEnum } from "./scrape-sources";
 export type { ScrapeSourceConfig } from "./scrape-sources";
 export { questionVersions, changeTypeEnum } from "./question-versions";
+export { questionVerifications } from "./question-verifications";
 export { examNotifications } from "./exam-notifications";
 export { scrapeRuns } from "./scrape-runs";
 export { discoveryRuns } from "./discovery-runs";

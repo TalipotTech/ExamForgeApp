@@ -10,12 +10,14 @@ import {
   bigint,
   boolean,
   vector,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 import { exams } from "./exams";
 import { organizations } from "./organizations";
 import { portalDocuments } from "./portal-documents";
 import { syllabi } from "./syllabi";
 import { syllabusNodes } from "./syllabus-nodes";
+import { users } from "./users";
 
 export const difficultyEnum = pgEnum("difficulty", ["easy", "medium", "hard"]);
 
@@ -81,6 +83,33 @@ export const questions = pgTable(
       .default([]),
     patternTags: jsonb("pattern_tags").$type<string[]>().default([]),
 
+    // Verification pipeline (Question Acquisition Strategy)
+    // See docs/features/QUESTION_ACQUISITION_STRATEGY.md
+    sourceType: varchar("source_type", { length: 30 }),
+    // real_paper | textbook | pattern_ai | topic_ai | supplementary_ai
+    sourceDetail: jsonb("source_detail").$type<Record<string, unknown>>().default({}),
+    // { paperYear, paperNumber, questionNumber, conductingBody } — real_paper
+    // { textbook, chapter, pageNumber } — textbook
+    // { model, promptVersion, seedQuestionIds } — AI
+    answerSource: varchar("answer_source", { length: 30 }),
+    // official_key | textbook | ai_inferred | unverified
+    verificationStatus: varchar("verification_status", { length: 20 }).default("unverified"),
+    // unverified | auto_approved | needs_review | admin_approved | rejected
+    verificationScore: doublePrecision("verification_score"),
+    factualConfidence: doublePrecision("factual_confidence"),
+    syllabusAlignmentScore: doublePrecision("syllabus_alignment_score"),
+    patternMatchScore: doublePrecision("pattern_match_score"),
+    verificationDetails: jsonb("verification_details").$type<Record<string, unknown>>().default({}),
+    verifiedBy: uuid("verified_by").references(() => users.id),
+    verifiedAt: timestamp("verified_at"),
+    mappedSyllabusNodeId: bigint("mapped_syllabus_node_id", { mode: "number" }).references(
+      () => syllabusNodes.id,
+    ),
+    historicallyTested: boolean("historically_tested").default(false),
+    // For cross-exam questions (e.g. GPAT used to prep for Kerala PSC Asst Prof Pharmacy)
+    originalExam: varchar("original_exam", { length: 255 }),
+    relevanceToTarget: doublePrecision("relevance_to_target").default(1.0),
+
     orgId: uuid("org_id").references(() => organizations.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -91,5 +120,8 @@ export const questions = pgTable(
     index("questions_difficulty_idx").on(table.difficulty),
     index("questions_analyzed_subject_idx").on(table.analyzedSubject),
     index("questions_is_repeated_idx").on(table.isRepeated),
+    index("questions_verification_status_idx").on(table.verificationStatus),
+    index("questions_mapped_syllabus_node_idx").on(table.mappedSyllabusNodeId),
+    index("questions_source_type_idx").on(table.sourceType),
   ],
 );
