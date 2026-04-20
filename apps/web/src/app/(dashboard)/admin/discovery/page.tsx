@@ -255,7 +255,7 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                         className="hover:bg-muted/40 cursor-pointer"
                         onClick={() => setExpandedDocId(isExpanded ? null : d.id)}
                       >
-                        <TableCell className="py-2">
+                        <TableCell className="py-2 align-top">
                           {contained.length > 0 ? (
                             isExpanded ? (
                               <ChevronDown className="size-3.5" />
@@ -264,22 +264,27 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                             )
                           ) : null}
                         </TableCell>
-                        <TableCell className="truncate py-2 text-xs font-medium" title={d.title}>
+                        <TableCell
+                          className="whitespace-normal break-words py-2 align-top text-[11px] font-medium leading-snug"
+                          title={d.title}
+                        >
                           {d.title}
                         </TableCell>
-                        <TableCell className="py-2">
+                        <TableCell className="py-2 align-top">
                           <Badge variant="outline" className="text-[9px] font-normal">
                             {d.documentType.replace(/_/g, " ")}
                           </Badge>
                         </TableCell>
                         <TableCell
-                          className="text-muted-foreground truncate py-2 text-xs"
+                          className="text-muted-foreground truncate py-2 align-top text-[11px]"
                           title={d.portalName ?? undefined}
                         >
                           {d.portalName}
                         </TableCell>
-                        <TableCell className="py-2 text-xs">{d.examYear ?? "—"}</TableCell>
-                        <TableCell className="py-2">
+                        <TableCell className="py-2 align-top text-[11px]">
+                          {d.examYear ?? "—"}
+                        </TableCell>
+                        <TableCell className="py-2 align-top">
                           <Badge
                             variant={
                               d.processingStatus === "processed"
@@ -293,13 +298,13 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                             {d.processingStatus}
                           </Badge>
                         </TableCell>
-                        <TableCell className="py-2 text-right text-xs">
+                        <TableCell className="py-2 text-right align-top text-[11px]">
                           {contained.length > 0 ? contained.length : (d.questionsExtracted ?? 0)}
                         </TableCell>
-                        <TableCell className="text-muted-foreground py-2 text-xs">
+                        <TableCell className="text-muted-foreground py-2 align-top text-[11px]">
                           {timeAgo(d.createdAt)}
                         </TableCell>
-                        <TableCell className="py-2 text-right">
+                        <TableCell className="py-2 text-right align-top">
                           <div
                             className="flex justify-end gap-1"
                             onClick={(e) => e.stopPropagation()}
