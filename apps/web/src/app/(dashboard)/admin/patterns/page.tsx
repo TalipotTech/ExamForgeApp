@@ -42,6 +42,12 @@ import {
   ExaminationDate,
   ExaminationMeta,
 } from "@/components/exam/examination-info";
+import {
+  compareByExamDate,
+  daysUntil,
+  matchesTimeFilter,
+  type ExaminationTimeFilter,
+} from "@/lib/exam-display";
 
 type InventoryRow =
   // Shape comes from the server; keep it loose here to avoid a second type.
@@ -77,6 +83,7 @@ export default function AdminPatternsPage(): React.ReactElement {
 
   const [search, setSearch] = useState("");
   const [showUnmatchedOnly, setShowUnmatchedOnly] = useState(false);
+  const [timeFilter, setTimeFilter] = useState<ExaminationTimeFilter>("all");
 
   const [linkingRow, setLinkingRow] = useState<InventoryRow | null>(null);
   const [creatingRow, setCreatingRow] = useState<InventoryRow | null>(null);
@@ -85,8 +92,9 @@ export default function AdminPatternsPage(): React.ReactElement {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return rows.filter((r) => {
+    const matched = rows.filter((r) => {
       if (showUnmatchedOnly && r.canonicalExamId) return false;
+      if (!matchesTimeFilter(timeFilter, daysUntil(r.examDate))) return false;
       if (!term) return true;
       return (
         r.examName.toLowerCase().includes(term) ||
@@ -95,14 +103,24 @@ export default function AdminPatternsPage(): React.ReactElement {
         r.categoryNumber?.toLowerCase().includes(term)
       );
     });
-  }, [rows, search, showUnmatchedOnly]);
+    // Sort: upcoming (nearest first) → TBA → completed (most recent first)
+    return [...matched].sort((a, b) => compareByExamDate(a.examDate, b.examDate));
+  }, [rows, search, showUnmatchedOnly, timeFilter]);
 
   const stats = useMemo(() => {
     const total = rows.length;
     const matched = rows.filter((r) => r.canonicalExamId).length;
     const withPattern = rows.filter((r) => r.hasPattern).length;
     const unmatched = total - matched;
-    return { total, matched, unmatched, withPattern };
+    const upcoming = rows.filter((r) => {
+      const d = daysUntil(r.examDate);
+      return d !== null && d > 0;
+    }).length;
+    const completed = rows.filter((r) => {
+      const d = daysUntil(r.examDate);
+      return d !== null && d <= 0;
+    }).length;
+    return { total, matched, unmatched, withPattern, upcoming, completed };
   }, [rows]);
 
   return (
@@ -131,28 +149,39 @@ export default function AdminPatternsPage(): React.ReactElement {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-3">
-          <CardTitle className="text-base">Examinations</CardTitle>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 text-xs">
-              <input
-                type="checkbox"
-                checked={showUnmatchedOnly}
-                onChange={(e) => setShowUnmatchedOnly(e.target.checked)}
-                className="size-3.5"
-              />
-              Unmatched only
-            </label>
-            <div className="flex w-64 items-center gap-2">
-              <SearchIcon className="text-muted-foreground size-3.5" />
-              <Input
-                placeholder="Search..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-8 text-sm"
-              />
+        <CardHeader className="flex flex-col gap-3 pb-3">
+          <div className="flex flex-row items-start justify-between gap-3">
+            <CardTitle className="text-base">Examinations</CardTitle>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 text-xs">
+                <input
+                  type="checkbox"
+                  checked={showUnmatchedOnly}
+                  onChange={(e) => setShowUnmatchedOnly(e.target.checked)}
+                  className="size-3.5"
+                />
+                Unmatched only
+              </label>
+              <div className="flex w-64 items-center gap-2">
+                <SearchIcon className="text-muted-foreground size-3.5" />
+                <Input
+                  placeholder="Search..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
             </div>
           </div>
+          <TimeFilterTabs
+            value={timeFilter}
+            onChange={setTimeFilter}
+            counts={{
+              all: stats.total,
+              upcoming: stats.upcoming,
+              completed: stats.completed,
+            }}
+          />
         </CardHeader>
         <CardContent>
           {inventoryQuery.isLoading ? (
@@ -176,65 +205,72 @@ export default function AdminPatternsPage(): React.ReactElement {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.slice(0, 150).map((r, idx) => (
-                    <TableRow key={`${r.rowKey}-${idx}`}>
-                      <TableCell className="min-w-[22ch] py-2">
-                        <ExaminationTitle exam={r} />
-                        <div className="mt-1.5">
-                          <ExaminationMeta exam={r} compact />
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <ExaminationDate dateStr={r.examDate} />
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <CanonicalMatchCell row={r} />
-                      </TableCell>
-                      <TableCell className="py-2">
-                        {r.hasPattern ? (
-                          <Badge variant="default" className="text-[10px]">
-                            {Math.round((r.patternConfidence ?? 0) * 100)}% · v
-                            {r.patternVersion ?? 1}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-[10px]">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="py-2 text-right">
-                        <div className="flex justify-end gap-1">
-                          {r.canonicalExamId ? (
-                            <Link href={`/dashboard/exam/${r.canonicalExamId}/patterns` as "/"}>
-                              <Button size="sm" variant="outline" className="h-7">
-                                <Settings className="size-3.5" />
-                                Manage
-                              </Button>
-                            </Link>
+                  {filtered.slice(0, 150).map((r, idx) => {
+                    const days = daysUntil(r.examDate);
+                    const isCompleted = days !== null && days <= 0;
+                    return (
+                      <TableRow
+                        key={`${r.rowKey}-${idx}`}
+                        className={isCompleted ? "opacity-60" : ""}
+                      >
+                        <TableCell className="min-w-[22ch] py-2">
+                          <ExaminationTitle exam={r} />
+                          <div className="mt-1.5">
+                            <ExaminationMeta exam={r} compact />
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <ExaminationDate dateStr={r.examDate} />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <CanonicalMatchCell row={r} />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          {r.hasPattern ? (
+                            <Badge variant="default" className="text-[10px]">
+                              {Math.round((r.patternConfidence ?? 0) * 100)}% · v
+                              {r.patternVersion ?? 1}
+                            </Badge>
                           ) : (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7"
-                                onClick={() => setLinkingRow(r)}
-                              >
-                                <Link2 className="size-3.5" />
-                                Link
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7"
-                                onClick={() => setCreatingRow(r)}
-                              >
-                                <PlusCircle className="size-3.5" />
-                                Create
-                              </Button>
-                            </>
+                            <span className="text-muted-foreground text-[10px]">—</span>
                           )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell className="py-2 text-right">
+                          <div className="flex justify-end gap-1">
+                            {r.canonicalExamId ? (
+                              <Link href={`/dashboard/exam/${r.canonicalExamId}/patterns` as "/"}>
+                                <Button size="sm" variant="outline" className="h-7">
+                                  <Settings className="size-3.5" />
+                                  Manage
+                                </Button>
+                              </Link>
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7"
+                                  onClick={() => setLinkingRow(r)}
+                                >
+                                  <Link2 className="size-3.5" />
+                                  Link
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7"
+                                  onClick={() => setCreatingRow(r)}
+                                >
+                                  <PlusCircle className="size-3.5" />
+                                  Create
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
               {filtered.length > 150 && (
@@ -518,5 +554,44 @@ function CreateCanonicalDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── Time filter segmented tabs ──────────────────────────
+
+function TimeFilterTabs({
+  value,
+  onChange,
+  counts,
+}: {
+  value: ExaminationTimeFilter;
+  onChange: (v: ExaminationTimeFilter) => void;
+  counts: { all: number; upcoming: number; completed: number };
+}): React.ReactElement {
+  const options: Array<{ key: ExaminationTimeFilter; label: string; count: number }> = [
+    { key: "all", label: "All", count: counts.all },
+    { key: "upcoming", label: "Upcoming", count: counts.upcoming },
+    { key: "completed", label: "Completed", count: counts.completed },
+  ];
+  return (
+    <div className="border-border inline-flex rounded-md border p-0.5">
+      {options.map((opt) => (
+        <button
+          key={opt.key}
+          type="button"
+          onClick={() => onChange(opt.key)}
+          className={`rounded px-2.5 py-1 text-xs transition-colors ${
+            value === opt.key
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          {opt.label}
+          <span className={`ml-1.5 text-[10px] ${value === opt.key ? "opacity-80" : "opacity-60"}`}>
+            {opt.count}
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }

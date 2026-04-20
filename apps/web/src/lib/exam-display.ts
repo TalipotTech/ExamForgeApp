@@ -84,11 +84,12 @@ export function getStatusBadge(
   };
 }
 
-/** Countdown text: "15 days left" / "Completed" / "TBA". */
+/** Countdown text: "15 days left" / "3 days ago" / "Today" / "TBA". */
 export function countdownLabel(days: number | null): string {
   if (days === null) return "TBA";
   if (days > 0) return `${days} days left`;
-  return "Completed";
+  if (days === 0) return "Today";
+  return `${Math.abs(days)} days ago`;
 }
 
 /** Color class for the countdown: yellow when imminent (≤30d). */
@@ -97,4 +98,41 @@ export function countdownClassName(days: number | null): string {
   if (days > 0 && days <= 30) return "text-yellow-600";
   if (days > 0) return "text-green-600";
   return "text-muted-foreground";
+}
+
+/**
+ * Buckets an examination by its status for filtering UIs.
+ * Matches the getStatusBadge logic one-to-one.
+ */
+export type ExaminationTimeFilter = "all" | "upcoming" | "completed";
+
+export function matchesTimeFilter(filter: ExaminationTimeFilter, days: number | null): boolean {
+  if (filter === "all") return true;
+  if (filter === "upcoming") return days !== null && days > 0;
+  if (filter === "completed") return days !== null && days <= 0;
+  return true;
+}
+
+/**
+ * Sort comparator — upcoming (nearest first) → scheduled/TBA →
+ * completed (most recent first). Matches the public /exams page order.
+ */
+export function compareByExamDate(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): number {
+  const daysA = daysUntil(a);
+  const daysB = daysUntil(b);
+  // Both upcoming — nearer first
+  if (daysA !== null && daysA > 0 && daysB !== null && daysB > 0) return daysA - daysB;
+  // Only a upcoming — a wins
+  if (daysA !== null && daysA > 0) return -1;
+  if (daysB !== null && daysB > 0) return 1;
+  // Both completed — most recent first
+  if (daysA !== null && daysB !== null) return daysB - daysA;
+  // One completed, other null — completed wins
+  if (daysA !== null) return -1;
+  if (daysB !== null) return 1;
+  // Both null — stable
+  return 0;
 }

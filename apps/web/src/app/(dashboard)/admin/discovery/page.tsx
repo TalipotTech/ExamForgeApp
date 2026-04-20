@@ -36,6 +36,12 @@ import {
   ExaminationDate,
   ExaminationMeta,
 } from "@/components/exam/examination-info";
+import {
+  compareByExamDate,
+  daysUntil,
+  matchesTimeFilter,
+  type ExaminationTimeFilter,
+} from "@/lib/exam-display";
 
 // Human-friendly "time ago" string (no dependencies).
 function timeAgo(date: Date | string | null | undefined): string {
@@ -88,6 +94,7 @@ export default function AdminDiscoveryPage(): React.ReactElement {
 
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
   const [examinationSearch, setExaminationSearch] = useState("");
+  const [examTimeFilter, setExamTimeFilter] = useState<ExaminationTimeFilter>("all");
 
   const runDiscoveryMutation = trpc.exam.runUniversalDiscovery.useMutation({
     onSuccess: (data) => {
@@ -112,16 +119,32 @@ export default function AdminDiscoveryPage(): React.ReactElement {
   const filteredExaminations = useMemo(() => {
     const list = examinationsQuery.data ?? [];
     const term = examinationSearch.trim().toLowerCase();
-    if (!term) return list;
-    return list.filter(
-      (e) =>
+    const matched = list.filter((e) => {
+      if (!matchesTimeFilter(examTimeFilter, daysUntil(e.examDate))) return false;
+      if (!term) return true;
+      return (
         e.examName.toLowerCase().includes(term) ||
         e.postName?.toLowerCase().includes(term) ||
         e.categoryNumber?.toLowerCase().includes(term) ||
         e.department?.toLowerCase().includes(term) ||
-        e.portalName?.toLowerCase().includes(term),
-    );
-  }, [examinationsQuery.data, examinationSearch]);
+        e.portalName?.toLowerCase().includes(term)
+      );
+    });
+    return [...matched].sort((a, b) => compareByExamDate(a.examDate, b.examDate));
+  }, [examinationsQuery.data, examinationSearch, examTimeFilter]);
+
+  // Filter counts (before search + time filter apply)
+  const examTimeCounts = useMemo(() => {
+    const list = examinationsQuery.data ?? [];
+    let upcoming = 0;
+    let completed = 0;
+    for (const e of list) {
+      const d = daysUntil(e.examDate);
+      if (d !== null && d > 0) upcoming++;
+      else if (d !== null && d <= 0) completed++;
+    }
+    return { all: list.length, upcoming, completed };
+  }, [examinationsQuery.data]);
 
   return (
     <div className="space-y-6">
@@ -360,20 +383,27 @@ export default function AdminDiscoveryPage(): React.ReactElement {
       {/* Examinations — merged inventory. Source of truth is the scraped
           examination_schedule metadata (same as public /exams). */}
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Calendar className="size-4" />
-            Examinations
-          </CardTitle>
-          <div className="flex w-full max-w-xs items-center gap-2">
-            <SearchIcon className="text-muted-foreground size-3.5" />
-            <Input
-              placeholder="Search examinations..."
-              value={examinationSearch}
-              onChange={(e) => setExaminationSearch(e.target.value)}
-              className="h-8 text-sm"
-            />
+        <CardHeader className="flex flex-col gap-3 pb-3">
+          <div className="flex flex-row items-start justify-between gap-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Calendar className="size-4" />
+              Examinations
+            </CardTitle>
+            <div className="flex w-full max-w-xs items-center gap-2">
+              <SearchIcon className="text-muted-foreground size-3.5" />
+              <Input
+                placeholder="Search examinations..."
+                value={examinationSearch}
+                onChange={(e) => setExaminationSearch(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
           </div>
+          <TimeFilterTabs
+            value={examTimeFilter}
+            onChange={setExamTimeFilter}
+            counts={examTimeCounts}
+          />
         </CardHeader>
         <CardContent>
           {examinationsQuery.isLoading ? (
@@ -396,40 +426,44 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredExaminations.slice(0, 100).map((e, idx) => (
-                    <TableRow key={`${e.id}-${idx}`}>
-                      <TableCell className="min-w-[22ch] py-2">
-                        <ExaminationTitle exam={e} />
-                        <div className="mt-1.5">
-                          <ExaminationMeta exam={e} compact />
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <ExaminationDate dateStr={e.examDate} />
-                      </TableCell>
-                      <TableCell className="py-2">
-                        {e.hasSyllabus ? (
-                          <Badge variant="default" className="text-[9px] font-normal">
-                            Available
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-[10px]">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="py-2 text-right">
-                        <Link href={`/scraper/ingest/${e.documentId}` as "/"}>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0"
-                            title="View source document"
-                          >
-                            <FileText className="size-3.5" />
-                          </Button>
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredExaminations.slice(0, 100).map((e, idx) => {
+                    const days = daysUntil(e.examDate);
+                    const isCompleted = days !== null && days <= 0;
+                    return (
+                      <TableRow key={`${e.id}-${idx}`} className={isCompleted ? "opacity-60" : ""}>
+                        <TableCell className="min-w-[22ch] py-2">
+                          <ExaminationTitle exam={e} />
+                          <div className="mt-1.5">
+                            <ExaminationMeta exam={e} compact />
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <ExaminationDate dateStr={e.examDate} />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          {e.hasSyllabus ? (
+                            <Badge variant="default" className="text-[9px] font-normal">
+                              Available
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-[10px]">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="py-2 text-right">
+                          <Link href={`/scraper/ingest/${e.documentId}` as "/"}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              title="View source document"
+                            >
+                              <FileText className="size-3.5" />
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
               {filteredExaminations.length > 100 && (
@@ -569,6 +603,45 @@ function PortalCard({
         <RefreshCw className={`size-3 ${isPending ? "animate-spin" : ""}`} />
         {isPending ? "Queued..." : "Check Now"}
       </Button>
+    </div>
+  );
+}
+
+// ─── Time filter segmented tabs ──────────────────────────
+
+function TimeFilterTabs({
+  value,
+  onChange,
+  counts,
+}: {
+  value: ExaminationTimeFilter;
+  onChange: (v: ExaminationTimeFilter) => void;
+  counts: { all: number; upcoming: number; completed: number };
+}): React.ReactElement {
+  const options: Array<{ key: ExaminationTimeFilter; label: string; count: number }> = [
+    { key: "all", label: "All", count: counts.all },
+    { key: "upcoming", label: "Upcoming", count: counts.upcoming },
+    { key: "completed", label: "Completed", count: counts.completed },
+  ];
+  return (
+    <div className="border-border inline-flex rounded-md border p-0.5">
+      {options.map((opt) => (
+        <button
+          key={opt.key}
+          type="button"
+          onClick={() => onChange(opt.key)}
+          className={`rounded px-2.5 py-1 text-xs transition-colors ${
+            value === opt.key
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          {opt.label}
+          <span className={`ml-1.5 text-[10px] ${value === opt.key ? "opacity-80" : "opacity-60"}`}>
+            {opt.count}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
