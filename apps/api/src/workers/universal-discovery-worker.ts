@@ -122,11 +122,15 @@ async function broadDiscover(
   await job.updateProgress({ stage: "crawling", percent: 10 });
 
   // 1. Fetch pages with the existing crawler (cheerio/playwright).
-  const crawled = await crawlPages({
+  //    If the portal prefers playwright but it fails (browsers not
+  //    installed, site blocks headless, etc.), fall back to cheerio —
+  //    many portals work fine without JS rendering.
+  const crawled = await crawlWithFallback({
     startUrl,
     maxPages: data.maxPages,
-    crawlerType: portal.fetchMethod === "playwright" ? "playwright" : "cheerio",
+    preferred: portal.fetchMethod === "playwright" ? "playwright" : "cheerio",
     fetchDelayMs: portal.rateLimit,
+    portalId: portal.id,
   });
 
   if (crawled.length === 0) {
@@ -253,11 +257,12 @@ async function deepDiscover(
       if (!url) continue;
 
       try {
-        const crawled = await crawlPages({
+        const crawled = await crawlWithFallback({
           startUrl: url,
           maxPages: 1,
-          crawlerType: portal.fetchMethod === "playwright" ? "playwright" : "cheerio",
+          preferred: portal.fetchMethod === "playwright" ? "playwright" : "cheerio",
           fetchDelayMs: portal.rateLimit,
+          portalId: portal.id,
         });
 
         for (const page of crawled) {
@@ -596,4 +601,48 @@ async function computeContentCompleteness(
     completenessScore: Math.min(100, score),
     lastComputedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Fetch pages with graceful degradation. If `preferred` is "playwright"
+ * but it fails (browsers not installed, host blocks headless, etc.) or
+ * produces zero pages, retry with "cheerio". Many portal pages are
+ * server-rendered HTML and work fine without JS execution.
+ */
+async function crawlWithFallback(opts: {
+  startUrl: string;
+  maxPages: number;
+  preferred: "playwright" | "cheerio";
+  fetchDelayMs: number;
+  portalId: string;
+}): Promise<Awaited<ReturnType<typeof crawlPages>>> {
+  const { startUrl, maxPages, preferred, fetchDelayMs, portalId } = opts;
+
+  try {
+    const pages = await crawlPages({
+      startUrl,
+      maxPages,
+      crawlerType: preferred,
+      fetchDelayMs,
+    });
+    if (pages.length > 0 || preferred === "cheerio") return pages;
+    console.warn(
+      `[universal-discovery] ${portalId}: ${preferred} returned 0 pages, retrying with cheerio`,
+    );
+  } catch (err) {
+    if (preferred === "cheerio") {
+      // Cheerio already failed — nothing else to try.
+      throw err;
+    }
+    console.warn(
+      `[universal-discovery] ${portalId}: ${preferred} threw (${(err as Error).message.split("\n")[0]}), retrying with cheerio`,
+    );
+  }
+
+  return crawlPages({
+    startUrl,
+    maxPages,
+    crawlerType: "cheerio",
+    fetchDelayMs,
+  });
 }
