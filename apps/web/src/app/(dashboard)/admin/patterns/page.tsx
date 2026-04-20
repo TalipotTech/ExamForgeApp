@@ -199,12 +199,13 @@ export default function AdminPatternsPage(): React.ReactElement {
                   <TableRow>
                     {/* Examination takes the remaining space; other
                         columns have explicit widths so table-fixed
-                        gives it everything that's left */}
+                        gives it everything that's left. Actions is
+                        sized to fit two buttons ("Link" + "Create"). */}
                     <TableHead>Examination</TableHead>
-                    <TableHead className="w-28">Date</TableHead>
-                    <TableHead className="w-[11rem]">Canonical Match</TableHead>
-                    <TableHead className="w-24">Pattern</TableHead>
-                    <TableHead className="w-40 text-right">Actions</TableHead>
+                    <TableHead className="w-24">Date</TableHead>
+                    <TableHead className="w-36">Canonical Match</TableHead>
+                    <TableHead className="w-20">Pattern</TableHead>
+                    <TableHead className="w-52 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -242,7 +243,11 @@ export default function AdminPatternsPage(): React.ReactElement {
                           <div className="flex justify-end gap-1">
                             {r.canonicalExamId ? (
                               <Link href={`/dashboard/exam/${r.canonicalExamId}/patterns` as "/"}>
-                                <Button size="sm" variant="outline" className="h-7">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 gap-1 px-2 text-xs"
+                                >
                                   <Settings className="size-3.5" />
                                   Manage
                                 </Button>
@@ -252,7 +257,7 @@ export default function AdminPatternsPage(): React.ReactElement {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-7"
+                                  className="h-7 gap-1 px-2 text-xs"
                                   onClick={() => setLinkingRow(r)}
                                 >
                                   <Link2 className="size-3.5" />
@@ -261,7 +266,7 @@ export default function AdminPatternsPage(): React.ReactElement {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-7"
+                                  className="h-7 gap-1 px-2 text-xs"
                                   onClick={() => setCreatingRow(r)}
                                 >
                                   <PlusCircle className="size-3.5" />
