@@ -416,11 +416,12 @@ export default function AdminDiscoveryPage(): React.ReactElement {
             </p>
           ) : (
             <>
-              <Table>
+              <Table className="table-fixed">
                 <TableHeader>
                   <TableRow>
+                    {/* Examination takes the remainder; others fixed-width */}
                     <TableHead>Examination</TableHead>
-                    <TableHead className="w-32">Date</TableHead>
+                    <TableHead className="w-28">Date</TableHead>
                     <TableHead className="w-20">Syllabus</TableHead>
                     <TableHead className="w-16 text-right">View</TableHead>
                   </TableRow>
@@ -431,12 +432,10 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                     const isCompleted = days !== null && days <= 0;
                     return (
                       <TableRow key={`${e.id}-${idx}`} className={isCompleted ? "opacity-60" : ""}>
-                        <TableCell className="py-2 align-top">
-                          <div className="max-w-[32ch] break-words">
-                            <ExaminationTitle exam={e} />
-                            <div className="mt-1.5">
-                              <ExaminationMeta exam={e} compact />
-                            </div>
+                        <TableCell className="break-words py-2 align-top">
+                          <ExaminationTitle exam={e} />
+                          <div className="mt-1.5">
+                            <ExaminationMeta exam={e} compact />
                           </div>
                         </TableCell>
                         <TableCell className="py-2 align-top">

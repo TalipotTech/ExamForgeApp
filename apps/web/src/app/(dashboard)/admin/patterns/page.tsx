@@ -194,14 +194,17 @@ export default function AdminPatternsPage(): React.ReactElement {
             </p>
           ) : (
             <>
-              <Table>
+              <Table className="table-fixed">
                 <TableHeader>
                   <TableRow>
+                    {/* Examination takes the remaining space; other
+                        columns have explicit widths so table-fixed
+                        gives it everything that's left */}
                     <TableHead>Examination</TableHead>
-                    <TableHead className="w-32">Date</TableHead>
-                    <TableHead>Canonical Match</TableHead>
-                    <TableHead className="w-28">Pattern</TableHead>
-                    <TableHead className="w-44 text-right">Actions</TableHead>
+                    <TableHead className="w-28">Date</TableHead>
+                    <TableHead className="w-[11rem]">Canonical Match</TableHead>
+                    <TableHead className="w-24">Pattern</TableHead>
+                    <TableHead className="w-40 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -213,12 +216,10 @@ export default function AdminPatternsPage(): React.ReactElement {
                         key={`${r.rowKey}-${idx}`}
                         className={isCompleted ? "opacity-60" : ""}
                       >
-                        <TableCell className="py-2 align-top">
-                          <div className="max-w-[28ch] break-words">
-                            <ExaminationTitle exam={r} />
-                            <div className="mt-1.5">
-                              <ExaminationMeta exam={r} compact />
-                            </div>
+                        <TableCell className="break-words py-2 align-top">
+                          <ExaminationTitle exam={r} />
+                          <div className="mt-1.5">
+                            <ExaminationMeta exam={r} compact />
                           </div>
                         </TableCell>
                         <TableCell className="py-2 align-top">
@@ -353,9 +354,9 @@ function CanonicalMatchCell({ row }: { row: InventoryRow }): React.ReactElement 
         ? "secondary"
         : "outline";
   return (
-    <div className="flex max-w-[22ch] flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5">
       <span
-        className="break-words text-xs font-medium leading-snug"
+        className="break-words text-[11px] font-medium leading-snug"
         title={row.canonicalName ?? undefined}
       >
         {row.canonicalName}
