@@ -285,6 +285,155 @@ export const examRouter = router({
     }));
   }),
 
+  /**
+   * Admin: portal registry enriched with last-checked timestamps and
+   * health status from recent discovery_runs. Powers the status grid
+   * on the content acquisition dashboard.
+   */
+  getPortalStatus: adminProcedure.query(async ({ ctx }) => {
+    // Pull recent runs to compute last-checked-per-portal.
+    const recentRuns = await ctx.db
+      .select({
+        id: discoveryRuns.id,
+        portalsChecked: discoveryRuns.portalsChecked,
+        status: discoveryRuns.status,
+        startedAt: discoveryRuns.startedAt,
+        completedAt: discoveryRuns.completedAt,
+        examsFound: discoveryRuns.examsFound,
+        errorLog: discoveryRuns.errorLog,
+      })
+      .from(discoveryRuns)
+      .orderBy(desc(discoveryRuns.startedAt))
+      .limit(100);
+
+    return OFFICIAL_PORTALS.map((p) => {
+      // Portal is referenced by domain in the v1 runs and by id in v2.
+      // Match either.
+      const mostRecent = recentRuns.find((r) => {
+        const list = (r.portalsChecked ?? []) as string[];
+        return list.some((entry) => entry === p.id || entry.includes(p.domain));
+      });
+
+      const now = Date.now();
+      const ageMs = mostRecent?.startedAt ? now - new Date(mostRecent.startedAt).getTime() : null;
+
+      const staleDays = p.checkFrequency === "daily" ? 2 : 14;
+      const staleMs = staleDays * 24 * 60 * 60 * 1000;
+
+      let health: "ok" | "stale" | "error" | "unknown" = "unknown";
+      if (mostRecent?.status === "failed") health = "error";
+      else if (ageMs === null) health = "unknown";
+      else if (ageMs > staleMs) health = "stale";
+      else health = "ok";
+
+      return {
+        id: p.id,
+        name: p.name,
+        domain: p.domain,
+        type: p.type,
+        checkFrequency: p.checkFrequency,
+        priority: p.priority,
+        examsConducted: p.examsConducted,
+        notes: p.notes,
+        // Enrichment
+        lastCheckedAt: mostRecent?.startedAt ?? null,
+        lastRunStatus: mostRecent?.status ?? null,
+        lastRunExamsFound: mostRecent?.examsFound ?? 0,
+        health,
+      };
+    });
+  }),
+
+  /**
+   * Admin: list all exams with their content completeness for the
+   * inventory table on the content acquisition dashboard.
+   */
+  getExamInventory: adminProcedure
+    .input(
+      z
+        .object({
+          search: z.string().optional(),
+          minScore: z.number().int().min(0).max(100).optional(),
+          maxScore: z.number().int().min(0).max(100).optional(),
+          sortBy: z
+            .enum(["completeness", "name", "papersFound", "updatedAt"])
+            .default("completeness"),
+          limit: z.number().int().min(1).max(200).default(100),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const search = input?.search?.trim() || undefined;
+      const sortBy = input?.sortBy ?? "completeness";
+      const limit = input?.limit ?? 100;
+
+      const conditions = [];
+      if (search) conditions.push(ilike(exams.name, `%${search}%`));
+
+      const rows = await ctx.db
+        .select({
+          id: exams.id,
+          name: exams.name,
+          category: exams.category,
+          conductingBody: exams.conductingBody,
+          status: exams.status,
+          isAutoDiscovered: exams.isAutoDiscovered,
+          lastCheckedAt: exams.lastCheckedAt,
+          questionCount: exams.questionCount,
+          contentCompleteness: exams.contentCompleteness,
+          updatedAt: exams.updatedAt,
+        })
+        .from(exams)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .limit(limit);
+
+      // Sort client-side on the completeness score since it's in JSONB.
+      const mapped = rows.map((r) => {
+        const c = (r.contentCompleteness as Record<string, unknown>) ?? {};
+        const score = Number(c.completenessScore ?? 0);
+        const papersFound = Number(c.previousPapersFound ?? 0);
+        const papersYears = Array.isArray(c.previousPapersYears)
+          ? (c.previousPapersYears as number[])
+          : [];
+        const missing = Array.isArray(c.missingPaperYears) ? (c.missingPaperYears as number[]) : [];
+        return {
+          ...r,
+          completenessScore: score,
+          previousPapersFound: papersFound,
+          previousPapersYears: papersYears,
+          answerKeysFound: Number(c.answerKeysFound ?? 0),
+          syllabusFound: Boolean(c.syllabusFound ?? false),
+          syllabusProcessed: Boolean(c.syllabusProcessed ?? false),
+          patternGenerated: Boolean(c.patternGenerated ?? false),
+          patternConfidence: Number(c.patternConfidence ?? 0),
+          missingPaperYears: missing,
+        };
+      });
+
+      mapped.sort((a, b) => {
+        switch (sortBy) {
+          case "name":
+            return a.name.localeCompare(b.name);
+          case "papersFound":
+            return b.previousPapersFound - a.previousPapersFound;
+          case "updatedAt":
+            return (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0);
+          case "completeness":
+          default:
+            return b.completenessScore - a.completenessScore;
+        }
+      });
+
+      if (input?.minScore !== undefined || input?.maxScore !== undefined) {
+        return mapped.filter(
+          (e) =>
+            e.completenessScore >= (input.minScore ?? 0) &&
+            e.completenessScore <= (input.maxScore ?? 100),
+        );
+      }
+      return mapped;
+    }),
+
   /** Admin: get discovery run history */
   getDiscoveryRuns: adminProcedure
     .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }).optional())

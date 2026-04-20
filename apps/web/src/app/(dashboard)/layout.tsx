@@ -27,6 +27,7 @@ import {
   StickyNote,
   MessageSquare,
   BarChart3,
+  Radar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -66,6 +67,13 @@ const ADMIN_NAV: NavItem[] = [
     href: "/admin/patterns",
     label: "Patterns",
     icon: BarChart3,
+    adminOnly: true,
+    group: "content",
+  },
+  {
+    href: "/admin/discovery",
+    label: "Content Hub",
+    icon: Radar,
     adminOnly: true,
     group: "content",
   },
