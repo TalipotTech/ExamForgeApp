@@ -432,7 +432,7 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                     const isCompleted = days !== null && days <= 0;
                     return (
                       <TableRow key={`${e.id}-${idx}`} className={isCompleted ? "opacity-60" : ""}>
-                        <TableCell className="break-words py-2 align-top">
+                        <TableCell className="whitespace-normal break-words py-2 align-top">
                           <ExaminationTitle exam={e} />
                           <div className="mt-1.5">
                             <ExaminationMeta exam={e} compact />

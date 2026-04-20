@@ -216,7 +216,7 @@ export default function AdminPatternsPage(): React.ReactElement {
                         key={`${r.rowKey}-${idx}`}
                         className={isCompleted ? "opacity-60" : ""}
                       >
-                        <TableCell className="break-words py-2 align-top">
+                        <TableCell className="whitespace-normal break-words py-2 align-top">
                           <ExaminationTitle exam={r} />
                           <div className="mt-1.5">
                             <ExaminationMeta exam={r} compact />
@@ -225,7 +225,7 @@ export default function AdminPatternsPage(): React.ReactElement {
                         <TableCell className="py-2 align-top">
                           <ExaminationDate dateStr={r.examDate} />
                         </TableCell>
-                        <TableCell className="py-2 align-top">
+                        <TableCell className="whitespace-normal py-2 align-top">
                           <CanonicalMatchCell row={r} />
                         </TableCell>
                         <TableCell className="py-2 align-top">
