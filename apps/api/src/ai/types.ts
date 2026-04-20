@@ -32,7 +32,10 @@ export type AITask =
   | "classify_questions"
   | "analyze_exam_pattern"
   | "generate_pattern_exam"
-  | "parse_portal_page";
+  | "parse_portal_page"
+  | "verify_question"
+  | "align_syllabus"
+  | "generate_topic_seeded";
 
 export type ProviderMapping = {
   primary: AiProvider;

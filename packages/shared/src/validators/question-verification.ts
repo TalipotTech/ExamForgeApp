@@ -163,6 +163,36 @@ export const compositeScoreBreakdownSchema = z.object({
 });
 export type CompositeScoreBreakdown = z.infer<typeof compositeScoreBreakdownSchema>;
 
+// ─── Topic-seeded generation output (section 4.3) ─────
+
+/**
+ * One generated question from the topic-seeded prompt. Extends the
+ * standard MCQ shape with generator-specific provenance: which aspect
+ * it covers (so the worker can avoid duplicates across batches) and
+ * which textbook the generator claims supports the fact (so Layer 2
+ * has a reference to check against).
+ */
+export const topicSeededQuestionSchema = z.object({
+  question: z.string().min(10),
+  options: z.array(z.string()).length(4),
+  correctAnswer: z.number().int().min(0).max(3),
+  explanation: z.string().min(10),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+  style: z.string(),
+  /** Specific aspect of the topic this question tests — used to de-dupe
+   *  across batches (e.g. "CYP450 2C9 substrate drugs"). */
+  aspectCovered: z.string(),
+  /** Textbook reference the generator claims supports the fact, for
+   *  downstream factual verification (e.g. "KD Tripathi Ch.12 pg.145"). */
+  factSource: z.string(),
+});
+export type TopicSeededQuestion = z.infer<typeof topicSeededQuestionSchema>;
+
+export const topicSeededGenerationResponseSchema = z.object({
+  questions: z.array(topicSeededQuestionSchema),
+});
+export type TopicSeededGenerationResponse = z.infer<typeof topicSeededGenerationResponseSchema>;
+
 // ─── Topic-seeded generation input (section 4.3) ───────
 
 export const topicSeededGenerationInputSchema = z.object({

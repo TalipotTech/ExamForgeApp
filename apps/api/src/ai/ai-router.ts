@@ -196,6 +196,32 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     fallback: "openai",
     fallbackModel: "gpt-4o",
   },
+  verify_question: {
+    // Question Verification (Layer 2 factual check). PRIMARY is GPT-4o
+    // by design so the verifier is a different model from Claude, which
+    // is what generates most of our questions — second-opinion principle
+    // from the strategy doc. Fallback flips back to Claude.
+    primary: "openai",
+    model: "gpt-4o",
+    fallback: "anthropic",
+    fallbackModel: "claude-sonnet-4-20250514",
+  },
+  align_syllabus: {
+    // Layer 3 syllabus mapping — structured JSON over a tree. Claude
+    // excels at this; GPT-4o fallback.
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
+  generate_topic_seeded: {
+    // §4.3 topic-seeded MCQ generation. Claude Sonnet — strong at
+    // staying within style/difficulty bounds set by seed examples.
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
 };
 
 // ─── Provider → Default Model mapping ───
@@ -245,6 +271,9 @@ function taskToFeature(task: AITask): string {
     analyze_exam_pattern: "pattern",
     generate_pattern_exam: "pattern",
     parse_portal_page: "discovery",
+    verify_question: "verification",
+    align_syllabus: "verification",
+    generate_topic_seeded: "verification",
   };
   return map[task];
 }
