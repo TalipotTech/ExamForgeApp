@@ -6,6 +6,15 @@ export type ExamQuestion = {
   content: Record<string, unknown>;
   subject: string;
   topic: string | null;
+  // Trust/source metadata (Question Acquisition Strategy §1.2)
+  // Optional — older sessions won't have these populated.
+  sourceType?: string | null;
+  sourceDetail?: Record<string, unknown> | null;
+  answerSource?: string | null;
+  verificationStatus?: string | null;
+  paperYear?: number | null;
+  originalExam?: string | null;
+  source?: string | null;
 };
 
 export type SessionData = {

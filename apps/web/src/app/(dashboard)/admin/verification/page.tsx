@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { TrustBadge } from "@/components/exam/trust-badge";
 import {
   Select,
   SelectContent,
@@ -353,6 +354,10 @@ type QueueRowData = {
   analyzedStyle: string | null;
   difficulty: string;
   sourceType: string | null;
+  sourceDetail?: Record<string, unknown> | null;
+  source?: string | null;
+  originalExam?: string | null;
+  answerSource?: string | null;
   paperYear: number | null;
   verificationStatus: string | null;
   verificationScore: number | null;
@@ -399,12 +404,15 @@ function QueueRow({ row, onOpen }: { row: QueueRowData; onOpen: () => void }): R
         )}
       </TableCell>
       <TableCell className="py-2 align-top">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs capitalize">{row.sourceType?.replace(/_/g, " ") ?? "—"}</span>
-          {row.paperYear && (
-            <span className="text-muted-foreground text-[10px]">{row.paperYear}</span>
-          )}
-        </div>
+        <TrustBadge
+          sourceType={row.sourceType}
+          sourceDetail={row.sourceDetail}
+          answerSource={row.answerSource}
+          verificationStatus={row.verificationStatus}
+          paperYear={row.paperYear}
+          originalExam={row.originalExam}
+          rawSource={row.source}
+        />
       </TableCell>
       <TableCell className="py-2 align-top">
         <Badge variant={statusVariant} className="text-[9px] capitalize">

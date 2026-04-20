@@ -14,6 +14,14 @@ type QuestionForExam = {
   content: Record<string, unknown>;
   subject: string;
   topic: string | null;
+  // Trust metadata (Question Acquisition Strategy §1.2)
+  sourceType: string | null;
+  sourceDetail: Record<string, unknown> | null;
+  answerSource: string | null;
+  verificationStatus: string | null;
+  paperYear: number | null;
+  originalExam: string | null;
+  source: string | null;
 };
 
 type QuestionWithAnswer = QuestionForExam & {
@@ -132,6 +140,13 @@ export const examSessionRouter = router({
           content: questions.content,
           subject: questions.subject,
           topic: questions.topic,
+          sourceType: questions.sourceType,
+          sourceDetail: questions.sourceDetail,
+          answerSource: questions.answerSource,
+          verificationStatus: questions.verificationStatus,
+          paperYear: questions.paperYear,
+          originalExam: questions.originalExam,
+          source: questions.source,
         })
         .from(questions)
         .where(inArray(questions.id, questionIds));
@@ -261,6 +276,13 @@ export const examSessionRouter = router({
           content: questions.content,
           subject: questions.subject,
           topic: questions.topic,
+          sourceType: questions.sourceType,
+          sourceDetail: questions.sourceDetail,
+          answerSource: questions.answerSource,
+          verificationStatus: questions.verificationStatus,
+          paperYear: questions.paperYear,
+          originalExam: questions.originalExam,
+          source: questions.source,
         })
         .from(questions)
         .where(inArray(questions.id, questionIds));
@@ -276,6 +298,13 @@ export const examSessionRouter = router({
             content,
             subject: q.subject,
             topic: q.topic,
+            sourceType: q.sourceType,
+            sourceDetail: q.sourceDetail,
+            answerSource: q.answerSource,
+            verificationStatus: q.verificationStatus,
+            paperYear: q.paperYear,
+            originalExam: q.originalExam,
+            source: q.source,
             correctAnswer: content.answer,
             explanation: (content.explanation as string) ?? "",
           };

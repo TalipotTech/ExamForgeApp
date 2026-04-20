@@ -96,7 +96,8 @@ Multi-stage AI pipelines. All workers run via `pnpm --filter @examforge/api work
 - **Portal Ingestion** — admin adds source → `portal-ingestion-worker` discovers PDFs → `portal-processing-worker` extracts questions → `staged_questions` → admin review → `questions`. Router: `portal-ingestion`, `scrape-source`. Spec: `docs/features/EXAM_DISCOVERY_SCRAPER.md`.
 - **Content Finder** — natural-language search → Perplexity + portal scrape + internal DB → ranked results → save/extract. Router: `content-finder`. Spec: `docs/features/CONTENT_FINDER.md`.
 - **Exam Pattern Intelligence** — questions → `pattern-analysis-worker` (classify-paper → analyze-pattern) → `paper_analysis` / `exam_patterns`. Generation: `examPattern.generatePatternExam`. Router: `exam-pattern`. Migration: 0019.
-- **Universal Discovery v2** — `official-portals.ts` registry (13 portals) → `universal-discovery-worker` (broad / deep / validate) → `exams.contentCompleteness` JSONB. Admin UI: `/admin/discovery`. Router: `exam` (runUniversalDiscovery, runDeepDiscovery, getPortalStatus, getExamInventory). Migration: 0020.
+- **Universal Discovery v2** — `official-portals.ts` registry (16 portals: NTA/UPSC/NBEMS/PCI/NIPER/GATE + state PSCs + Kerala/TN Drug Control + aggregators) → `universal-discovery-worker` (broad / deep / validate) → `exams.contentCompleteness` JSONB. Admin UI: `/admin/discovery`. Router: `exam` (runUniversalDiscovery, runDeepDiscovery, getPortalStatus, getExamInventory). Migration: 0020.
+- **Question Acquisition / Verification** — every question carries a 6-tier trust badge (§1.2): 🟢 real paper / 🔵 textbook / 🟡 verified AI / 🟠 topic AI / ⚪ supplementary. `verification-worker` runs a 6-layer pipeline (source trust → factual (GPT-4o 2nd opinion) → syllabus alignment → pattern match → uniqueness (pgvector) → aggregate) and writes `verification_status`, `verification_score`, and a per-layer audit trail to `question_verifications`. `topic-generation-worker` uses ≥3 real/textbook seeds per syllabus node (`syllabusNodeId OR mappedSyllabusNodeId`) and auto-queues verification on every generated question. Admin UIs: `/admin/verification` (review queue + drawer), `/admin/generation` (topic-seeded generation). Routers: `questionVerification`, `topicGeneration`. Migrations: 0021 (aliases), 0022 (verification columns + audit table). Spec: `docs/features/QUESTION_ACQUISITION_STRATEGY.md`.
 
 ## Autonomous Data Flow (post-ingestion)
 
@@ -106,6 +107,8 @@ portal-ingestion  →  portal-processing  →  classify-paper
                                           analyze-pattern
                                               ↓ (auto)
                                           validate-exam (contentCompleteness)
+                                              ↓ (auto, per classified question)
+                                          verify-question (6-layer pipeline)
 ```
 
-All three auto-triggers are non-fatal — a failure logs a warning but doesn't fail the upstream job.
+All auto-triggers are non-fatal — a failure logs a warning but doesn't fail the upstream job.

@@ -177,6 +177,28 @@ export const OFFICIAL_PORTALS: OfficialPortal[] = [
     notes: "Basic HTML site. Limited content. Check for regulation updates.",
   },
 
+  // ══════════ NATIONAL — NIPER ══════════
+  // NIPER JEE: pharmaceutical masters entrance. Highly relevant
+  // seed source for Kerala PSC Asst Prof Pharmacy under the
+  // Question Acquisition Strategy cross-exam rule (§5).
+  {
+    id: "niper",
+    name: "National Institute of Pharmaceutical Education & Research",
+    domain: "niperhyd.ac.in",
+    type: "conducting_body",
+    pages: {
+      notifications: "https://niperhyd.ac.in/",
+      previousPapers: "https://niperhyd.ac.in/jee.html",
+    },
+    examsConducted: ["NIPER JEE"],
+    fetchMethod: "cheerio",
+    rateLimit: 4000,
+    checkFrequency: "weekly",
+    priority: 2,
+    notes:
+      "Pharmacy M.Pharm entrance. Past papers are strong seeds for BPharm Assistant Professor pattern generation.",
+  },
+
   // ══════════ NATIONAL — GATE ══════════
   {
     id: "gate",
@@ -271,6 +293,43 @@ export const OFFICIAL_PORTALS: OfficialPortal[] = [
     rateLimit: 5000,
     checkFrequency: "weekly",
     priority: 3,
+  },
+
+  // ══════════ PHARMA-SPECIFIC STATE CADRES ══════════
+  // Kerala Drugs Control Department: conducts Drug Inspector
+  // recruitment via Kerala PSC. The notifications reveal the
+  // exam pattern for Drug Inspector + Pharmacy Officer — which
+  // heavily overlaps with BPharm Assistant Professor syllabus.
+  {
+    id: "kerala-dcd",
+    name: "Kerala Drugs Control Department",
+    domain: "drugscontrol.kerala.gov.in",
+    type: "conducting_body",
+    pages: {
+      notifications: "https://drugscontrol.kerala.gov.in/index.php/notifications",
+    },
+    examsConducted: ["Kerala Drug Inspector", "Kerala Pharmacy Officer"],
+    fetchMethod: "cheerio",
+    rateLimit: 4000,
+    checkFrequency: "weekly",
+    priority: 2,
+    notes:
+      "Conducted by Kerala PSC — notification first appears on Drugs Control dept site. Use as early-warning signal.",
+  },
+  {
+    id: "tn-dcd",
+    name: "Tamil Nadu Drugs Control Department",
+    domain: "tndrugscontrol.tn.gov.in",
+    type: "conducting_body",
+    pages: {
+      notifications: "https://tndrugscontrol.tn.gov.in/",
+    },
+    examsConducted: ["TN Drug Inspector"],
+    fetchMethod: "cheerio",
+    rateLimit: 4000,
+    checkFrequency: "monthly",
+    priority: 3,
+    notes: "Conducted by TNPSC. Low-frequency — annual-ish notifications.",
   },
 
   // ══════════ COMMUNITY AGGREGATORS ══════════

@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { TrustBadge } from "@/components/exam/trust-badge";
 import { Flag, Eraser } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +48,7 @@ export function QuestionDisplay({
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-muted-foreground text-sm font-medium">
                 Question {index + 1} of {total}
               </span>
@@ -57,6 +58,15 @@ export function QuestionDisplay({
               <Badge variant="secondary" className="text-xs">
                 {question.subject}
               </Badge>
+              <TrustBadge
+                sourceType={question.sourceType}
+                sourceDetail={question.sourceDetail}
+                answerSource={question.answerSource}
+                verificationStatus={question.verificationStatus}
+                paperYear={question.paperYear}
+                originalExam={question.originalExam}
+                rawSource={question.source}
+              />
             </div>
           </div>
           <Button
