@@ -187,6 +187,15 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     fallback: "openai",
     fallbackModel: "gpt-4o",
   },
+  parse_portal_page: {
+    // Universal Discovery v2: needs reasoning over messy HTML-derived markdown
+    // across many formats. Claude Sonnet handles semantic extraction best;
+    // GPT-4o is a capable fallback.
+    primary: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    fallback: "openai",
+    fallbackModel: "gpt-4o",
+  },
 };
 
 // ─── Provider → Default Model mapping ───
@@ -235,6 +244,7 @@ function taskToFeature(task: AITask): string {
     classify_questions: "pattern",
     analyze_exam_pattern: "pattern",
     generate_pattern_exam: "pattern",
+    parse_portal_page: "discovery",
   };
   return map[task];
 }

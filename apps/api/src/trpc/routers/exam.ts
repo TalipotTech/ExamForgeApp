@@ -15,9 +15,18 @@ import {
   examListingFilterSchema,
   updateExamAdminSchema,
   runDiscoveryInputSchema,
+  runUniversalDiscoveryInputSchema,
+  runDeepDiscoveryInputSchema,
+  runExamValidationInputSchema,
 } from "@examforge/shared/validators";
 import { router, publicProcedure, protectedProcedure, adminProcedure } from "../trpc.js";
 import { runExamDiscovery } from "../../workers/discovery-agent.js";
+import {
+  addBroadDiscoverJob,
+  addDeepDiscoverJob,
+  addValidateExamJob,
+} from "../../queues/universal-discovery-queue.js";
+import { OFFICIAL_PORTALS, getPortalsForFrequency } from "../../config/official-portals.js";
 
 const FREE_TIER_MAX_EXAMS = 3;
 
@@ -204,6 +213,77 @@ export const examRouter = router({
       });
       return result;
     }),
+
+  /**
+   * Admin: Universal Discovery v2 — queue async broad-discover jobs across
+   * the official portal registry. One BullMQ job per portal; worker uses
+   * the universal AI parser so any portal format is handled.
+   */
+  runUniversalDiscovery: adminProcedure
+    .input(runUniversalDiscoveryInputSchema.optional())
+    .mutation(async ({ ctx, input }) => {
+      const portalIds = input?.portalIds?.length
+        ? input.portalIds
+        : getPortalsForFrequency("daily").map((p) => p.id);
+      const maxPages = input?.maxPagesPerPortal ?? 3;
+
+      const jobIds: string[] = [];
+      for (const portalId of portalIds) {
+        const jobId = await addBroadDiscoverJob({
+          portalId,
+          maxPages,
+          userId: ctx.userId,
+          orgId: ctx.orgId ?? "",
+        });
+        jobIds.push(jobId);
+      }
+      return { success: true, portalsQueued: portalIds.length, jobIds };
+    }),
+
+  /**
+   * Admin: Universal Discovery v2 — queue a deep-discover job for an exam.
+   * The worker will crawl previousPapers / answerKeys / syllabus pages
+   * across every portal that conducts this exam and create portal_documents
+   * for each new PDF link found.
+   */
+  runDeepDiscovery: adminProcedure
+    .input(runDeepDiscoveryInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const jobId = await addDeepDiscoverJob({
+        examId: input.examId,
+        skipRecent: input.skipRecent,
+        userId: ctx.userId,
+        orgId: ctx.orgId ?? "",
+      });
+      return { success: true, jobId };
+    }),
+
+  /**
+   * Admin: Recompute contentCompleteness for an exam. Synchronous to the
+   * client but runs as a queued job — the caller gets a job id back.
+   */
+  validateExam: adminProcedure.input(runExamValidationInputSchema).mutation(async ({ input }) => {
+    const jobId = await addValidateExamJob({ examId: input.examId });
+    return { success: true, jobId };
+  }),
+
+  /**
+   * Admin: read the official portal registry. Used by the content
+   * acquisition dashboard to render the portal status grid.
+   */
+  getOfficialPortals: adminProcedure.query(() => {
+    return OFFICIAL_PORTALS.map((p) => ({
+      id: p.id,
+      name: p.name,
+      domain: p.domain,
+      type: p.type,
+      checkFrequency: p.checkFrequency,
+      priority: p.priority,
+      examsConducted: p.examsConducted,
+      fetchMethod: p.fetchMethod,
+      notes: p.notes,
+    }));
+  }),
 
   /** Admin: get discovery run history */
   getDiscoveryRuns: adminProcedure

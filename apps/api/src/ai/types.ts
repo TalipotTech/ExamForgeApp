@@ -31,7 +31,8 @@ export type AITask =
   | "voice_teacher"
   | "classify_questions"
   | "analyze_exam_pattern"
-  | "generate_pattern_exam";
+  | "generate_pattern_exam"
+  | "parse_portal_page";
 
 export type ProviderMapping = {
   primary: AiProvider;

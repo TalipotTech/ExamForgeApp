@@ -54,6 +54,12 @@ export const exams = pgTable(
     lastCheckedAt: timestamp("last_checked_at"),
     popularityScore: integer("popularity_score").default(0),
 
+    // Universal Discovery v2 — content acquisition tracking (JSONB):
+    // previousPapersFound, syllabusFound, patternGenerated,
+    // missingPaperYears, completenessScore, etc.
+    // Schema: ExamContentCompleteness in validators/discovery.ts.
+    contentCompleteness: jsonb("content_completeness").$type<Record<string, unknown>>().default({}),
+
     orgId: uuid("org_id").references(() => organizations.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

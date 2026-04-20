@@ -15,6 +15,8 @@ import { createNoteSummaryWorker } from "./note-summary-worker.js";
 import { closeNoteSummaryQueue, scheduleNoteSummaryJob } from "../queues/note-summary-queue.js";
 import { createPatternAnalysisWorker } from "./pattern-analysis-worker.js";
 import { closePatternAnalysisQueue } from "../queues/pattern-analysis-queue.js";
+import { createUniversalDiscoveryWorker } from "./universal-discovery-worker.js";
+import { closeUniversalDiscoveryQueue } from "../queues/universal-discovery-queue.js";
 
 async function main(): Promise<void> {
   console.log("[workers] Starting ExamForge workers...");
@@ -26,6 +28,7 @@ async function main(): Promise<void> {
   const tutorialAgentWorker = createTutorialAgentWorker();
   const noteSummaryWorker = createNoteSummaryWorker();
   const patternAnalysisWorker = createPatternAnalysisWorker();
+  const universalDiscoveryWorker = createUniversalDiscoveryWorker();
 
   // Schedule daily note summary generation
   await scheduleNoteSummaryJob();
@@ -39,6 +42,7 @@ async function main(): Promise<void> {
     await tutorialAgentWorker.close();
     await noteSummaryWorker.close();
     await patternAnalysisWorker.close();
+    await universalDiscoveryWorker.close();
     await closeScraperQueue();
     await closePortalIngestionQueue();
     await closePortalProcessingQueue();
@@ -46,6 +50,7 @@ async function main(): Promise<void> {
     await closeTutorialAgentQueue();
     await closeNoteSummaryQueue();
     await closePatternAnalysisQueue();
+    await closeUniversalDiscoveryQueue();
     console.log("[workers] Shutdown complete.");
     process.exit(0);
   };
@@ -54,7 +59,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   console.log(
-    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis workers started. Waiting for jobs...",
+    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery workers started. Waiting for jobs...",
   );
 }
 

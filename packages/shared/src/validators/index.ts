@@ -335,3 +335,42 @@ export type {
   ExamFingerprintInput,
   PatternGeneratedExam,
 } from "./exam-pattern";
+
+// ─── Universal Discovery Agent v2 ───────────────────────
+
+export {
+  discoveryItemCategorySchema,
+  discoveryLinkTypeSchema,
+  discoveryLinkFormatSchema,
+  discoveryLinkLanguageSchema,
+  discoveryItemStatusSchema,
+  pageTypeSchema,
+  discoveryDatesSchema,
+  discoveryLinkSchema,
+  discoveredItemSchema,
+  discoveryPaginationSchema,
+  discoveryPageMetadataSchema,
+  discoveryPageResultSchema,
+  examContentCompletenessSchema,
+  runUniversalDiscoveryInputSchema,
+  runDeepDiscoveryInputSchema,
+  runExamValidationInputSchema,
+} from "./discovery";
+export type {
+  DiscoveryItemCategory,
+  DiscoveryLinkType,
+  DiscoveryLinkFormat,
+  DiscoveryLinkLanguage,
+  DiscoveryItemStatus,
+  DiscoveryPageType,
+  DiscoveryDates,
+  DiscoveryLink,
+  DiscoveredItem,
+  DiscoveryPagination,
+  DiscoveryPageMetadata,
+  DiscoveryPageResult,
+  ExamContentCompleteness,
+  RunUniversalDiscoveryInput,
+  RunDeepDiscoveryInput,
+  RunExamValidationInput,
+} from "./discovery";
