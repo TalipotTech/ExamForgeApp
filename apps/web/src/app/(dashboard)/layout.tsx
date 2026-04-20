@@ -28,6 +28,7 @@ import {
   MessageSquare,
   BarChart3,
   Radar,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -74,6 +75,13 @@ const ADMIN_NAV: NavItem[] = [
     href: "/admin/discovery",
     label: "Content Hub",
     icon: Radar,
+    adminOnly: true,
+    group: "content",
+  },
+  {
+    href: "/admin/verification",
+    label: "Verification",
+    icon: ShieldCheck,
     adminOnly: true,
     group: "content",
   },
