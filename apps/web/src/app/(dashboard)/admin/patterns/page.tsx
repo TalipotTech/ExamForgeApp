@@ -1,10 +1,14 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -14,10 +18,84 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { BarChart3, Settings } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { BarChart3, Check, Link2, PlusCircle, Search as SearchIcon, Settings } from "lucide-react";
+import { toast } from "sonner";
+
+type InventoryRow =
+  // Shape comes from the server; keep it loose here to avoid a second type.
+  {
+    rowKey: string;
+    examName: string;
+    postName: string | null;
+    categoryNumber: string | null;
+    examDate: string | null;
+    department: string | null;
+    stage: string | null;
+    documentId: string;
+    portalName: string | null;
+    examCategory: string | null;
+    hasSyllabus: boolean;
+    canonicalExamId: string | null;
+    canonicalName: string | null;
+    matchedBy: "exact" | "normalized" | "alias" | "token" | "none";
+    matchConfidence: number;
+    hasPattern: boolean;
+    patternConfidence: number | null;
+    patternPapers: number;
+    patternVersion: number | null;
+  };
 
 export default function AdminPatternsPage(): React.ReactElement {
-  const { data: examList, isLoading } = trpc.exam.listForAdmin.useQuery();
+  const inventoryQuery = trpc.exam.getScrapedExaminationInventory.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+
+  const [search, setSearch] = useState("");
+  const [showUnmatchedOnly, setShowUnmatchedOnly] = useState(false);
+
+  const [linkingRow, setLinkingRow] = useState<InventoryRow | null>(null);
+  const [creatingRow, setCreatingRow] = useState<InventoryRow | null>(null);
+
+  const rows = (inventoryQuery.data ?? []) as InventoryRow[];
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (showUnmatchedOnly && r.canonicalExamId) return false;
+      if (!term) return true;
+      return (
+        r.examName.toLowerCase().includes(term) ||
+        r.postName?.toLowerCase().includes(term) ||
+        r.canonicalName?.toLowerCase().includes(term) ||
+        r.categoryNumber?.toLowerCase().includes(term)
+      );
+    });
+  }, [rows, search, showUnmatchedOnly]);
+
+  const stats = useMemo(() => {
+    const total = rows.length;
+    const matched = rows.filter((r) => r.canonicalExamId).length;
+    const withPattern = rows.filter((r) => r.hasPattern).length;
+    const unmatched = total - matched;
+    return { total, matched, unmatched, withPattern };
+  }, [rows]);
 
   return (
     <div className="space-y-6">
@@ -26,113 +104,411 @@ export default function AdminPatternsPage(): React.ReactElement {
           <BarChart3 className="size-6" />
           Pattern Analysis
         </h1>
-        <p className="text-muted-foreground">
-          Manage exam pattern analysis across all exams. Requires at least 2 previous year papers
-          per exam for reliable fingerprinting.
+        <p className="text-muted-foreground text-sm">
+          Examinations are sourced from the scraped portal calendar (same as{" "}
+          <Link href={"/exams" as "/"} className="underline">
+            /exams
+          </Link>
+          ). Each is matched to a canonical exam record so pattern analysis can run on it — link
+          manually or create a new canonical when auto-match fails.
         </p>
       </div>
 
+      {/* Summary chips */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatChip label="Examinations" value={stats.total} />
+        <StatChip label="Matched to canonical" value={stats.matched} />
+        <StatChip label="Unmatched" value={stats.unmatched} tone="warn" />
+        <StatChip label="With pattern" value={stats.withPattern} tone="ok" />
+      </div>
+
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Exams</CardTitle>
+        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-3">
+          <CardTitle className="text-base">Examinations</CardTitle>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs">
+              <input
+                type="checkbox"
+                checked={showUnmatchedOnly}
+                onChange={(e) => setShowUnmatchedOnly(e.target.checked)}
+                className="size-3.5"
+              />
+              Unmatched only
+            </label>
+            <div className="flex w-64 items-center gap-2">
+              <SearchIcon className="text-muted-foreground size-3.5" />
+              <Input
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-40 w-full" />
-          ) : !examList || examList.length === 0 ? (
-            <p className="text-muted-foreground py-8 text-center text-sm">
-              No exams yet. Ingest papers via the scraper/ingest pipeline first.
+          {inventoryQuery.isLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : filtered.length === 0 ? (
+            <p className="text-muted-foreground py-6 text-center text-sm">
+              {rows.length === 0
+                ? "No examinations yet. Ingest an examination-schedule PDF via the scraper to populate this."
+                : "No examinations match the current filter."}
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Exam</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Questions</TableHead>
-                  <TableHead>Conducting Body</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {examList.map((exam) => (
-                  <ExamPatternRow
-                    key={exam.id}
-                    id={exam.id}
-                    name={exam.name}
-                    category={exam.category ?? null}
-                    conductingBody={exam.conductingBody ?? null}
-                    questionCount={exam.questionCount ?? 0}
-                  />
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Examination</TableHead>
+                    <TableHead className="w-24">Cat. #</TableHead>
+                    <TableHead className="w-28">Date</TableHead>
+                    <TableHead>Canonical Match</TableHead>
+                    <TableHead className="w-28">Pattern</TableHead>
+                    <TableHead className="w-44 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.slice(0, 150).map((r, idx) => (
+                    <TableRow key={`${r.rowKey}-${idx}`}>
+                      <TableCell className="py-2">
+                        <div className="text-sm font-medium">{r.examName}</div>
+                        {r.postName && (
+                          <div className="text-muted-foreground text-xs">{r.postName}</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-2 text-xs">{r.categoryNumber ?? "—"}</TableCell>
+                      <TableCell className="py-2 text-xs">{r.examDate ?? "—"}</TableCell>
+                      <TableCell className="py-2">
+                        <CanonicalMatchCell row={r} />
+                      </TableCell>
+                      <TableCell className="py-2">
+                        {r.hasPattern ? (
+                          <Badge variant="default" className="text-[10px]">
+                            {Math.round((r.patternConfidence ?? 0) * 100)}% · v
+                            {r.patternVersion ?? 1}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-[10px]">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-2 text-right">
+                        <div className="flex justify-end gap-1">
+                          {r.canonicalExamId ? (
+                            <Link href={`/dashboard/exam/${r.canonicalExamId}/patterns` as "/"}>
+                              <Button size="sm" variant="outline" className="h-7">
+                                <Settings className="size-3.5" />
+                                Manage
+                              </Button>
+                            </Link>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7"
+                                onClick={() => setLinkingRow(r)}
+                              >
+                                <Link2 className="size-3.5" />
+                                Link
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7"
+                                onClick={() => setCreatingRow(r)}
+                              >
+                                <PlusCircle className="size-3.5" />
+                                Create
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {filtered.length > 150 && (
+                <p className="text-muted-foreground mt-2 text-center text-xs">
+                  Showing 150 of {filtered.length} — refine the search to narrow down.
+                </p>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
+
+      {linkingRow && (
+        <LinkDialog
+          row={linkingRow}
+          onClose={() => setLinkingRow(null)}
+          onLinked={() => {
+            setLinkingRow(null);
+            void inventoryQuery.refetch();
+          }}
+        />
+      )}
+      {creatingRow && (
+        <CreateCanonicalDialog
+          row={creatingRow}
+          onClose={() => setCreatingRow(null)}
+          onCreated={() => {
+            setCreatingRow(null);
+            void inventoryQuery.refetch();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function ExamPatternRow({
-  id,
-  name,
-  category,
-  conductingBody,
-  questionCount,
-}: {
-  id: string;
-  name: string;
-  category: string | null;
-  conductingBody: string | null;
-  questionCount: number;
-}): React.ReactElement {
-  const { data: status } = trpc.examPattern.getClassificationStatus.useQuery(
-    { examId: id },
-    { staleTime: 60_000 },
-  );
-  const { data: pattern } = trpc.examPattern.getPattern.useQuery(
-    { examId: id },
-    { staleTime: 60_000 },
-  );
+// ─── Summary chip ────────────────────────────────────────
 
-  const classifiedPapers = status?.classifiedPapers ?? 0;
-  const totalPapers = status?.totalPapers ?? 0;
-  const hasPattern = Boolean(pattern);
+function StatChip({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone?: "ok" | "warn";
+}): React.ReactElement {
+  const ring =
+    tone === "ok"
+      ? "border-green-500/30"
+      : tone === "warn"
+        ? "border-amber-500/40"
+        : "border-border";
+  return (
+    <Card className={`border ${ring}`}>
+      <CardContent className="p-3">
+        <p className="text-muted-foreground text-[10px] uppercase tracking-wide">{label}</p>
+        <p className="text-xl font-semibold leading-tight">{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Canonical match cell ────────────────────────────────
+
+function CanonicalMatchCell({ row }: { row: InventoryRow }): React.ReactElement {
+  if (!row.canonicalExamId) {
+    return (
+      <Badge variant="outline" className="text-muted-foreground text-[10px]">
+        Not linked
+      </Badge>
+    );
+  }
+  const badgeVariant =
+    row.matchedBy === "exact" || row.matchedBy === "normalized"
+      ? "default"
+      : row.matchedBy === "alias"
+        ? "secondary"
+        : "outline";
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="max-w-[24ch] truncate text-xs font-medium">{row.canonicalName}</span>
+      <Badge variant={badgeVariant} className="w-fit text-[9px] font-normal">
+        {row.matchedBy} · {Math.round(row.matchConfidence * 100)}%
+      </Badge>
+    </div>
+  );
+}
+
+// ─── Link to existing canonical dialog ───────────────────
+
+function LinkDialog({
+  row,
+  onClose,
+  onLinked,
+}: {
+  row: InventoryRow;
+  onClose: () => void;
+  onLinked: () => void;
+}): React.ReactElement {
+  const candidatesQuery = trpc.exam.listCanonicalExamsForLinking.useQuery(undefined, {
+    staleTime: 5 * 60_000,
+  });
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const linkMutation = trpc.exam.linkScrapedToCanonical.useMutation({
+    onSuccess: (data) => {
+      toast.success(
+        data.alreadyLinked ? "Already linked" : `Linked "${row.examName}" to canonical`,
+      );
+      onLinked();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const selected = (candidatesQuery.data ?? []).find((c) => c.id === selectedId);
 
   return (
-    <TableRow>
-      <TableCell>
-        <div className="flex flex-col">
-          <span className="font-medium">{name}</span>
-          <span className="text-muted-foreground text-xs">
-            {hasPattern ? (
-              <Badge variant="outline" className="text-green-600">
-                Pattern v{pattern?.version ?? 1} · {pattern?.papersAnalyzed ?? 0} papers
-              </Badge>
-            ) : totalPapers > 0 ? (
-              <Badge variant="secondary">
-                {classifiedPapers}/{totalPapers} classified
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-muted-foreground">
-                No papers ingested
-              </Badge>
-            )}
-          </span>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Link to canonical exam</DialogTitle>
+          <DialogDescription>
+            Pick the canonical exam that &ldquo;{row.examName}&rdquo; should map to. The scraped
+            name will be added to its aliases so future occurrences resolve automatically.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          <Label className="text-xs">Canonical exam</Label>
+          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                className="w-full justify-between font-normal"
+              >
+                {selected ? selected.name : "Select a canonical exam..."}
+                <SearchIcon className="ml-2 size-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search canonical exams..." />
+                <CommandList>
+                  <CommandEmpty>No canonical exam found.</CommandEmpty>
+                  <CommandGroup>
+                    {(candidatesQuery.data ?? []).map((c) => (
+                      <CommandItem
+                        key={c.id}
+                        value={`${c.name} ${c.conductingBody ?? ""}`}
+                        onSelect={() => {
+                          setSelectedId(c.id);
+                          setPickerOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={`size-3.5 ${
+                            selectedId === c.id ? "opacity-100" : "opacity-0"
+                          }`}
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm">{c.name}</span>
+                          <span className="text-muted-foreground text-[11px]">
+                            {c.category}
+                            {c.conductingBody ? ` · ${c.conductingBody}` : ""}
+                          </span>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
-      </TableCell>
-      <TableCell>{category ?? "-"}</TableCell>
-      <TableCell>{questionCount}</TableCell>
-      <TableCell className="text-muted-foreground text-sm">{conductingBody ?? "-"}</TableCell>
-      <TableCell className="text-right">
-        <Link href={`/dashboard/exam/${id}/patterns` as "/"}>
-          <Button variant="outline" size="sm">
-            <Settings className="size-3.5" />
-            Manage
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
           </Button>
-        </Link>
-      </TableCell>
-    </TableRow>
+          <Button
+            disabled={!selectedId || linkMutation.isPending}
+            onClick={() =>
+              selectedId &&
+              linkMutation.mutate({
+                scrapedExamName: row.examName,
+                canonicalExamId: selectedId,
+              })
+            }
+          >
+            {linkMutation.isPending ? "Linking..." : "Link"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Create new canonical dialog ─────────────────────────
+
+function CreateCanonicalDialog({
+  row,
+  onClose,
+  onCreated,
+}: {
+  row: InventoryRow;
+  onClose: () => void;
+  onCreated: (canonicalId: string) => void;
+}): React.ReactElement {
+  const router = useRouter();
+  const [name, setName] = useState(row.examName);
+  const [category, setCategory] = useState(row.examCategory ?? "state_psc");
+  const [conductingBody, setConductingBody] = useState(row.portalName ?? "");
+
+  const createMutation = trpc.exam.createCanonicalFromScraped.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Created canonical exam`);
+      onCreated(data.canonicalExamId);
+      router.push(`/dashboard/exam/${data.canonicalExamId}/patterns` as "/");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create canonical exam</DialogTitle>
+          <DialogDescription>
+            No canonical record matches &ldquo;{row.examName}&rdquo;. Create one — the scraped name
+            will be seeded into its aliases so future occurrences auto-resolve.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Canonical name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Category</Label>
+            <Input
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g. state_psc, pharmacy, medical"
+              className="h-9 text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Conducting body</Label>
+            <Input
+              value={conductingBody}
+              onChange={(e) => setConductingBody(e.target.value)}
+              className="h-9 text-sm"
+            />
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Scraped alias: <span className="font-mono">{row.examName}</span>
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!name.trim() || !category.trim() || createMutation.isPending}
+            onClick={() =>
+              createMutation.mutate({
+                scrapedExamName: row.examName,
+                canonicalName: name.trim(),
+                category: category.trim(),
+                conductingBody: conductingBody.trim() || undefined,
+              })
+            }
+          >
+            {createMutation.isPending ? "Creating..." : "Create & Analyze"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

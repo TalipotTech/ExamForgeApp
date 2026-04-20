@@ -60,6 +60,13 @@ export const exams = pgTable(
     // Schema: ExamContentCompleteness in validators/discovery.ts.
     contentCompleteness: jsonb("content_completeness").$type<Record<string, unknown>>().default({}),
 
+    // Alternate names this canonical exam is known by. Used to link
+    // scraped examination names from portal_documents metadata
+    // (e.g. "Assistant Professor in Pharmacy – Direct Recruitment")
+    // to the canonical record (e.g. "BPharm Assistant Professor 2025").
+    // Admin-maintained via the canonicalization UI + lookup helpers.
+    aliases: jsonb("aliases").$type<string[]>().default([]),
+
     orgId: uuid("org_id").references(() => organizations.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

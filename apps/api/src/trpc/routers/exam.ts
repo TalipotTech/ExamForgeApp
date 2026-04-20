@@ -10,6 +10,7 @@ import {
   portalDocuments,
   subscriptionPlans,
   userSubscriptions,
+  examPatterns,
 } from "@examforge/shared/db/schema";
 import {
   examListingFilterSchema,
@@ -27,6 +28,7 @@ import {
   addValidateExamJob,
 } from "../../queues/universal-discovery-queue.js";
 import { OFFICIAL_PORTALS, getPortalsForFrequency } from "../../config/official-portals.js";
+import { matchScrapedExamsBatch, type CanonicalExamSummary } from "../../services/exam-matching.js";
 
 const FREE_TIER_MAX_EXAMS = 3;
 
@@ -392,6 +394,223 @@ export const examRouter = router({
         .limit(limit);
 
       return rows;
+    }),
+
+  /**
+   * Admin: scraped examination inventory enriched with canonical match
+   * + pattern status. Source of truth is portal_documents metadata
+   * (the same data /exams/page.tsx renders publicly). Each scraped
+   * examination is matched against the canonical exams pool via
+   * exam-matching.ts so the admin sees which ones already have a
+   * canonical record (and therefore a pattern) vs which need linking.
+   */
+  getScrapedExaminationInventory: adminProcedure.query(async ({ ctx }) => {
+    // 1. Pull raw examinations from processed examination_schedule docs.
+    const docs = await ctx.db
+      .select({
+        id: portalDocuments.id,
+        portalName: portalDocuments.portalName,
+        examCategory: portalDocuments.examCategory,
+        metadata: portalDocuments.metadata,
+      })
+      .from(portalDocuments)
+      .where(
+        and(
+          eq(portalDocuments.documentType, "examination_schedule"),
+          eq(portalDocuments.processingStatus, "processed"),
+        ),
+      );
+
+    type RawExamEntry = {
+      examName: string;
+      postName?: string;
+      categoryNumber?: string;
+      examDate?: string;
+      department?: string;
+      stage?: string;
+    };
+
+    type ScrapedRow = {
+      rowKey: string;
+      examName: string;
+      postName: string | null;
+      categoryNumber: string | null;
+      examDate: string | null;
+      department: string | null;
+      stage: string | null;
+      documentId: string;
+      portalName: string | null;
+      examCategory: string | null;
+      hasSyllabus: boolean;
+    };
+
+    const scrapedRows: ScrapedRow[] = [];
+    for (const doc of docs) {
+      const meta = doc.metadata as {
+        examinations?: RawExamEntry[];
+        syllabusLinks?: Array<{ entryKey: string; status: string }>;
+      } | null;
+      const entries = meta?.examinations ?? [];
+      const syllabusLinks = meta?.syllabusLinks ?? [];
+      for (const entry of entries) {
+        const entryKey = `${entry.examName}::${entry.categoryNumber ?? ""}`;
+        const hasSyllabus = syllabusLinks.some(
+          (s) => s.entryKey === entryKey && s.status !== "error",
+        );
+        scrapedRows.push({
+          rowKey: `${doc.id}::${entry.categoryNumber ?? ""}::${entry.examName}`,
+          examName: entry.examName,
+          postName: entry.postName ?? null,
+          categoryNumber: entry.categoryNumber ?? null,
+          examDate: entry.examDate ?? null,
+          department: entry.department ?? null,
+          stage: entry.stage ?? null,
+          documentId: doc.id,
+          portalName: doc.portalName ?? null,
+          examCategory: doc.examCategory ?? null,
+          hasSyllabus,
+        });
+      }
+    }
+
+    // 2. Load the canonical exam pool for matching.
+    const canonicalRows = await ctx.db
+      .select({
+        id: exams.id,
+        name: exams.name,
+        category: exams.category,
+        aliases: exams.aliases,
+      })
+      .from(exams);
+
+    const canonicalPool: CanonicalExamSummary[] = canonicalRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      aliases: (r.aliases as string[] | null) ?? [],
+    }));
+
+    // 3. Load current patterns, index by examId.
+    const patternRows = await ctx.db
+      .select({
+        examId: examPatterns.examId,
+        confidence: examPatterns.confidence,
+        papersAnalyzed: examPatterns.papersAnalyzed,
+        version: examPatterns.version,
+      })
+      .from(examPatterns)
+      .where(eq(examPatterns.isCurrent, true));
+
+    const patternByExamId = new Map<string, (typeof patternRows)[number]>();
+    for (const p of patternRows) patternByExamId.set(p.examId, p);
+
+    // 4. Batch-match scraped names against canonical pool.
+    const distinctNames = Array.from(new Set(scrapedRows.map((r) => r.examName)));
+    const matches = matchScrapedExamsBatch(distinctNames, canonicalPool);
+
+    // 5. Zip everything together.
+    return scrapedRows.map((r) => {
+      const match = matches.get(r.examName);
+      const canonicalId = match?.canonicalExamId ?? null;
+      const pattern = canonicalId ? patternByExamId.get(canonicalId) : undefined;
+      return {
+        ...r,
+        canonicalExamId: canonicalId,
+        canonicalName: match?.canonicalName ?? null,
+        matchedBy: match?.matchedBy ?? "none",
+        matchConfidence: match?.confidence ?? 0,
+        hasPattern: Boolean(pattern),
+        patternConfidence: pattern?.confidence ?? null,
+        patternPapers: pattern?.papersAnalyzed ?? 0,
+        patternVersion: pattern?.version ?? null,
+      };
+    });
+  }),
+
+  /**
+   * Admin: list canonical exams (lightweight) for the "Link to
+   * canonical" picker when auto-match fails.
+   */
+  listCanonicalExamsForLinking: adminProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select({
+        id: exams.id,
+        name: exams.name,
+        category: exams.category,
+        conductingBody: exams.conductingBody,
+        aliases: exams.aliases,
+      })
+      .from(exams)
+      .orderBy(asc(exams.name));
+  }),
+
+  /**
+   * Admin: add a scraped examination name to a canonical exam's
+   * aliases. Next time the scraped name appears, the matcher resolves
+   * to this canonical (confidence 0.9).
+   */
+  linkScrapedToCanonical: adminProcedure
+    .input(
+      z.object({
+        scrapedExamName: z.string().min(1),
+        canonicalExamId: z.string().uuid(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [canonical] = await ctx.db
+        .select({ aliases: exams.aliases })
+        .from(exams)
+        .where(eq(exams.id, input.canonicalExamId))
+        .limit(1);
+      if (!canonical) {
+        throw new Error("Canonical exam not found");
+      }
+      const current = (canonical.aliases as string[] | null) ?? [];
+      if (current.some((a) => a.toLowerCase() === input.scrapedExamName.toLowerCase())) {
+        return { success: true, aliases: current, alreadyLinked: true };
+      }
+      const next = [...current, input.scrapedExamName];
+      await ctx.db
+        .update(exams)
+        .set({ aliases: next, updatedAt: new Date() })
+        .where(eq(exams.id, input.canonicalExamId));
+      return { success: true, aliases: next, alreadyLinked: false };
+    }),
+
+  /**
+   * Admin: create a canonical exam from a scraped examination entry.
+   * Seeds the aliases array with the scraped name so future occurrences
+   * auto-resolve. Status = 'draft' so it shows in the admin review
+   * queue on the discovery page.
+   */
+  createCanonicalFromScraped: adminProcedure
+    .input(
+      z.object({
+        scrapedExamName: z.string().min(1),
+        canonicalName: z.string().min(1),
+        category: z.string().min(1),
+        conductingBody: z.string().optional(),
+        level: z.enum(["national", "state", "university"]).default("state"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [inserted] = await ctx.db
+        .insert(exams)
+        .values({
+          name: input.canonicalName,
+          category: input.category,
+          conductingBody: input.conductingBody,
+          level: input.level,
+          status: "draft",
+          isAutoDiscovered: true,
+          discoverySource: "admin_canonicalize",
+          aliases: [input.scrapedExamName],
+          orgId: ctx.orgId,
+          lastCheckedAt: new Date(),
+        })
+        .returning({ id: exams.id });
+      if (!inserted) throw new Error("Failed to create canonical exam");
+      return { success: true, canonicalExamId: inserted.id };
     }),
 
   /**
