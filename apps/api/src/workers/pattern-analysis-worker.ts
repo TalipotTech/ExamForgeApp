@@ -16,10 +16,15 @@ import { getBullMQConnection } from "../lib/bullmq-connection.js";
 import {
   PATTERN_ANALYSIS_QUEUE_NAME,
   type PatternAnalysisJobData,
+  addAnalyzePatternJob,
 } from "../queues/pattern-analysis-queue.js";
+import { addValidateExamJob } from "../queues/universal-discovery-queue.js";
 import { routeAIRequest, routeEmbedRequest } from "../ai/ai-router.js";
 import { buildQuestionClassifierPrompt } from "../ai/prompts/question-classifier.js";
 import { buildPatternAnalyzerPrompt } from "../ai/prompts/pattern-analyzer.js";
+
+// Minimum classified papers required for a reliable fingerprint.
+const MIN_PAPERS_FOR_AUTO_ANALYZE = 3;
 
 // ─── Worker Factory ───
 
@@ -357,6 +362,11 @@ async function classifyPaper(
       `[pattern-analysis] Classified ${totalClassified}/${questionRows.length} questions, ${repeatedCount} repeats detected`,
     );
 
+    // ─── Auto-trigger pattern analysis when threshold is met ───
+    // This closes the loop: classify-paper -> analyze-pattern -> validate-exam
+    // so admins don't have to manually click "Run Analysis" as papers flow in.
+    await maybeAutoTriggerAnalysis(data, db);
+
     return { success: true, questionsClassified: totalClassified };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -503,5 +513,68 @@ async function analyzePattern(
     `[pattern-analysis] Pattern analysis complete for exam ${data.examId}: ${papers.length} papers, version ${nextVersion}`,
   );
 
+  // Refresh contentCompleteness on the exam now that pattern state changed.
+  try {
+    await addValidateExamJob({ examId: data.examId });
+  } catch (err) {
+    console.warn(
+      `[pattern-analysis] Failed to queue validate-exam after analyze:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+
   return { success: true, patternsFound: true };
+}
+
+// ─── Auto-trigger helper ───
+// Called after classify-paper succeeds. If the exam now has enough classified
+// papers (or already has a pattern — in which case we re-analyze on new data),
+// queue an analyze-pattern job. Non-fatal: any failure here is logged, not
+// propagated, so the classification result is still accepted.
+
+async function maybeAutoTriggerAnalysis(
+  data: PatternAnalysisJobData,
+  db: ReturnType<typeof createDatabase>,
+): Promise<void> {
+  try {
+    const classifiedRows = await db
+      .select({ id: paperAnalysis.id })
+      .from(paperAnalysis)
+      .where(and(eq(paperAnalysis.examId, data.examId), eq(paperAnalysis.status, "classified")));
+
+    const classifiedCount = classifiedRows.length;
+
+    const [existingPattern] = await db
+      .select({ id: examPatterns.id, version: examPatterns.version })
+      .from(examPatterns)
+      .where(and(eq(examPatterns.examId, data.examId), eq(examPatterns.isCurrent, true)))
+      .limit(1);
+
+    const shouldTrigger =
+      // New exam crossing the threshold for first-time fingerprint generation
+      (!existingPattern && classifiedCount >= MIN_PAPERS_FOR_AUTO_ANALYZE) ||
+      // Existing pattern — refresh whenever a new paper is classified
+      Boolean(existingPattern);
+
+    if (!shouldTrigger) {
+      console.log(
+        `[pattern-analysis] Auto-trigger skipped for exam ${data.examId}: ${classifiedCount} papers, no pattern yet (need ${MIN_PAPERS_FOR_AUTO_ANALYZE})`,
+      );
+      return;
+    }
+
+    const jobId = await addAnalyzePatternJob({
+      examId: data.examId,
+      userId: data.userId,
+      orgId: data.orgId,
+    });
+    console.log(
+      `[pattern-analysis] Auto-triggered analyze-pattern (${existingPattern ? "refresh v" + existingPattern.version : "first"}) for exam ${data.examId} -> job ${jobId} (${classifiedCount} papers)`,
+    );
+  } catch (err) {
+    console.warn(
+      `[pattern-analysis] Auto-trigger failed for exam ${data.examId}:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
 }
