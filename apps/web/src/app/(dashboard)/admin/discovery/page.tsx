@@ -229,16 +229,18 @@ export default function AdminDiscoveryPage(): React.ReactElement {
               No notifications ingested yet.
             </p>
           ) : (
-            <Table>
+            <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
+                  {/* Title takes the remainder; every other column is
+                      explicitly sized so table-fixed enforces them. */}
                   <TableHead className="w-6"></TableHead>
                   <TableHead>Title</TableHead>
-                  <TableHead className="w-28">Type</TableHead>
+                  <TableHead className="w-24">Type</TableHead>
                   <TableHead className="w-24">Portal</TableHead>
-                  <TableHead className="w-20">Year</TableHead>
+                  <TableHead className="w-16">Year</TableHead>
                   <TableHead className="w-24">Status</TableHead>
-                  <TableHead className="w-20 text-right">Exams</TableHead>
+                  <TableHead className="w-16 text-right">Exams</TableHead>
                   <TableHead className="w-20">Added</TableHead>
                   <TableHead className="w-20 text-right">Actions</TableHead>
                 </TableRow>
@@ -262,7 +264,7 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                             )
                           ) : null}
                         </TableCell>
-                        <TableCell className="max-w-[22ch] truncate py-2 text-xs font-medium">
+                        <TableCell className="truncate py-2 text-xs font-medium" title={d.title}>
                           {d.title}
                         </TableCell>
                         <TableCell className="py-2">
@@ -270,7 +272,10 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                             {d.documentType.replace(/_/g, " ")}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-muted-foreground max-w-[14ch] truncate py-2 text-xs">
+                        <TableCell
+                          className="text-muted-foreground truncate py-2 text-xs"
+                          title={d.portalName ?? undefined}
+                        >
                           {d.portalName}
                         </TableCell>
                         <TableCell className="py-2 text-xs">{d.examYear ?? "—"}</TableCell>
