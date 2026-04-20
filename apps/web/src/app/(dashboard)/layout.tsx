@@ -29,6 +29,7 @@ import {
   BarChart3,
   Radar,
   ShieldCheck,
+  FlaskConical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -82,6 +83,13 @@ const ADMIN_NAV: NavItem[] = [
     href: "/admin/verification",
     label: "Verification",
     icon: ShieldCheck,
+    adminOnly: true,
+    group: "content",
+  },
+  {
+    href: "/admin/generation",
+    label: "Topic Gen",
+    icon: FlaskConical,
     adminOnly: true,
     group: "content",
   },

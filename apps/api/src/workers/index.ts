@@ -19,6 +19,8 @@ import { createUniversalDiscoveryWorker } from "./universal-discovery-worker.js"
 import { closeUniversalDiscoveryQueue } from "../queues/universal-discovery-queue.js";
 import { createVerificationWorker } from "./verification-worker.js";
 import { closeVerificationQueue } from "../queues/verification-queue.js";
+import { createTopicGenerationWorker } from "./topic-generation-worker.js";
+import { closeTopicGenerationQueue } from "../queues/topic-generation-queue.js";
 
 async function main(): Promise<void> {
   console.log("[workers] Starting ExamForge workers...");
@@ -32,6 +34,7 @@ async function main(): Promise<void> {
   const patternAnalysisWorker = createPatternAnalysisWorker();
   const universalDiscoveryWorker = createUniversalDiscoveryWorker();
   const verificationWorker = createVerificationWorker();
+  const topicGenerationWorker = createTopicGenerationWorker();
 
   // Schedule daily note summary generation
   await scheduleNoteSummaryJob();
@@ -47,6 +50,7 @@ async function main(): Promise<void> {
     await patternAnalysisWorker.close();
     await universalDiscoveryWorker.close();
     await verificationWorker.close();
+    await topicGenerationWorker.close();
     await closeScraperQueue();
     await closePortalIngestionQueue();
     await closePortalProcessingQueue();
@@ -56,6 +60,7 @@ async function main(): Promise<void> {
     await closePatternAnalysisQueue();
     await closeUniversalDiscoveryQueue();
     await closeVerificationQueue();
+    await closeTopicGenerationQueue();
     console.log("[workers] Shutdown complete.");
     process.exit(0);
   };
@@ -64,7 +69,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   console.log(
-    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery + Verification workers started. Waiting for jobs...",
+    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery + Verification + Topic Generation workers started. Waiting for jobs...",
   );
 }
 

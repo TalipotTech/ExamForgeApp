@@ -20,6 +20,7 @@ import { aiChatRouter } from "./routers/ai-chat.js";
 import { voiceTutorRouter } from "./routers/voice-tutor.js";
 import { examPatternRouter } from "./routers/exam-pattern.js";
 import { questionVerificationRouter } from "./routers/question-verification.js";
+import { topicGenerationRouter } from "./routers/topic-generation.js";
 
 export const appRouter = router({
   health: healthRouter,
@@ -43,6 +44,7 @@ export const appRouter = router({
   voiceTutor: voiceTutorRouter,
   examPattern: examPatternRouter,
   questionVerification: questionVerificationRouter,
+  topicGeneration: topicGenerationRouter,
 });
 
 export type AppRouter = typeof appRouter;
