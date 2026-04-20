@@ -213,19 +213,21 @@ export default function AdminPatternsPage(): React.ReactElement {
                         key={`${r.rowKey}-${idx}`}
                         className={isCompleted ? "opacity-60" : ""}
                       >
-                        <TableCell className="min-w-[22ch] py-2">
-                          <ExaminationTitle exam={r} />
-                          <div className="mt-1.5">
-                            <ExaminationMeta exam={r} compact />
+                        <TableCell className="py-2 align-top">
+                          <div className="max-w-[28ch] break-words">
+                            <ExaminationTitle exam={r} />
+                            <div className="mt-1.5">
+                              <ExaminationMeta exam={r} compact />
+                            </div>
                           </div>
                         </TableCell>
-                        <TableCell className="py-2">
+                        <TableCell className="py-2 align-top">
                           <ExaminationDate dateStr={r.examDate} />
                         </TableCell>
-                        <TableCell className="py-2">
+                        <TableCell className="py-2 align-top">
                           <CanonicalMatchCell row={r} />
                         </TableCell>
-                        <TableCell className="py-2">
+                        <TableCell className="py-2 align-top">
                           {r.hasPattern ? (
                             <Badge variant="default" className="text-[10px]">
                               {Math.round((r.patternConfidence ?? 0) * 100)}% · v
@@ -235,7 +237,7 @@ export default function AdminPatternsPage(): React.ReactElement {
                             <span className="text-muted-foreground text-[10px]">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="py-2 text-right">
+                        <TableCell className="py-2 text-right align-top">
                           <div className="flex justify-end gap-1">
                             {r.canonicalExamId ? (
                               <Link href={`/dashboard/exam/${r.canonicalExamId}/patterns` as "/"}>
@@ -351,8 +353,13 @@ function CanonicalMatchCell({ row }: { row: InventoryRow }): React.ReactElement 
         ? "secondary"
         : "outline";
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="max-w-[24ch] truncate text-xs font-medium">{row.canonicalName}</span>
+    <div className="flex max-w-[22ch] flex-col gap-0.5">
+      <span
+        className="break-words text-xs font-medium leading-snug"
+        title={row.canonicalName ?? undefined}
+      >
+        {row.canonicalName}
+      </span>
       <Badge variant={badgeVariant} className="w-fit text-[9px] font-normal">
         {row.matchedBy} · {Math.round(row.matchConfidence * 100)}%
       </Badge>

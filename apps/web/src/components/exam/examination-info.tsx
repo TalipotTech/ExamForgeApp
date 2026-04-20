@@ -45,12 +45,12 @@ export function ExaminationTitle({
   const days = daysUntil(exam.examDate);
   const statusBadge = getStatusBadge(exam.status ?? null, days);
   return (
-    <div className="flex flex-col gap-1">
-      <div className="text-sm font-medium capitalize leading-tight">
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="break-words text-sm font-medium capitalize leading-snug">
         {exam.examName.toLowerCase()}
       </div>
       {exam.postName && (
-        <div className="text-muted-foreground text-xs capitalize">
+        <div className="text-muted-foreground break-words text-xs capitalize leading-snug">
           {exam.postName.toLowerCase()}
         </div>
       )}

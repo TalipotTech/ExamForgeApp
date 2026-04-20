@@ -431,16 +431,18 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                     const isCompleted = days !== null && days <= 0;
                     return (
                       <TableRow key={`${e.id}-${idx}`} className={isCompleted ? "opacity-60" : ""}>
-                        <TableCell className="min-w-[22ch] py-2">
-                          <ExaminationTitle exam={e} />
-                          <div className="mt-1.5">
-                            <ExaminationMeta exam={e} compact />
+                        <TableCell className="py-2 align-top">
+                          <div className="max-w-[32ch] break-words">
+                            <ExaminationTitle exam={e} />
+                            <div className="mt-1.5">
+                              <ExaminationMeta exam={e} compact />
+                            </div>
                           </div>
                         </TableCell>
-                        <TableCell className="py-2">
+                        <TableCell className="py-2 align-top">
                           <ExaminationDate dateStr={e.examDate} />
                         </TableCell>
-                        <TableCell className="py-2">
+                        <TableCell className="py-2 align-top">
                           {e.hasSyllabus ? (
                             <Badge variant="default" className="text-[9px] font-normal">
                               Available
@@ -449,7 +451,7 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                             <span className="text-muted-foreground text-[10px]">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="py-2 text-right">
+                        <TableCell className="py-2 text-right align-top">
                           <Link href={`/scraper/ingest/${e.documentId}` as "/"}>
                             <Button
                               size="sm"
