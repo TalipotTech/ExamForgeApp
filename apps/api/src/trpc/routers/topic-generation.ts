@@ -8,7 +8,7 @@
  */
 
 import { z } from "zod";
-import { eq, and, or, sql } from "drizzle-orm";
+import { eq, and, or, sql, inArray } from "drizzle-orm";
 import { exams, questions, syllabi, syllabusNodes } from "@examforge/shared/db/schema";
 import { topicSeededGenerationInputSchema } from "@examforge/shared/validators";
 import { router, adminProcedure } from "../trpc.js";
@@ -70,9 +70,12 @@ export const topicGenerationRouter = router({
         .where(
           and(
             eq(questions.examId, input.examId),
+            // Drizzle's `inArray` expands to `IN (...)` with proper
+            // placeholders — `sql\`... = ANY(${arr})\`` would spread
+            // the array as multiple params, which Postgres rejects.
             or(
-              sql`${questions.mappedSyllabusNodeId} = ANY(${nodeIds})`,
-              sql`${questions.syllabusNodeId} = ANY(${nodeIds})`,
+              inArray(questions.mappedSyllabusNodeId, nodeIds),
+              inArray(questions.syllabusNodeId, nodeIds),
             ),
           ),
         )
