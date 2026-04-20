@@ -17,6 +17,8 @@ import { createPatternAnalysisWorker } from "./pattern-analysis-worker.js";
 import { closePatternAnalysisQueue } from "../queues/pattern-analysis-queue.js";
 import { createUniversalDiscoveryWorker } from "./universal-discovery-worker.js";
 import { closeUniversalDiscoveryQueue } from "../queues/universal-discovery-queue.js";
+import { createVerificationWorker } from "./verification-worker.js";
+import { closeVerificationQueue } from "../queues/verification-queue.js";
 
 async function main(): Promise<void> {
   console.log("[workers] Starting ExamForge workers...");
@@ -29,6 +31,7 @@ async function main(): Promise<void> {
   const noteSummaryWorker = createNoteSummaryWorker();
   const patternAnalysisWorker = createPatternAnalysisWorker();
   const universalDiscoveryWorker = createUniversalDiscoveryWorker();
+  const verificationWorker = createVerificationWorker();
 
   // Schedule daily note summary generation
   await scheduleNoteSummaryJob();
@@ -43,6 +46,7 @@ async function main(): Promise<void> {
     await noteSummaryWorker.close();
     await patternAnalysisWorker.close();
     await universalDiscoveryWorker.close();
+    await verificationWorker.close();
     await closeScraperQueue();
     await closePortalIngestionQueue();
     await closePortalProcessingQueue();
@@ -51,6 +55,7 @@ async function main(): Promise<void> {
     await closeNoteSummaryQueue();
     await closePatternAnalysisQueue();
     await closeUniversalDiscoveryQueue();
+    await closeVerificationQueue();
     console.log("[workers] Shutdown complete.");
     process.exit(0);
   };
@@ -59,7 +64,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   console.log(
-    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery workers started. Waiting for jobs...",
+    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery + Verification workers started. Waiting for jobs...",
   );
 }
 

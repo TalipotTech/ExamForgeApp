@@ -19,6 +19,7 @@ import {
   addAnalyzePatternJob,
 } from "../queues/pattern-analysis-queue.js";
 import { addValidateExamJob } from "../queues/universal-discovery-queue.js";
+import { addVerifyQuestionJob } from "../queues/verification-queue.js";
 import { routeAIRequest, routeEmbedRequest } from "../ai/ai-router.js";
 import { buildQuestionClassifierPrompt } from "../ai/prompts/question-classifier.js";
 import { buildPatternAnalyzerPrompt } from "../ai/prompts/pattern-analyzer.js";
@@ -367,6 +368,12 @@ async function classifyPaper(
     // so admins don't have to manually click "Run Analysis" as papers flow in.
     await maybeAutoTriggerAnalysis(data, db);
 
+    // ─── Auto-queue verification for each classified question ───
+    // (Question Acquisition Strategy §3 — every question runs through
+    //  the 6-layer verification pipeline after classification enriches
+    //  it with analyzedSubject/Topic/Style.)
+    await queueVerificationForClassified(questionRows, data);
+
     return { success: true, questionsClassified: totalClassified };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -577,4 +584,37 @@ async function maybeAutoTriggerAnalysis(
       err instanceof Error ? err.message : err,
     );
   }
+}
+
+/**
+ * Queue a verification job for each question the classifier just
+ * enriched. Non-fatal — if queueing fails we log and continue; the
+ * classification result is already committed.
+ */
+async function queueVerificationForClassified(
+  questionRows: Array<{ id: string }>,
+  data: PatternAnalysisJobData,
+): Promise<void> {
+  let queued = 0;
+  let failed = 0;
+  for (const q of questionRows) {
+    try {
+      await addVerifyQuestionJob({
+        questionId: q.id,
+        userId: data.userId,
+        orgId: data.orgId,
+        autoTriggered: true,
+      });
+      queued++;
+    } catch (err) {
+      failed++;
+      console.warn(
+        `[pattern-analysis] Failed to queue verification for ${q.id}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  console.log(
+    `[pattern-analysis] Queued ${queued} verification jobs (${failed} failed) for exam ${data.examId}`,
+  );
 }
