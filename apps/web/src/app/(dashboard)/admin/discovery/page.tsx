@@ -31,6 +31,11 @@ import {
   Search as SearchIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  ExaminationTitle,
+  ExaminationDate,
+  ExaminationMeta,
+} from "@/components/exam/examination-info";
 
 // Human-friendly "time ago" string (no dependencies).
 function timeAgo(date: Date | string | null | undefined): string {
@@ -385,10 +390,7 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Examination</TableHead>
-                    <TableHead className="w-24">Category #</TableHead>
-                    <TableHead className="w-28">Date</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead className="w-28">Portal</TableHead>
+                    <TableHead className="w-32">Date</TableHead>
                     <TableHead className="w-20">Syllabus</TableHead>
                     <TableHead className="w-16 text-right">View</TableHead>
                   </TableRow>
@@ -396,19 +398,14 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                 <TableBody>
                   {filteredExaminations.slice(0, 100).map((e, idx) => (
                     <TableRow key={`${e.id}-${idx}`}>
+                      <TableCell className="min-w-[22ch] py-2">
+                        <ExaminationTitle exam={e} />
+                        <div className="mt-1.5">
+                          <ExaminationMeta exam={e} compact />
+                        </div>
+                      </TableCell>
                       <TableCell className="py-2">
-                        <div className="text-sm font-medium leading-tight">{e.examName}</div>
-                        {e.postName && (
-                          <div className="text-muted-foreground text-xs">{e.postName}</div>
-                        )}
-                      </TableCell>
-                      <TableCell className="py-2 text-xs">{e.categoryNumber ?? "—"}</TableCell>
-                      <TableCell className="py-2 text-xs">{e.examDate ?? "—"}</TableCell>
-                      <TableCell className="text-muted-foreground max-w-[18ch] truncate py-2 text-xs">
-                        {e.department ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground max-w-[14ch] truncate py-2 text-xs">
-                        {e.portalName ?? "—"}
+                        <ExaminationDate dateStr={e.examDate} />
                       </TableCell>
                       <TableCell className="py-2">
                         {e.hasSyllabus ? (

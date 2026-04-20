@@ -426,8 +426,11 @@ export const examRouter = router({
       postName?: string;
       categoryNumber?: string;
       examDate?: string;
+      examTime?: string;
+      venue?: string;
       department?: string;
       stage?: string;
+      status?: string;
     };
 
     type ScrapedRow = {
@@ -436,8 +439,11 @@ export const examRouter = router({
       postName: string | null;
       categoryNumber: string | null;
       examDate: string | null;
+      examTime: string | null;
+      venue: string | null;
       department: string | null;
       stage: string | null;
+      status: string | null;
       documentId: string;
       portalName: string | null;
       examCategory: string | null;
@@ -463,8 +469,11 @@ export const examRouter = router({
           postName: entry.postName ?? null,
           categoryNumber: entry.categoryNumber ?? null,
           examDate: entry.examDate ?? null,
+          examTime: entry.examTime ?? null,
+          venue: entry.venue ?? null,
           department: entry.department ?? null,
           stage: entry.stage ?? null,
+          status: entry.status ?? null,
           documentId: doc.id,
           portalName: doc.portalName ?? null,
           examCategory: doc.examCategory ?? null,

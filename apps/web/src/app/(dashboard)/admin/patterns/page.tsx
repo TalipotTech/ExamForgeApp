@@ -37,6 +37,11 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BarChart3, Check, Link2, PlusCircle, Search as SearchIcon, Settings } from "lucide-react";
 import { toast } from "sonner";
+import {
+  ExaminationTitle,
+  ExaminationDate,
+  ExaminationMeta,
+} from "@/components/exam/examination-info";
 
 type InventoryRow =
   // Shape comes from the server; keep it loose here to avoid a second type.
@@ -46,8 +51,11 @@ type InventoryRow =
     postName: string | null;
     categoryNumber: string | null;
     examDate: string | null;
+    examTime: string | null;
+    venue: string | null;
     department: string | null;
     stage: string | null;
+    status: string | null;
     documentId: string;
     portalName: string | null;
     examCategory: string | null;
@@ -161,8 +169,7 @@ export default function AdminPatternsPage(): React.ReactElement {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Examination</TableHead>
-                    <TableHead className="w-24">Cat. #</TableHead>
-                    <TableHead className="w-28">Date</TableHead>
+                    <TableHead className="w-32">Date</TableHead>
                     <TableHead>Canonical Match</TableHead>
                     <TableHead className="w-28">Pattern</TableHead>
                     <TableHead className="w-44 text-right">Actions</TableHead>
@@ -171,14 +178,15 @@ export default function AdminPatternsPage(): React.ReactElement {
                 <TableBody>
                   {filtered.slice(0, 150).map((r, idx) => (
                     <TableRow key={`${r.rowKey}-${idx}`}>
-                      <TableCell className="py-2">
-                        <div className="text-sm font-medium">{r.examName}</div>
-                        {r.postName && (
-                          <div className="text-muted-foreground text-xs">{r.postName}</div>
-                        )}
+                      <TableCell className="min-w-[22ch] py-2">
+                        <ExaminationTitle exam={r} />
+                        <div className="mt-1.5">
+                          <ExaminationMeta exam={r} compact />
+                        </div>
                       </TableCell>
-                      <TableCell className="py-2 text-xs">{r.categoryNumber ?? "—"}</TableCell>
-                      <TableCell className="py-2 text-xs">{r.examDate ?? "—"}</TableCell>
+                      <TableCell className="py-2">
+                        <ExaminationDate dateStr={r.examDate} />
+                      </TableCell>
                       <TableCell className="py-2">
                         <CanonicalMatchCell row={r} />
                       </TableCell>

@@ -18,74 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
-
-function daysUntil(dateStr: string | null | undefined): number | null {
-  if (!dateStr) return null;
-  // Handle DD/MM/YYYY format
-  const parts = dateStr.split("/");
-  let d: Date;
-  if (parts.length === 3 && parts[0]!.length <= 2) {
-    d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-  } else {
-    d = new Date(dateStr);
-  }
-  if (isNaN(d.getTime())) return null;
-  const now = new Date();
-  return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-function formatExamDate(dateStr: string | null | undefined): {
-  text: string;
-  className: string;
-} {
-  if (!dateStr) return { text: "TBA", className: "text-muted-foreground" };
-  const parts = dateStr.split("/");
-  let d: Date;
-  if (parts.length === 3 && parts[0]!.length <= 2) {
-    d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-  } else {
-    d = new Date(dateStr);
-  }
-  if (isNaN(d.getTime())) return { text: dateStr, className: "" };
-  return {
-    text: d.toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    }),
-    className: "",
-  };
-}
-
-function getStatusBadge(
-  status: string | null | undefined,
-  days: number | null,
-): { label: string; className: string } {
-  if (status === "postponed")
-    return {
-      label: "Postponed",
-      className: "border-yellow-500/50 bg-yellow-500/10 text-yellow-600",
-    };
-  if (status === "cancelled")
-    return {
-      label: "Cancelled",
-      className: "border-red-500/50 bg-red-500/10 text-red-600",
-    };
-  if (days !== null && days > 0)
-    return {
-      label: "Upcoming",
-      className: "border-green-500/50 bg-green-500/10 text-green-600",
-    };
-  if (days !== null && days <= 0)
-    return {
-      label: "Completed",
-      className: "border-slate-500/50 bg-slate-500/10 text-slate-600",
-    };
-  return {
-    label: "Scheduled",
-    className: "border-blue-500/50 bg-blue-500/10 text-blue-600",
-  };
-}
+import { daysUntil, formatExamDate, getStatusBadge } from "@/lib/exam-display";
 
 const ITEMS_PER_PAGE = 20;
 
