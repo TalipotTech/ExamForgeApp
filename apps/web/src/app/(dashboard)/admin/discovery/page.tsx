@@ -391,8 +391,12 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {visible.map((e) => (
-                        <TableRow key={e.id}>
+                      {visible.map((e, idx) => (
+                        // Server-generated ids can collide when the same
+                        // examination appears twice on one document
+                        // (e.g. different stages). Match the public
+                        // /exams page workaround: suffix with index.
+                        <TableRow key={`${e.id}-${idx}`}>
                           <TableCell>
                             <div className="font-medium">{e.examName}</div>
                             {e.postName && (
