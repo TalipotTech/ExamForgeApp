@@ -330,48 +330,45 @@ export default function AdminDiscoveryPage(): React.ReactElement {
                         </TableCell>
                       </TableRow>
                       {isExpanded && contained.length > 0 && (
-                        <TableRow className="bg-muted/20">
-                          <TableCell colSpan={9} className="p-0">
-                            <div className="border-primary/40 border-l-2 px-4 py-2">
+                        <TableRow className="bg-muted/20 hover:bg-muted/20">
+                          <TableCell colSpan={9} className="whitespace-normal p-0">
+                            <div className="border-primary/40 border-l-2 px-4 py-3">
                               <p className="text-muted-foreground mb-2 text-[11px] uppercase tracking-wide">
                                 Contained examinations ({contained.length})
                               </p>
-                              <ul className="space-y-1">
-                                {contained.map((ex, idx) => (
-                                  <li
-                                    key={`${ex.id}-${idx}`}
-                                    className="flex items-center justify-between gap-3 text-xs"
-                                  >
-                                    <div className="min-w-0 flex-1">
-                                      <span className="font-medium">{ex.examName}</span>
-                                      {ex.postName && (
-                                        <span className="text-muted-foreground">
-                                          {" · "}
-                                          {ex.postName}
-                                        </span>
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                {contained.map((ex, idx) => {
+                                  const exDays = daysUntil(ex.examDate);
+                                  const exCompleted = exDays !== null && exDays <= 0;
+                                  return (
+                                    <Link
+                                      key={`${ex.id}-${idx}`}
+                                      href={`/scraper/ingest/${ex.documentId}` as "/"}
+                                      className={`bg-background hover:border-primary/50 flex flex-col gap-1.5 rounded-md border p-2 transition-colors ${
+                                        exCompleted ? "opacity-60" : ""
+                                      }`}
+                                    >
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0 flex-1">
+                                          <ExaminationTitle exam={ex} />
+                                        </div>
+                                        <div className="shrink-0">
+                                          <ExaminationDate dateStr={ex.examDate} />
+                                        </div>
+                                      </div>
+                                      <ExaminationMeta exam={ex} compact />
+                                      {ex.hasSyllabus && (
+                                        <Badge
+                                          variant="default"
+                                          className="w-fit text-[9px] font-normal"
+                                        >
+                                          Syllabus available
+                                        </Badge>
                                       )}
-                                    </div>
-                                    {ex.categoryNumber && (
-                                      <span className="text-muted-foreground shrink-0 text-[10px]">
-                                        #{ex.categoryNumber}
-                                      </span>
-                                    )}
-                                    {ex.examDate && (
-                                      <span className="text-muted-foreground shrink-0 text-[10px]">
-                                        {ex.examDate}
-                                      </span>
-                                    )}
-                                    {ex.hasSyllabus && (
-                                      <Badge
-                                        variant="default"
-                                        className="shrink-0 text-[9px] font-normal"
-                                      >
-                                        Syllabus
-                                      </Badge>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
+                                    </Link>
+                                  );
+                                })}
+                              </div>
                             </div>
                           </TableCell>
                         </TableRow>
