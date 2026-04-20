@@ -5,6 +5,57 @@
 
 ---
 
+## Recently Shipped — April 2026
+
+### ✅ Exam Pattern Intelligence (migration 0019)
+
+Classifies every question on each paper (subject / topic / subtopic / style /
+difficulty / patternTags), detects repeats across years via pgvector cosine
+similarity, and synthesizes an `ExamFingerprint` once ≥2 papers exist.
+Pattern-aware exam generation uses the fingerprint to produce exams that match
+the real distribution.
+
+- Schema: `exam_patterns`, `paper_analysis` tables; 7 `analyzed_*` columns on `questions`
+- Worker: `pattern-analysis-worker` with `classify-paper` + `analyze-pattern` jobs
+- Prompts: `question-classifier.ts`, `pattern-analyzer.ts`, `pattern-generation.ts`
+- Router: `examPattern` (8 endpoints)
+- UI: `/dashboard/exam/[examId]/patterns`, `/repeats`, `/admin/patterns`, Pattern Exam card on `/exams/start`
+- Auto-classify hook wired in `portal-processing-worker` after question extraction
+- Spec: `docs/features/EXAM_PATTERN_INTELLIGENCE.md`
+
+### ✅ Universal Discovery Agent v2 (migration 0020)
+
+Monitors 13 Indian exam portals with one AI-as-Adapter prompt — no per-portal
+custom parsing. Three job types: broad-discover (portal sweeps), deep-discover
+(per-exam cross-portal harvest for papers/keys/syllabus), validate-exam
+(computes `contentCompleteness` score). Admin dashboard shows portal health,
+exam inventory, content gaps, and recent runs.
+
+- Registry: `apps/api/src/config/official-portals.ts` (NTA + exam-specific subdomains, UPSC, NBEMS, PCI, GATE, Kerala PSC, TNPSC, APPSC, KPSC Karnataka, keralapscgk.com, pscpdfbanks.in)
+- Normalizer: `apps/api/src/config/exam-name-normalizer.ts`
+- Prompt: `universal-page-parser.ts` — one prompt for any portal format
+- HTML→markdown: `apps/api/src/services/html-to-markdown.ts` (no new deps)
+- Queue + worker: `universal-discovery-queue.ts`, `universal-discovery-worker.ts`
+- Schema: `exams.contentCompleteness` JSONB
+- Router: `exam.runUniversalDiscovery`, `runDeepDiscovery`, `validateExam`, `getPortalStatus`, `getExamInventory`, `getOfficialPortals`
+- UI: `/admin/discovery` ("Content Hub" sidebar link)
+- Spec: `docs/features/DISCOVERY_AGENT_V2.md` (if present)
+
+### ✅ Autonomous Pattern Pipeline
+
+Classify → analyze → validate auto-triggers closed the loop: once ≥3 papers
+are classified for an exam, the fingerprint gets minted without admin
+intervention. When more papers arrive for an exam with an existing pattern,
+the fingerprint auto-refreshes and contentCompleteness recomputes.
+
+### ✅ Operational
+
+- Dev ports shifted to 3100 (web) / 4100 (API) to coexist with other local app
+- Dashboard layout hydration fix (no FOUC between SSR and session-aware nav)
+- Discovery page Select filters migrated to "all" sentinel values
+
+---
+
 ## Phase 1: MVP Foundation
 
 ### ✅ Completed
@@ -155,5 +206,5 @@
 
 ---
 
-_Last updated: March 2026_
+_Last updated: April 2026_
 _Use `@BACKLOG.md` in Claude Code or Cursor to reference this file._
