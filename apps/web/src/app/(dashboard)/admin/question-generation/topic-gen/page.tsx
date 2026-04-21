@@ -512,6 +512,49 @@ export default function AdminGenerationPage(): React.ReactElement {
             </div>
           </CardHeader>
           <CardContent>
+            {/* Column legend — explains what each column means so admins
+                (especially new ones) don't have to reverse-engineer it
+                from the row contents. Kept compact above the table. */}
+            <div className="bg-muted/40 mb-4 rounded-md border p-3 text-xs leading-relaxed">
+              <p className="font-medium">What each column means</p>
+              <ul className="text-muted-foreground mt-1.5 space-y-1">
+                <li>
+                  <strong className="text-foreground">Seeds</strong> — real-paper or textbook
+                  questions already mapped to this topic. Drives what the AI learns the style and
+                  difficulty from. You need <strong>≥ 3</strong> on a topic before Generate unlocks.
+                </li>
+                <li>
+                  <strong className="text-foreground">AI gen</strong> — topic-seeded AI questions
+                  already produced for this topic. A green{" "}
+                  <span className="inline-flex items-center gap-0.5">
+                    <CheckCircle2 className="inline size-3" /> Generated
+                  </span>{" "}
+                  badge appears when the count is above zero. Spinner shows while a job is queued or
+                  running.
+                </li>
+                <li>
+                  <strong className="text-foreground">Count</strong> — how many new questions the
+                  next Generate click should produce (1–50, default {DEFAULT_COUNT}). Disabled while
+                  a job is in flight for that topic.
+                </li>
+              </ul>
+              <p className="mt-3 font-medium">What Generate does</p>
+              <p className="text-muted-foreground mt-1">
+                Queues a <code>topic-generation-worker</code> job for this syllabus node. The worker
+                loads up to 10 seeds from the node, fingerprints their style and difficulty
+                distribution, asks the AI for <em>Count</em> new questions that match the
+                fingerprint, and writes each with <code>sourceType=&apos;topic_ai&apos;</code>.
+                Every new question is automatically queued for the 6-layer verification pipeline
+                (source trust → factual → syllabus → pattern → uniqueness → composite). You approve
+                the verdicts in{" "}
+                <Link href={"/admin/question-generation/verification" as "/"} className="underline">
+                  Verification
+                </Link>
+                . Once a topic already has AI questions, the button relabels to{" "}
+                <strong>Regenerate</strong> — it&rsquo;ll add a fresh batch on top of the existing
+                pool (the generator skips aspects it already covered).
+              </p>
+            </div>
             {nodesQuery.isLoading ? (
               <Skeleton className="h-64 w-full" />
             ) : filteredTopics.length === 0 ? (
