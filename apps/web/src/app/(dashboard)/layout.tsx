@@ -8,7 +8,6 @@ import { UserMenu } from "@/components/user-menu";
 import { VerificationBanner } from "@/components/verification-banner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
-  Sparkles,
   Play,
   Bot,
   Compass,
@@ -54,7 +53,8 @@ const ADMIN_NAV: NavItem[] = [
     adminOnly: true,
     group: "core",
   },
-  { href: "/generate", label: "Generate", icon: Sparkles, adminOnly: true, group: "core" },
+  // "/generate" moved to Question Gen sidebar (support section) —
+  // accessed via /admin/question-generation/generate.
   { href: "/exams/start", label: "Exam", icon: Play, adminOnly: true, group: "core" },
   { href: "/scraper", label: "Scraper", icon: Bot, adminOnly: true, group: "content" },
   {

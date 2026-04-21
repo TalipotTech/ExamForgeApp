@@ -1,11 +1,10 @@
-import type { Metadata } from "next";
-import { QuestionGenerator } from "@/components/generate/question-generator";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Generate Questions — ExamForge",
-  description: "Generate exam questions using AI",
-};
-
-export default function GeneratePage(): React.ReactElement {
-  return <QuestionGenerator />;
+/**
+ * Legacy URL — the AI question-generator UI now lives under the
+ * grouped Question Generation workflow, alongside Pattern Analysis
+ * in the sidebar's support section.
+ */
+export default function Page(): never {
+  redirect("/admin/question-generation/generate");
 }

@@ -32,6 +32,7 @@ import {
   LayoutDashboard,
   Radar,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 
 type WorkflowStep = {
@@ -107,6 +108,14 @@ const WORKFLOW: WorkflowStep[] = [
     step: "support",
     external: false,
     description: "Exam fingerprint dashboard",
+  },
+  {
+    href: "/admin/question-generation/generate",
+    label: "Generate (legacy)",
+    icon: Sparkles,
+    step: "support",
+    external: false,
+    description: "Ad-hoc AI question generator",
   },
 ];
 

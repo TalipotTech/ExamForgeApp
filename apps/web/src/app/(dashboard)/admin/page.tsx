@@ -33,7 +33,12 @@ const QUICK_LINKS: QuickLink[] = [
     description: "Browse & manage questions",
     icon: BookOpen,
   },
-  { href: "/generate", label: "Generate", description: "AI question generation", icon: Sparkles },
+  {
+    href: "/admin/question-generation/generate",
+    label: "Generate (ad-hoc)",
+    description: "AI question generation — legacy ad-hoc UI, now under Question Gen",
+    icon: Sparkles,
+  },
   { href: "/scraper", label: "Scraper", description: "Manage scrape sources", icon: Bot },
   {
     href: "/scraper/discovery",
