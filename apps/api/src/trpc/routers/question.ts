@@ -168,35 +168,45 @@ export const questionRouter = router({
         .filter((t) => t.length > 0);
     }),
 
-  filters: publicProcedure.query(
-    async ({
-      ctx,
-    }): Promise<{
-      subjects: string[];
-      sources: string[];
-      exams: Array<{ id: string; name: string }>;
-    }> => {
-      const [subjectRows, sourceRows, examRows] = await Promise.all([
-        ctx.db
-          .selectDistinct({ subject: questions.subject })
-          .from(questions)
-          .orderBy(questions.subject),
-        ctx.db
-          .selectDistinct({ source: questions.source })
-          .from(questions)
-          .where(sql`${questions.source} IS NOT NULL`),
-        ctx.db
-          .select({ id: exams.id, name: exams.name })
-          .from(exams)
-          .where(eq(exams.isActive, true))
-          .orderBy(exams.name),
-      ]);
+  filters: publicProcedure
+    .input(z.object({ examId: z.string().uuid().optional() }).optional())
+    .query(
+      async ({
+        ctx,
+        input,
+      }): Promise<{
+        subjects: string[];
+        sources: string[];
+        exams: Array<{ id: string; name: string }>;
+      }> => {
+        // When the caller has already narrowed to one exam, scope both
+        // subjects and sources to that exam so the dropdowns only
+        // surface values that actually exist for the selection.
+        const examFilter = input?.examId ? eq(questions.examId, input.examId) : undefined;
+        const sourceWhere = examFilter
+          ? and(sql`${questions.source} IS NOT NULL`, examFilter)
+          : sql`${questions.source} IS NOT NULL`;
+        const subjectWhere = examFilter ?? undefined;
 
-      return {
-        subjects: subjectRows.map((r) => r.subject),
-        sources: sourceRows.map((r) => r.source).filter((s): s is string => s !== null),
-        exams: examRows,
-      };
-    },
-  ),
+        const [subjectRows, sourceRows, examRows] = await Promise.all([
+          ctx.db
+            .selectDistinct({ subject: questions.subject })
+            .from(questions)
+            .where(subjectWhere)
+            .orderBy(questions.subject),
+          ctx.db.selectDistinct({ source: questions.source }).from(questions).where(sourceWhere),
+          ctx.db
+            .select({ id: exams.id, name: exams.name })
+            .from(exams)
+            .where(eq(exams.isActive, true))
+            .orderBy(exams.name),
+        ]);
+
+        return {
+          subjects: subjectRows.map((r) => r.subject),
+          sources: sourceRows.map((r) => r.source).filter((s): s is string => s !== null),
+          exams: examRows,
+        };
+      },
+    ),
 });

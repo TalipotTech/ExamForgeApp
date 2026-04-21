@@ -46,7 +46,17 @@ export function QuestionList(): React.ReactElement {
 
   const debouncedSearch = useDebounce(search, 300);
 
-  const filtersQuery = trpc.question.filters.useQuery();
+  // Re-fetch filters when the exam selection changes so the Subjects
+  // and Sources dropdowns only show values that actually exist for the
+  // chosen exam — matches the user's expectation that Sources are
+  // linked to the Exam selection.
+  const filtersQuery = trpc.question.filters.useQuery({
+    examId: examId || undefined,
+  });
+  // Exams dropdown aligned with /exams/start (uses the same student-
+  // facing list so the set of exams is consistent across both pages).
+  // For admin users this still returns every active exam.
+  const examsForPicker = trpc.exam.listForUser.useQuery();
 
   const questionsQuery = trpc.question.list.useQuery(
     {
@@ -90,7 +100,7 @@ export function QuestionList(): React.ReactElement {
       {/* Filters */}
       <div className="space-y-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="text-muted-foreground absolute left-3 top-1/2 size-4 -translate-y-1/2" />
           <Input
             placeholder="Search questions..."
             value={search}
@@ -113,7 +123,7 @@ export function QuestionList(): React.ReactElement {
               <SelectValue placeholder="All Exams" />
             </SelectTrigger>
             <SelectContent>
-              {filtersQuery.data?.exams.map((exam) => (
+              {(examsForPicker.data ?? []).map((exam) => (
                 <SelectItem key={exam.id} value={exam.id}>
                   {exam.name}
                 </SelectItem>
@@ -208,7 +218,7 @@ export function QuestionList(): React.ReactElement {
 
       {/* Results count */}
       {questionsQuery.data && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           {questionsQuery.data.total === 0
             ? "No questions found"
             : `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, questionsQuery.data.total)} of ${questionsQuery.data.total} questions`}
@@ -235,8 +245,8 @@ export function QuestionList(): React.ReactElement {
 
       {/* Error state */}
       {questionsQuery.isError && (
-        <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-8 text-center">
-          <p className="text-sm text-destructive">
+        <div className="border-destructive/50 bg-destructive/5 rounded-xl border p-8 text-center">
+          <p className="text-destructive text-sm">
             Failed to load questions. Make sure the API server is running.
           </p>
           <Button
@@ -295,7 +305,7 @@ export function QuestionList(): React.ReactElement {
           <div className="flex items-center gap-1">
             {generatePageNumbers(page, questionsQuery.data.totalPages).map((p, i) =>
               p === "..." ? (
-                <span key={`ellipsis-${i}`} className="px-2 text-sm text-muted-foreground">
+                <span key={`ellipsis-${i}`} className="text-muted-foreground px-2 text-sm">
                   ...
                 </span>
               ) : (
@@ -326,10 +336,7 @@ export function QuestionList(): React.ReactElement {
   );
 }
 
-function generatePageNumbers(
-  current: number,
-  total: number,
-): Array<number | "..."> {
+function generatePageNumbers(current: number, total: number): Array<number | "..."> {
   if (total <= 7) {
     return Array.from({ length: total }, (_, i) => i + 1);
   }
