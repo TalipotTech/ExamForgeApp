@@ -201,6 +201,7 @@ type DocRow = {
   fileSizeBytes: number | null;
   errorMessage: string | null;
   createdAt: string;
+  examId: string | null;
   linkedExamName: string | null;
 };
 
@@ -213,7 +214,9 @@ function RowDetailDialog({
   onProcess,
   onReprocess,
   onViewQuestions,
+  onApproveAll,
   isPending,
+  isApproving,
 }: {
   doc: DocRow | null;
   open: boolean;
@@ -221,7 +224,9 @@ function RowDetailDialog({
   onProcess: (id: string) => void;
   onReprocess: (id: string) => void;
   onViewQuestions: (id: string) => void;
+  onApproveAll: (doc: DocRow) => void;
   isPending: boolean;
+  isApproving: boolean;
 }): React.ReactElement {
   if (!doc) return <></>;
 
@@ -324,6 +329,27 @@ function RowDetailDialog({
                 View questions
               </Button>
             )}
+            {/* Bulk-approve all pending staged rows from this document.
+                Shown only for processed docs that have an examId linked
+                — without one, the approve path has nowhere to insert. */}
+            {doc.processingStatus === "processed" &&
+              doc.examId &&
+              (doc.questionsExtracted ?? 0) > 0 && (
+                <Button
+                  size="sm"
+                  onClick={() => onApproveAll(doc)}
+                  disabled={isApproving}
+                  className="h-7 gap-1 text-xs"
+                  title="Approve every pending staged question from this paper and queue classification."
+                >
+                  {isApproving ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-3 w-3" />
+                  )}
+                  Approve all staged
+                </Button>
+              )}
             {doc.processingStatus === "error" && (
               <Button
                 size="sm"
@@ -427,6 +453,18 @@ export default function PortalIngestPage(): React.ReactElement {
       setDirectPdfTitle("");
       setDirectPdfYear("");
       setDirectPdfIsOfficial(false);
+      docsQuery.refetch();
+      statsQuery.refetch();
+    },
+  });
+
+  // Bulk-approve every pending staged question for a single document.
+  // After approval, the backend auto-queues pattern classification so
+  // the freshly promoted questions get mapped to syllabus nodes —
+  // which is what makes them count as seeds for topic-seeded generation.
+  const bulkApproveMutation = trpc.portalIngestion.bulkApproveByDocument.useMutation({
+    onSuccess: () => {
+      setDetailDoc(null);
       docsQuery.refetch();
       statsQuery.refetch();
     },
@@ -1169,7 +1207,15 @@ export default function PortalIngestPage(): React.ReactElement {
         onViewQuestions={(id) => {
           router.push(`/scraper/ingest/${id}` as "/");
         }}
+        onApproveAll={(d) => {
+          if (!d.examId) return;
+          bulkApproveMutation.mutate({
+            portalDocumentId: d.id,
+            examId: d.examId,
+          });
+        }}
         isPending={processDocsMutation.isPending || reprocessMutation.isPending}
+        isApproving={bulkApproveMutation.isPending}
       />
     </div>
   );

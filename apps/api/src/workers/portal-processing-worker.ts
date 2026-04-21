@@ -8,7 +8,6 @@ import {
   type ProcessDocumentJobData,
 } from "../queues/portal-processing-queue.js";
 import { processPDF, PDF_DOWNLOAD_DELAY } from "../services/pdf-processor.js";
-import { addClassifyPaperJob } from "../queues/pattern-analysis-queue.js";
 
 // ─── Worker Factory (Process Individual Documents) ───
 // Admin triggers this via the UI. Each job processes a single portal document:
@@ -72,26 +71,12 @@ export function createPortalProcessingWorker(): Worker {
           `[portal-processing] Document ${data.documentId} processed: ${result.questionsExtracted} questions staged`,
         );
 
-        // Auto-trigger pattern classification if questions were extracted
-        if (result.success && result.questionsExtracted > 0 && doc.examId) {
-          try {
-            await addClassifyPaperJob({
-              examId: doc.examId,
-              portalDocumentId: data.documentId,
-              userId: data.userId,
-              orgId: data.orgId,
-            });
-            console.log(
-              `[portal-processing] Queued pattern classification for document ${data.documentId}`,
-            );
-          } catch (classifyErr) {
-            // Non-fatal: classification is a bonus, don't fail the main job
-            console.warn(
-              `[portal-processing] Failed to queue classification:`,
-              classifyErr instanceof Error ? classifyErr.message : classifyErr,
-            );
-          }
-        }
+        // NOTE: Pattern classification used to auto-queue here, but
+        // portal-processing writes to `staged_questions` (not
+        // `questions`). Classification queries the `questions` table,
+        // so it always found 0 rows. Classification now auto-queues
+        // from `approveQuestions` (portal-ingestion router) — right
+        // after staged rows are promoted to questions.
 
         return {
           success: result.success,

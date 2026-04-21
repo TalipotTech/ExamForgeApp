@@ -28,6 +28,7 @@ import {
   addProcessDocumentJobs,
 } from "../../queues/portal-processing-queue.js";
 import { addSyllabusJob } from "../../queues/syllabus-queue.js";
+import { addClassifyPaperJob } from "../../queues/pattern-analysis-queue.js";
 
 export const portalIngestionRouter = router({
   // ────────────────────────────────────────────────────
@@ -404,7 +405,141 @@ export const portalIngestionRouter = router({
         approved++;
       }
 
+      // After promotion, queue pattern classification for each
+      // distinct source document. This is the right moment — it used
+      // to run from portal-processing-worker but that fired before
+      // staged rows were promoted, so classification always found
+      // zero questions. Collecting distinct documentIds avoids
+      // double-classifying when an admin approves across multiple
+      // docs in one call.
+      const docIds = new Set(
+        staged.map((sq) => sq.portalDocumentId).filter((id): id is string => Boolean(id)),
+      );
+      for (const docId of docIds) {
+        try {
+          await addClassifyPaperJob({
+            examId: input.examId,
+            portalDocumentId: docId,
+            userId: ctx.userId,
+            orgId: ctx.orgId ?? "",
+          });
+        } catch (err) {
+          // Non-fatal — admin can re-trigger classification manually.
+          console.warn(
+            `[portal-ingestion] Failed to queue classification for doc ${docId}:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+
       return { approved };
+    }),
+
+  /**
+   * Approve every pending staged question for a given portal document
+   * in one call. Intended for the common case where an admin trusts a
+   * whole ingested paper (e.g. an official answer-key PDF they just
+   * uploaded) and doesn't want to pick questions one-by-one.
+   *
+   * Same logic as `approveQuestions` but driven by documentId — the
+   * stagedQuestionIds are resolved server-side.
+   */
+  bulkApproveByDocument: adminProcedure
+    .input(
+      z.object({
+        portalDocumentId: z.string().uuid(),
+        examId: z.string().uuid(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [exam] = await ctx.db
+        .select({ id: exams.id })
+        .from(exams)
+        .where(eq(exams.id, input.examId))
+        .limit(1);
+      if (!exam) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Exam not found" });
+      }
+
+      const staged = await ctx.db
+        .select()
+        .from(stagedQuestions)
+        .where(
+          and(
+            eq(stagedQuestions.portalDocumentId, input.portalDocumentId),
+            eq(stagedQuestions.reviewStatus, "pending"),
+          ),
+        );
+
+      if (staged.length === 0) {
+        return { approved: 0, classificationQueued: false };
+      }
+
+      let approved = 0;
+      for (const sq of staged) {
+        const stagedMeta = (sq.metadata as Record<string, unknown>) ?? {};
+        const promotedSourceType = (stagedMeta.sourceType as string | undefined) ?? "real_paper";
+        const promotedAnswerSource =
+          (stagedMeta.answerSource as string | undefined) ?? "unverified";
+
+        const [newQuestion] = await ctx.db
+          .insert(questions)
+          .values({
+            examId: input.examId,
+            type: "mcq",
+            content: sq.content,
+            subject: sq.subject ?? "General",
+            difficulty: (sq.difficulty as "easy" | "medium" | "hard") ?? "medium",
+            source: sq.source,
+            portalDocumentId: sq.portalDocumentId,
+            paperYear: sq.paperYear,
+            paperNumber: sq.paperNumber,
+            questionNumber: sq.questionNumber,
+            sourceType: promotedSourceType,
+            answerSource: promotedAnswerSource,
+            sourceDetail: {
+              kind: "real_paper",
+              documentId: sq.portalDocumentId,
+              paperYear: sq.paperYear,
+              paperNumber: sq.paperNumber,
+              isOfficialAnswerKey: promotedAnswerSource === "official_key",
+            },
+            metadata: { ...stagedMeta, approvedFrom: "staging_bulk" },
+          })
+          .returning({ id: questions.id });
+
+        await ctx.db
+          .update(stagedQuestions)
+          .set({
+            reviewStatus: "approved",
+            reviewedBy: ctx.userId,
+            reviewedAt: new Date(),
+            approvedQuestionId: newQuestion!.id,
+            examId: input.examId,
+            updatedAt: new Date(),
+          })
+          .where(eq(stagedQuestions.id, sq.id));
+
+        approved++;
+      }
+
+      let classificationQueued = false;
+      try {
+        await addClassifyPaperJob({
+          examId: input.examId,
+          portalDocumentId: input.portalDocumentId,
+          userId: ctx.userId,
+          orgId: ctx.orgId ?? "",
+        });
+        classificationQueued = true;
+      } catch (err) {
+        console.warn(
+          `[portal-ingestion] Failed to queue classification for doc ${input.portalDocumentId}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+
+      return { approved, classificationQueued };
     }),
 
   /** Reject staged questions */
@@ -533,6 +668,7 @@ export const portalIngestionRouter = router({
             fileSizeBytes: portalDocuments.fileSizeBytes,
             errorMessage: portalDocuments.errorMessage,
             createdAt: portalDocuments.createdAt,
+            examId: portalDocuments.examId,
             linkedExamName: exams.name,
           })
           .from(portalDocuments)
