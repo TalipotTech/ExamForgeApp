@@ -12,7 +12,11 @@ import { eq, and, or, sql, inArray } from "drizzle-orm";
 import { exams, questions, syllabi, syllabusNodes } from "@examforge/shared/db/schema";
 import { topicSeededGenerationInputSchema } from "@examforge/shared/validators";
 import { router, adminProcedure } from "../trpc.js";
-import { addTopicGenerationJob } from "../../queues/topic-generation-queue.js";
+import {
+  addTopicGenerationJob,
+  getTopicGenerationJobStatus,
+  getTopicGenerationQueue,
+} from "../../queues/topic-generation-queue.js";
 
 export const topicGenerationRouter = router({
   /**
@@ -167,4 +171,72 @@ export const topicGenerationRouter = router({
       });
       return { success: true, jobId };
     }),
+
+  /**
+   * Admin: status of the topic-generation job for one exam+node pair.
+   * Returns null if no job has ever run. UI polls this after clicking
+   * Generate to detect when the AI call finishes.
+   */
+  getJobStatus: adminProcedure
+    .input(
+      z.object({
+        examId: z.string().uuid(),
+        syllabusNodeId: z.number().int(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await getTopicGenerationJobStatus(input.examId, input.syllabusNodeId);
+    }),
+
+  /**
+   * Admin: map of { nodeId → { state, progress } } for every
+   * waiting / active / delayed generation job on this exam. Drives
+   * the per-row "Generating…" / "Queued" badges on the topic table.
+   * Scoped to in-flight states so completed jobs don't leave stale
+   * badges on the UI.
+   */
+  getActiveJobsForExam: adminProcedure.input(z.object({ examId: z.string().uuid() })).query(
+    async ({
+      input,
+    }): Promise<
+      Record<
+        number,
+        {
+          state: "waiting" | "active" | "delayed";
+          progress: unknown;
+          createdAt: number | null;
+          jobId: string;
+        }
+      >
+    > => {
+      const queue = getTopicGenerationQueue();
+      // Only the in-flight states — completed/failed jobs are
+      // handled by re-fetching listNodesForExam (topicAiCount goes up).
+      const jobs = await queue.getJobs(["waiting", "active", "delayed"], 0, 100);
+      const result: Record<
+        number,
+        {
+          state: "waiting" | "active" | "delayed";
+          progress: unknown;
+          createdAt: number | null;
+          jobId: string;
+        }
+      > = {};
+      for (const job of jobs) {
+        const data = job.data as { examId?: string; syllabusNodeId?: number } | undefined;
+        if (!data || data.examId !== input.examId || typeof data.syllabusNodeId !== "number") {
+          continue;
+        }
+        const state = await job.getState();
+        if (state !== "waiting" && state !== "active" && state !== "delayed") continue;
+        result[data.syllabusNodeId] = {
+          state,
+          progress: job.progress ?? null,
+          createdAt: job.timestamp ?? null,
+          jobId: job.id ?? "",
+        };
+      }
+      return result;
+    },
+  ),
 });

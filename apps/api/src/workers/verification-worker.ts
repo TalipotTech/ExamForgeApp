@@ -358,6 +358,9 @@ async function layerFactual(
       schema: factualVerifierResponseSchema,
       userId: data.userId,
       examId: q.examId,
+      // System-initiated: the verification fan-out would otherwise
+      // burn the admin's per-user 10-calls/min budget in seconds.
+      bypassUserRateLimit: true,
     },
     db,
   );
@@ -455,6 +458,7 @@ async function layerSyllabus(
       schema: syllabusAlignmentResponseSchema,
       userId: data.userId,
       examId: q.examId,
+      bypassUserRateLimit: true,
     },
     db,
   );

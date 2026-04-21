@@ -56,6 +56,14 @@ export type AIRequestParams<T extends z.ZodTypeAny> = {
   temperature?: number;
   maxTokens?: number;
   skipCache?: boolean;
+  /**
+   * Skip the per-user rate limiter. Intended for system-initiated
+   * workers (verification, topic-generation) where one admin action
+   * triggers many cascading AI calls — the rate limit exists to
+   * guard against end-user abuse, not worker orchestration. Workers
+   * still get rate-limited via BullMQ's `limiter` at the queue level.
+   */
+  bypassUserRateLimit?: boolean;
 };
 
 export type AIStreamParams = {

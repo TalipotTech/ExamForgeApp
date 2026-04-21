@@ -284,12 +284,17 @@ export async function routeAIRequest<T extends z.ZodTypeAny>(
   params: AIRequestParams<T>,
   db: Database,
 ): Promise<AIRequestResult<z.infer<T>>> {
-  const rateCheck = await checkRateLimit(params.userId);
-  if (!rateCheck.allowed) {
-    throw new AIRouterError(
-      "RATE_LIMITED",
-      `Rate limit exceeded. ${rateCheck.remaining} requests remaining this minute.`,
-    );
+  // bypassUserRateLimit=true lets workers (verification, topic-gen)
+  // issue cascading AI calls without tripping the per-user ceiling
+  // that's there to stop student-side abuse.
+  if (!params.bypassUserRateLimit) {
+    const rateCheck = await checkRateLimit(params.userId);
+    if (!rateCheck.allowed) {
+      throw new AIRouterError(
+        "RATE_LIMITED",
+        `Rate limit exceeded. ${rateCheck.remaining} requests remaining this minute.`,
+      );
+    }
   }
 
   const budgetCheck = await checkBudget(db);

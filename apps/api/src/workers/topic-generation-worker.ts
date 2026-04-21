@@ -212,6 +212,7 @@ async function generateForNode(
       schema: topicSeededGenerationResponseSchema,
       userId: data.userId,
       examId: data.examId,
+      bypassUserRateLimit: true,
     },
     db,
   );

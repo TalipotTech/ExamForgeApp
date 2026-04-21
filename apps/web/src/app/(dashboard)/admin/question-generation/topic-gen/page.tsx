@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Check, FlaskConical, Search as SearchIcon, ShieldCheck, Sparkles, X } from "lucide-react";
+import {
+  Check,
+  CheckCircle2,
+  FlaskConical,
+  Loader2,
+  Search as SearchIcon,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   ExaminationTitle,
@@ -111,14 +120,94 @@ export default function AdminGenerationPage(): React.ReactElement {
     { enabled: Boolean(examId), staleTime: 30_000 },
   );
 
+  // Which nodes have generation in flight, keyed by nodeId with a
+  // baseline snapshot of topicAiCount at click-time. When the count
+  // later exceeds baseline, we know the AI run completed and emit a
+  // success toast. Lets us detect completion without a long-lived
+  // websocket or worker→UI callback.
+  const [pendingNodes, setPendingNodes] = useState<
+    Record<number, { baseline: number; expected: number; startedAt: number }>
+  >({});
+
+  // Active-jobs poll (queue state) — runs every 5s while at least
+  // one node is pending, so the UI can show "Queued" / "Running"
+  // badges that come from BullMQ, not just from our local click state.
+  const activeJobsQuery = trpc.topicGeneration.getActiveJobsForExam.useQuery(
+    { examId: examId! },
+    {
+      enabled: Boolean(examId),
+      refetchInterval: Object.keys(pendingNodes).length > 0 ? 5_000 : false,
+      staleTime: 2_000,
+    },
+  );
+
   const utils = trpc.useUtils();
   const generateMutation = trpc.topicGeneration.generate.useMutation({
     onSuccess: (_d, vars) => {
-      toast.success(`Queued generation for node ${vars.syllabusNodeId}`);
+      toast.success(`Generation queued — will appear below when the AI finishes.`);
+      // Baseline = the node's topicAiCount at click-time. The detect-
+      // completion effect compares against this to know when new
+      // questions have landed.
+      const currentNode = nodesQuery.data?.nodes.find((n) => n.id === vars.syllabusNodeId);
+      const baseline = currentNode?.topicAiCount ?? 0;
+      setPendingNodes((prev) => ({
+        ...prev,
+        [vars.syllabusNodeId]: {
+          baseline,
+          expected: vars.count ?? DEFAULT_COUNT,
+          startedAt: Date.now(),
+        },
+      }));
+      // Kick off a first refetch of nodes so counts are fresh before
+      // the poll effect starts comparing.
       void utils.topicGeneration.listNodesForExam.invalidate();
+      void utils.topicGeneration.getActiveJobsForExam.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
+
+  // Poll nodes query while any pending generation is in-flight so we
+  // can detect completion by watching topicAiCount go up.
+  const hasPending = Object.keys(pendingNodes).length > 0;
+  trpc.topicGeneration.listNodesForExam.useQuery(
+    { examId: examId! },
+    {
+      enabled: Boolean(examId) && hasPending,
+      refetchInterval: hasPending ? 4_000 : false,
+      staleTime: 2_000,
+    },
+  );
+
+  // Detect completion: when a node's topicAiCount has risen above its
+  // baseline by the expected delta (or any delta after 90s as a
+  // fallback), clear it from pending and toast success. If the job
+  // stays "pending" in the UI for > 5min without any new questions,
+  // assume it failed and clear silently so the button re-enables.
+  useEffect(() => {
+    const nodes = nodesQuery.data?.nodes;
+    if (!nodes) return;
+    const now = Date.now();
+    const next = { ...pendingNodes };
+    let changed = false;
+    for (const node of nodes) {
+      const pending = next[node.id];
+      if (!pending) continue;
+      const gained = node.topicAiCount - pending.baseline;
+      const elapsedMs = now - pending.startedAt;
+      if (gained >= pending.expected || (gained > 0 && elapsedMs > 90_000)) {
+        toast.success(`Generated ${gained} question${gained === 1 ? "" : "s"} for "${node.title}"`);
+        delete next[node.id];
+        changed = true;
+      } else if (elapsedMs > 5 * 60_000) {
+        // Timeout fallback — clear so the button re-enables. Silent
+        // because the worker may still be running; user can re-poll.
+        console.warn(`[topic-gen] timeout clearing pending for node ${node.id}`);
+        delete next[node.id];
+        changed = true;
+      }
+    }
+    if (changed) setPendingNodes(next);
+  }, [nodesQuery.data, pendingNodes]);
 
   const filteredTopics = useMemo(() => {
     const nodes = nodesQuery.data?.nodes ?? [];
@@ -472,7 +561,46 @@ export default function AdminGenerationPage(): React.ReactElement {
                         </Badge>
                       </TableCell>
                       <TableCell className="py-2 text-right align-top">
-                        <span className="text-muted-foreground text-xs">{n.topicAiCount}</span>
+                        {/* AI-gen count + status. Bold the count when >0
+                            so "already generated" is obvious at a glance. */}
+                        {((): React.ReactElement => {
+                          const activeJob = activeJobsQuery.data?.[n.id];
+                          const isPending = Boolean(pendingNodes[n.id]);
+                          if (activeJob || isPending) {
+                            return (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-muted-foreground text-xs">
+                                  {n.topicAiCount}
+                                </span>
+                                <Badge variant="secondary" className="gap-1 text-[9px]">
+                                  <Loader2 className="size-2.5 animate-spin" />
+                                  {activeJob?.state === "active"
+                                    ? "Running"
+                                    : activeJob?.state === "waiting" ||
+                                        activeJob?.state === "delayed"
+                                      ? "Queued"
+                                      : "Queued"}
+                                </Badge>
+                              </div>
+                            );
+                          }
+                          if (n.topicAiCount > 0) {
+                            return (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-xs font-semibold text-green-700 dark:text-green-400">
+                                  {n.topicAiCount}
+                                </span>
+                                <Badge variant="outline" className="gap-1 text-[9px]">
+                                  <CheckCircle2 className="size-2.5" />
+                                  Generated
+                                </Badge>
+                              </div>
+                            );
+                          }
+                          return (
+                            <span className="text-muted-foreground text-xs">{n.topicAiCount}</span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="py-2 align-top">
                         <Input
@@ -486,33 +614,73 @@ export default function AdminGenerationPage(): React.ReactElement {
                               [n.id]: Number(e.target.value),
                             }))
                           }
-                          disabled={!n.canGenerate}
+                          disabled={
+                            !n.canGenerate ||
+                            Boolean(pendingNodes[n.id]) ||
+                            Boolean(activeJobsQuery.data?.[n.id])
+                          }
                           className="h-7 w-20 text-xs"
                         />
                       </TableCell>
                       <TableCell className="py-2 text-right align-top">
-                        <Button
-                          size="sm"
-                          variant={n.canGenerate ? "default" : "outline"}
-                          disabled={!n.canGenerate || generateMutation.isPending}
-                          className="h-7 gap-1 text-xs"
-                          onClick={() =>
-                            generateMutation.mutate({
-                              examId: examId!,
-                              syllabusNodeId: n.id,
-                              count: counts[n.id] ?? DEFAULT_COUNT,
-                              skipCoveredAspects: true,
-                            })
-                          }
-                          title={
-                            n.canGenerate
-                              ? "Queue topic-seeded generation"
-                              : "Need ≥3 real/textbook seeds to generate"
-                          }
-                        >
-                          <Sparkles className="size-3.5" />
-                          Generate
-                        </Button>
+                        {((): React.ReactElement => {
+                          const activeJob = activeJobsQuery.data?.[n.id];
+                          const isPending = Boolean(pendingNodes[n.id]);
+                          const inFlight = Boolean(activeJob) || isPending;
+                          const hasExisting = n.topicAiCount > 0;
+                          const mutationPendingThisNode =
+                            generateMutation.isPending &&
+                            generateMutation.variables?.syllabusNodeId === n.id;
+
+                          // Disable reasons: no seeds, already in-flight, already generated.
+                          const disabled = !n.canGenerate || inFlight;
+                          const title = !n.canGenerate
+                            ? "Need ≥3 real/textbook seeds to generate"
+                            : inFlight
+                              ? activeJob?.state === "active"
+                                ? "Generation running — watch for the toast when it finishes"
+                                : "Generation queued — waiting to start"
+                              : hasExisting
+                                ? "This topic already has AI-generated questions. Click to add more."
+                                : "Queue topic-seeded generation";
+
+                          return (
+                            <Button
+                              size="sm"
+                              variant={
+                                inFlight ? "secondary" : n.canGenerate ? "default" : "outline"
+                              }
+                              disabled={disabled}
+                              className="h-7 gap-1 text-xs"
+                              onClick={() =>
+                                generateMutation.mutate({
+                                  examId: examId!,
+                                  syllabusNodeId: n.id,
+                                  count: counts[n.id] ?? DEFAULT_COUNT,
+                                  skipCoveredAspects: true,
+                                })
+                              }
+                              title={title}
+                            >
+                              {inFlight || mutationPendingThisNode ? (
+                                <>
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                  {activeJob?.state === "active" ? "Running" : "Queued"}
+                                </>
+                              ) : hasExisting ? (
+                                <>
+                                  <Sparkles className="size-3.5" />
+                                  Regenerate
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="size-3.5" />
+                                  Generate
+                                </>
+                              )}
+                            </Button>
+                          );
+                        })()}
                       </TableCell>
                     </TableRow>
                   ))}

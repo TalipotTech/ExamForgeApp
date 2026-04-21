@@ -116,18 +116,23 @@ export const verifierQualityEnum = z.enum(["excellent", "good", "acceptable", "p
  * (see strategy doc §3.2). Verification worker reads this and
  * writes to question_verifications with layer='factual'.
  */
+// NOTE: every field is `required` (no `.optional()`) and uses
+// `.nullable()` for nullable fields. OpenAI's structured-output strict
+// mode requires that EVERY property listed in `properties` also appears
+// in `required` — `.optional()` breaks that. `.nullable()` satisfies
+// it (property is present, value may be null).
 export const factualVerifierResponseSchema = z.object({
   isFactuallyCorrect: z.boolean(),
   isAnswerCorrect: z.boolean(),
-  /** If isAnswerCorrect is false, the verifier's picked letter (A-D or text). */
-  correctAnswer: z.string().nullable().optional(),
+  /** Verifier's picked letter (A-D) or text — null if marked answer is correct. */
+  correctAnswer: z.string().nullable(),
   explanation: z.string(),
-  issues: z.array(z.string()).default([]),
+  issues: z.array(z.string()),
   quality: verifierQualityEnum,
   /** 0-1 confidence in this verdict. */
   confidence: z.number().min(0).max(1),
-  suggestedFix: z.string().nullable().optional(),
-  referenceSource: z.string().nullable().optional(),
+  suggestedFix: z.string().nullable(),
+  referenceSource: z.string().nullable(),
 });
 export type FactualVerifierResponse = z.infer<typeof factualVerifierResponseSchema>;
 
@@ -135,18 +140,19 @@ export type FactualVerifierResponse = z.infer<typeof factualVerifierResponseSche
 
 export const difficultyAppropriatenessEnum = z.enum(["appropriate", "too_easy", "too_hard"]);
 
+// Same strict-mode constraints as factualVerifierResponseSchema.
 export const syllabusAlignmentResponseSchema = z.object({
   inSyllabus: z.boolean(),
   /** syllabus_nodes.id as bigint string — null when inSyllabus is false. */
-  syllabusNodeId: z.union([z.number().int(), z.string()]).nullable().optional(),
-  mappedUnit: z.string().nullable().optional(),
-  mappedTopic: z.string().nullable().optional(),
+  syllabusNodeId: z.union([z.number().int(), z.string()]).nullable(),
+  mappedUnit: z.string().nullable(),
+  mappedTopic: z.string().nullable(),
   /** Has the target exam historically tested this topic? */
-  historicallyTested: z.boolean().default(false),
+  historicallyTested: z.boolean(),
   difficultyAppropriateness: difficultyAppropriatenessEnum,
   /** 0-1 confidence that this question maps to the claimed topic. */
   alignmentScore: z.number().min(0).max(1),
-  reasoning: z.string().optional(),
+  reasoning: z.string().nullable(),
 });
 export type SyllabusAlignmentResponse = z.infer<typeof syllabusAlignmentResponseSchema>;
 
