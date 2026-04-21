@@ -60,15 +60,24 @@ export default function AdminVerificationPage(): React.ReactElement {
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("needs_review");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  // Exam filter — "all" means across-org; a UUID means scope to that
+  // exam (required for the bulk-approve flow).
+  const [examFilter, setExamFilter] = useState<string>("all");
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const summaryQuery = trpc.questionVerification.getSummary.useQuery(undefined, {
-    staleTime: 30_000,
-  });
+  const examsQuery = trpc.exam.listForAdmin.useQuery(undefined, { staleTime: 60_000 });
+
+  // Summary re-fetches when exam filter changes so chip counts match
+  // what the table is showing.
+  const summaryQuery = trpc.questionVerification.getSummary.useQuery(
+    examFilter === "all" ? undefined : { examId: examFilter },
+    { staleTime: 30_000 },
+  );
 
   const queueQuery = trpc.questionVerification.listQueue.useQuery(
     {
+      examId: examFilter === "all" ? undefined : examFilter,
       status: statusFilter === "all" ? undefined : statusFilter,
       sourceType: sourceFilter === "all" ? undefined : sourceFilter,
       limit: PAGE_SIZE,
@@ -85,6 +94,20 @@ export default function AdminVerificationPage(): React.ReactElement {
     },
     onError: (err) => toast.error(err.message),
   });
+
+  const bulkApproveMutation = trpc.questionVerification.bulkApprove.useMutation({
+    onSuccess: (d) => {
+      toast.success(`Approved ${d.approved} question${d.approved === 1 ? "" : "s"}`);
+      utils.questionVerification.getSummary.invalidate();
+      utils.questionVerification.listQueue.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const selectedExamName =
+    examFilter === "all"
+      ? null
+      : ((examsQuery.data ?? []).find((e) => e.id === examFilter)?.name ?? null);
 
   const rows = queueQuery.data?.rows ?? [];
   const total = queueQuery.data?.total ?? 0;
@@ -108,6 +131,7 @@ export default function AdminVerificationPage(): React.ReactElement {
           variant="outline"
           onClick={() =>
             bulkRevalidateMutation.mutate({
+              examId: examFilter === "all" ? undefined : examFilter,
               status: "needs_review",
               limit: 100,
             })
@@ -117,7 +141,7 @@ export default function AdminVerificationPage(): React.ReactElement {
           <RefreshCw
             className={`size-4 ${bulkRevalidateMutation.isPending ? "animate-spin" : ""}`}
           />
-          Revalidate needs-review (100)
+          Revalidate needs-review (100){selectedExamName ? ` — ${selectedExamName}` : ""}
         </Button>
       </div>
 
@@ -187,51 +211,117 @@ export default function AdminVerificationPage(): React.ReactElement {
 
       {/* Queue table */}
       <Card>
-        <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-base">Queue</CardTitle>
-          <div className="flex flex-wrap items-center gap-2">
-            <Label className="text-xs">Status</Label>
-            <Select
-              value={statusFilter}
-              onValueChange={(v) => {
-                setStatusFilter(v as StatusFilter);
-                setPage(0);
-              }}
-            >
-              <SelectTrigger className="h-8 w-40 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="needs_review">Needs review</SelectItem>
-                <SelectItem value="auto_approved">Auto-approved</SelectItem>
-                <SelectItem value="admin_approved">Admin approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="unverified">Unverified</SelectItem>
-              </SelectContent>
-            </Select>
+        <CardHeader className="flex flex-col gap-3 pb-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base">Queue</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <Label className="text-xs">Exam</Label>
+              <Select
+                value={examFilter}
+                onValueChange={(v) => {
+                  setExamFilter(v);
+                  setPage(0);
+                }}
+              >
+                <SelectTrigger className="h-8 w-64 text-xs">
+                  <SelectValue placeholder="All exams" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All exams</SelectItem>
+                  {(examsQuery.data ?? []).map((e) => (
+                    <SelectItem key={e.id} value={e.id} className="text-xs">
+                      {e.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Label className="ml-2 text-xs">Source</Label>
-            <Select
-              value={sourceFilter}
-              onValueChange={(v) => {
-                setSourceFilter(v as SourceFilter);
-                setPage(0);
-              }}
-            >
-              <SelectTrigger className="h-8 w-40 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="real_paper">Real paper</SelectItem>
-                <SelectItem value="textbook">Textbook</SelectItem>
-                <SelectItem value="pattern_ai">Pattern AI</SelectItem>
-                <SelectItem value="topic_ai">Topic AI</SelectItem>
-                <SelectItem value="supplementary_ai">Supplementary AI</SelectItem>
-              </SelectContent>
-            </Select>
+              <Label className="ml-2 text-xs">Status</Label>
+              <Select
+                value={statusFilter}
+                onValueChange={(v) => {
+                  setStatusFilter(v as StatusFilter);
+                  setPage(0);
+                }}
+              >
+                <SelectTrigger className="h-8 w-40 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="needs_review">Needs review</SelectItem>
+                  <SelectItem value="auto_approved">Auto-approved</SelectItem>
+                  <SelectItem value="admin_approved">Admin approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="unverified">Unverified</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Label className="ml-2 text-xs">Source</Label>
+              <Select
+                value={sourceFilter}
+                onValueChange={(v) => {
+                  setSourceFilter(v as SourceFilter);
+                  setPage(0);
+                }}
+              >
+                <SelectTrigger className="h-8 w-40 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="real_paper">Real paper</SelectItem>
+                  <SelectItem value="textbook">Textbook</SelectItem>
+                  <SelectItem value="pattern_ai">Pattern AI</SelectItem>
+                  <SelectItem value="topic_ai">Topic AI</SelectItem>
+                  <SelectItem value="supplementary_ai">Supplementary AI</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
+          {/* Bulk-approve row — only enabled when scoped to a single exam.
+              Safety: bulkApprove server-side refuses "all exams + all status"
+              to prevent approving the entire DB by accident. */}
+          {examFilter !== "all" && total > 0 && (
+            <div className="bg-muted/40 flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-xs">
+              <span>
+                {total.toLocaleString()} question{total === 1 ? "" : "s"} match the current filter
+                {selectedExamName && (
+                  <>
+                    {" "}
+                    for <span className="font-medium">{selectedExamName}</span>
+                  </>
+                )}
+                .
+              </span>
+              <Button
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                disabled={bulkApproveMutation.isPending}
+                onClick={() => {
+                  if (
+                    !confirm(
+                      `Approve all ${total} question(s) matching the current filter? This marks them admin_approved and writes an audit row for each.`,
+                    )
+                  )
+                    return;
+                  bulkApproveMutation.mutate({
+                    examId: examFilter,
+                    status: statusFilter === "all" ? undefined : statusFilter,
+                    sourceType: sourceFilter === "all" ? undefined : sourceFilter,
+                    limit: Math.min(500, total),
+                    notes: `Bulk approve via /admin/verification (${selectedExamName ?? examFilter})`,
+                  });
+                }}
+              >
+                <CheckCircle2
+                  className={`size-3.5 ${bulkApproveMutation.isPending ? "animate-spin" : ""}`}
+                />
+                Approve all {total > 500 ? "(first 500)" : `(${total})`}
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           {queueQuery.isLoading ? (

@@ -8,7 +8,7 @@
  */
 
 import { z } from "zod";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import {
   questions,
   questionVerifications,
@@ -20,6 +20,7 @@ import {
   listVerificationQueueInputSchema,
   reviewQuestionInputSchema,
   verificationStatusEnum,
+  sourceTypeEnum,
 } from "@examforge/shared/validators";
 import { router, adminProcedure } from "../trpc.js";
 import { addVerifyQuestionJob } from "../../queues/verification-queue.js";
@@ -318,5 +319,84 @@ export const questionVerificationRouter = router({
         }
       }
       return { success: true, queued, candidateCount: rows.length };
+    }),
+
+  /**
+   * Admin: bulk-approve a filtered set of questions without clicking
+   * each one. Intended for the "I trust this whole paper" case — e.g.
+   * the admin just ingested an official Kerala PSC answer-key PDF and
+   * wants every extracted question flipped to `admin_approved` in one
+   * go. Writes one audit row per question so the decision is traced.
+   *
+   * Scope the filter narrowly (at minimum by `examId`) or the call
+   * will touch every matching question in the org.
+   */
+  bulkApprove: adminProcedure
+    .input(
+      z.object({
+        examId: z.string().uuid().optional(),
+        status: verificationStatusEnum.optional(),
+        sourceType: sourceTypeEnum.optional(),
+        notes: z.string().max(500).optional(),
+        limit: z.number().int().min(1).max(500).default(200),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const conditions = [];
+      if (input.examId) conditions.push(eq(questions.examId, input.examId));
+      if (input.status) conditions.push(eq(questions.verificationStatus, input.status));
+      if (input.sourceType) conditions.push(eq(questions.sourceType, input.sourceType));
+
+      // Safety net: refuse if no filters — too easy to approve the
+      // entire DB by accident.
+      if (conditions.length === 0) {
+        throw new Error("bulkApprove requires at least one filter (examId / status / sourceType).");
+      }
+
+      const rows = await ctx.db
+        .select({ id: questions.id, previousStatus: questions.verificationStatus })
+        .from(questions)
+        .where(and(...conditions))
+        .limit(input.limit);
+
+      if (rows.length === 0) {
+        return { success: true, approved: 0, candidateCount: 0 };
+      }
+
+      const ids = rows.map((r) => r.id);
+
+      // Flip status in one UPDATE.
+      await ctx.db
+        .update(questions)
+        .set({
+          verificationStatus: "admin_approved",
+          verifiedBy: ctx.userId,
+          verifiedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(inArray(questions.id, ids));
+
+      // One audit row per question so the decision is traceable.
+      await ctx.db.insert(questionVerifications).values(
+        rows.map((r) => ({
+          questionId: r.id,
+          layer: "admin" as const,
+          result: "pass" as const,
+          score: 1.0,
+          details: {
+            decision: "bulk_approve",
+            notes: input.notes ?? null,
+            previousStatus: r.previousStatus,
+            filters: {
+              examId: input.examId ?? null,
+              status: input.status ?? null,
+              sourceType: input.sourceType ?? null,
+            },
+          },
+          reviewedBy: ctx.userId,
+        })),
+      );
+
+      return { success: true, approved: rows.length, candidateCount: rows.length };
     }),
 });
