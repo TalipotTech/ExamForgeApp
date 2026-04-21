@@ -25,7 +25,6 @@ import {
   Settings,
   StickyNote,
   MessageSquare,
-  BarChart3,
   FlaskConical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -74,13 +73,9 @@ const ADMIN_NAV: NavItem[] = [
     adminOnly: true,
     group: "content",
   },
-  {
-    href: "/admin/patterns",
-    label: "Patterns",
-    icon: BarChart3,
-    adminOnly: true,
-    group: "content",
-  },
+  // Pattern Analysis moved under Question Generation's sidebar (below
+  // Help in the support section) since its output directly feeds the
+  // Pattern Exam generator that also lives in that workflow.
   { href: "/learn", label: "Learn", icon: Library, group: "content" },
   { href: "/dashboard/find", label: "Find", icon: Search, adminOnly: true, group: "content" },
   { href: "/dashboard/saved", label: "Saved", icon: Bookmark, adminOnly: true, group: "content" },

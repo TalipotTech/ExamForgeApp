@@ -24,6 +24,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   BookOpen,
   FileInput,
   FlaskConical,
@@ -37,7 +38,7 @@ type WorkflowStep = {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  step: number | "hub" | "help";
+  step: number | "hub" | "help" | "support";
   external: boolean;
   description: string;
 };
@@ -98,6 +99,14 @@ const WORKFLOW: WorkflowStep[] = [
     step: "help",
     external: false,
     description: "How the pipeline works",
+  },
+  {
+    href: "/admin/question-generation/patterns",
+    label: "Pattern Analysis",
+    icon: BarChart3,
+    step: "support",
+    external: false,
+    description: "Exam fingerprint dashboard",
   },
 ];
 

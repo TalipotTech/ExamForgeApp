@@ -484,7 +484,7 @@ export default function AdminGenerationPage(): React.ReactElement {
                   </li>
                   <li>
                     After ingest, run{" "}
-                    <Link href={"/admin/patterns" as "/"} className="underline">
+                    <Link href={"/admin/question-generation/patterns" as "/"} className="underline">
                       Pattern Analysis
                     </Link>{" "}
                     so each seed gets classified and mapped to a syllabus node.
