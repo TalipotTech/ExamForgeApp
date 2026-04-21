@@ -230,35 +230,50 @@ export default function DashboardLayout({
           collapsed ? "w-16" : "w-60"
         }`}
       >
-        {/* Brand + collapse toggle */}
+        {/* Sidebar header.
+            Expanded: brand link + collapse button (PanelLeftClose).
+            Collapsed: a single centered expand button (PanelLeftOpen).
+              The brand badge used to hide the only expand affordance
+              in the collapsed state — replacing it with the icon
+              button makes the toggle reachable from the top.
+              The Dashboard nav item below still covers "go home"
+              from the collapsed state. */}
         <div
           className={`flex h-14 items-center border-b px-3 ${
             collapsed ? "justify-center" : "justify-between"
           }`}
         >
-          <Link
-            href={isAdmin ? "/admin" : "/dashboard"}
-            className="flex items-center gap-2 text-lg font-bold tracking-tight"
-            title="ExamForge"
-          >
-            {collapsed ? (
-              <span className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md">
-                E
-              </span>
-            ) : (
-              <span>ExamForge</span>
-            )}
-          </Link>
-          {!collapsed && (
+          {collapsed ? (
             <Button
               variant="ghost"
               size="icon"
               onClick={toggleCollapsed}
-              aria-label="Collapse sidebar"
-              className="size-7"
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+              className="size-8"
             >
-              <PanelLeftClose className="size-4" />
+              <PanelLeftOpen className="size-4" />
             </Button>
+          ) : (
+            <>
+              <Link
+                href={isAdmin ? "/admin" : "/dashboard"}
+                className="text-lg font-bold tracking-tight"
+                title="ExamForge"
+              >
+                ExamForge
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleCollapsed}
+                aria-label="Collapse sidebar"
+                title="Collapse sidebar"
+                className="size-7"
+              >
+                <PanelLeftClose className="size-4" />
+              </Button>
+            </>
           )}
         </div>
 
@@ -271,22 +286,6 @@ export default function DashboardLayout({
             collapsed={collapsed}
           />
         </div>
-
-        {/* Bottom expand button shown only when collapsed — so the user
-            can re-expand without scrolling to find a toggle. */}
-        {collapsed && (
-          <div className="border-t p-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleCollapsed}
-              aria-label="Expand sidebar"
-              className="w-full"
-            >
-              <PanelLeftOpen className="size-4" />
-            </Button>
-          </div>
-        )}
       </aside>
 
       {/* ── Main column — offset by the sidebar width on desktop ── */}
