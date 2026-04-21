@@ -8,7 +8,6 @@ import { UserMenu } from "@/components/user-menu";
 import { VerificationBanner } from "@/components/verification-banner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
-  BookOpen,
   Sparkles,
   Play,
   Bot,
@@ -27,8 +26,6 @@ import {
   StickyNote,
   MessageSquare,
   BarChart3,
-  Radar,
-  ShieldCheck,
   FlaskConical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,7 +42,19 @@ interface NavItem {
 
 const ADMIN_NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: Home, adminOnly: true, group: "core" },
-  { href: "/questions", label: "Questions", icon: BookOpen, adminOnly: true, group: "core" },
+  // Question Generation — entry point to the grouped workflow at
+  // /admin/question-generation (dashboard + left-sidebar covering
+  // Content Hub, Verification, Topic Generation, Questions library).
+  // Replaces the four separate top-nav entries those pages used to
+  // have. Ingest stays on the top nav because it's shared with
+  // non-question pipelines.
+  {
+    href: "/admin/question-generation",
+    label: "Question Gen",
+    icon: FlaskConical,
+    adminOnly: true,
+    group: "core",
+  },
   { href: "/generate", label: "Generate", icon: Sparkles, adminOnly: true, group: "core" },
   { href: "/exams/start", label: "Exam", icon: Play, adminOnly: true, group: "core" },
   { href: "/scraper", label: "Scraper", icon: Bot, adminOnly: true, group: "content" },
@@ -69,27 +78,6 @@ const ADMIN_NAV: NavItem[] = [
     href: "/admin/patterns",
     label: "Patterns",
     icon: BarChart3,
-    adminOnly: true,
-    group: "content",
-  },
-  {
-    href: "/admin/discovery",
-    label: "Content Hub",
-    icon: Radar,
-    adminOnly: true,
-    group: "content",
-  },
-  {
-    href: "/admin/verification",
-    label: "Verification",
-    icon: ShieldCheck,
-    adminOnly: true,
-    group: "content",
-  },
-  {
-    href: "/admin/generation",
-    label: "Topic Gen",
-    icon: FlaskConical,
     adminOnly: true,
     group: "content",
   },
