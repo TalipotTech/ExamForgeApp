@@ -42,6 +42,12 @@ export function createPortalProcessingWorker(): Worker {
       try {
         await job.updateProgress({ stage: "processing", percent: 10 });
 
+        // Trust hints stashed on portal_documents.metadata by the admin
+        // at ingest time (e.g. "this is the official answer key PDF").
+        // Defaults mean the existing portal-discovery flow still works.
+        const docMeta = (doc.metadata as Record<string, unknown>) ?? {};
+        const isOfficialAnswerKey = docMeta.isOfficialAnswerKey === true;
+
         const result = await processPDF(
           {
             documentId: doc.id,
@@ -54,6 +60,8 @@ export function createPortalProcessingWorker(): Worker {
             userId: data.userId,
             orgId: data.orgId,
             staging: true, // Write to staged_questions, not questions
+            sourceType: "real_paper",
+            answerSource: isOfficialAnswerKey ? "official_key" : "unverified",
           },
           db,
         );

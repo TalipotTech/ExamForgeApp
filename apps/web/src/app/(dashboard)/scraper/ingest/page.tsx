@@ -366,6 +366,13 @@ export default function PortalIngestPage(): React.ReactElement {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [ingesting, setIngesting] = useState(false);
 
+  // Direct-PDF ingest state (one-off paper when portal discovery can't find it)
+  const [directPdfUrl, setDirectPdfUrl] = useState("");
+  const [directPdfExamId, setDirectPdfExamId] = useState<string>("");
+  const [directPdfTitle, setDirectPdfTitle] = useState("");
+  const [directPdfYear, setDirectPdfYear] = useState<string>("");
+  const [directPdfIsOfficial, setDirectPdfIsOfficial] = useState(false);
+
   // Tab + filter state
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -410,6 +417,23 @@ export default function PortalIngestPage(): React.ReactElement {
     onError: () => {
       setIngesting(false);
     },
+  });
+
+  // One-off direct PDF ingest. Creates a single portal_documents row and
+  // immediately queues processing — the UI just polls the documents table.
+  const directPdfMutation = trpc.portalIngestion.ingestDirectPdf.useMutation({
+    onSuccess: () => {
+      setDirectPdfUrl("");
+      setDirectPdfTitle("");
+      setDirectPdfYear("");
+      setDirectPdfIsOfficial(false);
+      docsQuery.refetch();
+      statsQuery.refetch();
+    },
+  });
+
+  const examsForPickerQuery = trpc.exam.listForAdmin.useQuery(undefined, {
+    staleTime: 60_000,
   });
 
   const processDocsMutation = trpc.portalIngestion.processDocuments.useMutation({
@@ -480,6 +504,20 @@ export default function PortalIngestPage(): React.ReactElement {
     if (!url) return;
     setIngesting(true);
     ingestMutation.mutate({ url, portalName, pageType });
+  }
+
+  function handleDirectPdfIngest(): void {
+    if (!directPdfUrl || !directPdfExamId || !directPdfTitle) return;
+    const year = directPdfYear ? Number(directPdfYear) : undefined;
+    directPdfMutation.mutate({
+      pdfUrl: directPdfUrl,
+      examId: directPdfExamId,
+      title: directPdfTitle,
+      examYear: year && !Number.isNaN(year) ? year : undefined,
+      isOfficialAnswerKey: directPdfIsOfficial,
+      documentType: "question_paper_mcq",
+      portalName: "Direct Upload",
+    });
   }
 
   function handleProcessSelected(): void {
@@ -669,6 +707,117 @@ export default function PortalIngestPage(): React.ReactElement {
 
           {ingestMutation.error && (
             <p className="text-destructive text-xs">{ingestMutation.error.message}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Direct-PDF one-off ingest — for papers the portal listing page
+          doesn't surface (e.g. Kerala PSC Asst. Prof. Pharmacy answer-key
+          PDFs which live only on post-slug pages). Bypasses discovery:
+          creates one portal_documents row and immediately queues it. */}
+      <Card>
+        <CardHeader className="px-4 pb-2 pt-4">
+          <CardTitle className="text-sm">Ingest a single paper (direct PDF)</CardTitle>
+          <p className="text-muted-foreground mt-1 text-[11px] leading-snug">
+            Use this when a specific paper PDF isn&rsquo;t reachable from the portal listing page
+            (common for Kerala PSC Asst. Professor answer keys). Paste the PDF URL, pick the
+            canonical exam, mark official if it&rsquo;s an answer key, and submit.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3 px-4 pb-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1 md:col-span-2">
+              <Label htmlFor="directPdfUrl" className="text-xs">
+                PDF URL *
+              </Label>
+              <Input
+                id="directPdfUrl"
+                placeholder="https://www.keralapsc.gov.in/sites/default/files/.../pharmacology.pdf"
+                value={directPdfUrl}
+                onChange={(e) => setDirectPdfUrl(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="directPdfExam" className="text-xs">
+                Target exam *
+              </Label>
+              <Select value={directPdfExamId} onValueChange={(v) => setDirectPdfExamId(v)}>
+                <SelectTrigger id="directPdfExam" className="h-8 text-xs">
+                  <SelectValue placeholder="Pick canonical exam..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {(examsForPickerQuery.data ?? []).map((e) => (
+                    <SelectItem key={e.id} value={e.id} className="text-xs">
+                      {e.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="directPdfTitle" className="text-xs">
+                Paper title *
+              </Label>
+              <Input
+                id="directPdfTitle"
+                placeholder="Assistant Professor Pharmacology — Cat. 349/2023"
+                value={directPdfTitle}
+                onChange={(e) => setDirectPdfTitle(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="directPdfYear" className="text-xs">
+                Exam year
+              </Label>
+              <Input
+                id="directPdfYear"
+                type="number"
+                min={1990}
+                max={2100}
+                placeholder="2024"
+                value={directPdfYear}
+                onChange={(e) => setDirectPdfYear(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="flex items-end gap-2 pb-1">
+              <Checkbox
+                id="directPdfOfficial"
+                checked={directPdfIsOfficial}
+                onCheckedChange={(v) => setDirectPdfIsOfficial(Boolean(v))}
+              />
+              <Label htmlFor="directPdfOfficial" className="cursor-pointer text-xs leading-snug">
+                This is an official answer key — tag answers as{" "}
+                <code className="text-[10px]">official_key</code> (skips AI verification).
+              </Label>
+            </div>
+          </div>
+
+          <Button
+            onClick={handleDirectPdfIngest}
+            disabled={
+              !directPdfUrl || !directPdfExamId || !directPdfTitle || directPdfMutation.isPending
+            }
+            className="h-8 gap-1.5 text-xs"
+          >
+            {directPdfMutation.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <FileText className="h-3 w-3" />
+            )}
+            {directPdfMutation.isPending ? "Queuing..." : "Ingest PDF"}
+          </Button>
+
+          {directPdfMutation.error && (
+            <p className="text-destructive text-xs">{directPdfMutation.error.message}</p>
+          )}
+          {directPdfMutation.isSuccess && (
+            <p className="text-xs text-green-600">
+              PDF queued for processing — watch the documents table below. It&rsquo;ll move from
+              discovered → downloading → extracting → processed.
+            </p>
           )}
         </CardContent>
       </Card>

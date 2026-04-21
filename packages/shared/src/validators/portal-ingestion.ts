@@ -19,6 +19,33 @@ export const ingestPortalSchema = z.object({
 
 export type IngestPortal = z.infer<typeof ingestPortalSchema>;
 
+// ─── Input: Admin ingests a single direct PDF (bypasses discovery) ───
+// Used by /scraper/ingest's "Ingest a single paper" card for cases
+// where the portal's listing page doesn't surface the paper (e.g.
+// Kerala PSC Assistant Professor answer-key PDFs which only live on
+// post-level slug pages). Creates ONE portal_documents row + queues
+// processing directly.
+export const ingestDirectPdfSchema = z.object({
+  pdfUrl: z.string().url(),
+  examId: z.string().uuid(),
+  title: z.string().min(1).max(500),
+  examName: z.string().min(1).max(500).optional(),
+  examYear: z.number().int().min(1990).max(2100).optional(),
+  paperNumber: z.string().max(50).optional(),
+  // Document type — defaults to "question_paper_mcq". Other values
+  // used by the PDF processor: "answer_key_online", "descriptive".
+  documentType: z
+    .enum(["question_paper_mcq", "answer_key_online", "descriptive_questions"])
+    .default("question_paper_mcq"),
+  // When true, extracted questions get answer_source='official_key'
+  // (the highest-trust tier — Layer 2 verification skips them).
+  isOfficialAnswerKey: z.boolean().default(false),
+  // Portal label shown in the UI — "Kerala PSC (direct)" by default.
+  portalName: z.string().min(1).max(120).default("Direct Upload"),
+});
+
+export type IngestDirectPdf = z.infer<typeof ingestDirectPdfSchema>;
+
 // ─── AI Output: Structured entry from a portal page ───
 
 export const portalPageEntrySchema = z.object({

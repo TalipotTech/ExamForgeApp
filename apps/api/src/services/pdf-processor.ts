@@ -84,6 +84,11 @@ export type ProcessPDFParams = {
   userId: string;
   orgId: string;
   staging?: boolean; // When true, write to staged_questions instead of questions
+  // Trust metadata — passed through to the question inserts so every
+  // portal-ingested question lands as a proper seed (sourceType='real_paper',
+  // plus answerSource='official_key' for official answer-key PDFs).
+  sourceType?: "real_paper" | "textbook" | null;
+  answerSource?: "official_key" | "unverified" | null;
 };
 
 export type ProcessingResult = {
@@ -108,6 +113,8 @@ export async function processPDF(
     userId,
     orgId,
     staging = false,
+    sourceType,
+    answerSource,
   } = params;
 
   try {
@@ -166,7 +173,17 @@ export async function processPDF(
     }
 
     // ─── Step 3: AI Processing based on document type ───
-    const context = { examName, examYear, examId, paperNumber, userId, orgId, staging };
+    const context = {
+      examName,
+      examYear,
+      examId,
+      paperNumber,
+      userId,
+      orgId,
+      staging,
+      sourceType,
+      answerSource,
+    };
     let result: ProcessingResult;
 
     switch (documentType) {
@@ -342,6 +359,13 @@ type ProcessingContext = {
   userId: string;
   orgId: string;
   staging: boolean;
+  // Trust metadata — set by the caller based on document provenance.
+  // Portal-ingested questions are always `real_paper`; the admin can
+  // additionally mark a document as carrying an official answer key,
+  // which pins answer_source to 'official_key' (highest trust, skips
+  // Layer-2 factual verification per QUESTION_ACQUISITION_STRATEGY §3).
+  sourceType?: "real_paper" | "textbook" | null;
+  answerSource?: "official_key" | "unverified" | null;
 };
 
 // ─── MCQ Paper Processing (Vision) ───
@@ -431,6 +455,10 @@ async function saveMCQResults(
 ): Promise<ProcessingResult> {
   let saved = 0;
 
+  // Default trust metadata for portal-ingested MCQs (callers can override).
+  const trustSourceType = context.sourceType ?? "real_paper";
+  const trustAnswerSource = context.answerSource ?? "unverified";
+
   if (context.staging) {
     for (const mcq of mcqs) {
       await db.insert(stagedQuestions).values({
@@ -453,7 +481,14 @@ async function saveMCQResults(
         questionNumber: mcq.questionNumber,
         reviewStatus: "pending",
         orgId: context.orgId,
-        metadata: { extractedFrom: "portal_ingestion" },
+        // staged_questions has no sourceType/answerSource columns yet —
+        // stash the hints in metadata so approveQuestions can promote
+        // them when copying into the questions table.
+        metadata: {
+          extractedFrom: "portal_ingestion",
+          sourceType: trustSourceType,
+          answerSource: trustAnswerSource,
+        },
       });
       saved++;
     }
@@ -492,6 +527,16 @@ async function saveMCQResults(
         paperYear: context.examYear ?? null,
         paperNumber: context.paperNumber ?? null,
         questionNumber: mcq.questionNumber,
+        // Trust tier — portal-ingested MCQs are real-paper seeds.
+        sourceType: trustSourceType,
+        answerSource: trustAnswerSource,
+        sourceDetail: {
+          kind: "real_paper",
+          documentId,
+          paperYear: context.examYear ?? null,
+          paperNumber: context.paperNumber ?? null,
+          isOfficialAnswerKey: trustAnswerSource === "official_key",
+        },
         metadata: { extractedFrom: "portal_ingestion" },
       });
       saved++;

@@ -12,6 +12,7 @@ import {
 } from "@examforge/shared/db/schema";
 import {
   ingestPortalSchema,
+  ingestDirectPdfSchema,
   portalDocumentFilterSchema,
   processDocumentsSchema,
   approveQuestionsSchema,
@@ -77,6 +78,89 @@ export const portalIngestionRouter = router({
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: `Failed to queue ingestion job: ${errMsg}. Is Redis running?`,
+      });
+    }
+  }),
+
+  /**
+   * One-shot ingestion of a single direct-PDF URL (bypasses portal
+   * discovery). Creates ONE portal_documents row in 'discovered'
+   * status and immediately queues it for processing.
+   *
+   * Use case: Kerala PSC Asst. Prof. Pharmacy answer-key PDFs are
+   * only linked from post-slug pages, not from the generic
+   * /previous-question-papers listing. The admin pastes the PDF URL
+   * directly, picks the target canonical exam, optionally marks it
+   * as an official answer key, and skips the discovery step.
+   */
+  ingestDirectPdf: adminProcedure.input(ingestDirectPdfSchema).mutation(async ({ ctx, input }) => {
+    // Verify target exam exists so we fail fast with a clear error.
+    const [exam] = await ctx.db
+      .select({ id: exams.id, name: exams.name })
+      .from(exams)
+      .where(eq(exams.id, input.examId))
+      .limit(1);
+    if (!exam) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Exam not found" });
+    }
+
+    // Create the portal_documents row directly in 'discovered' state.
+    // Trust hints live on metadata so portal-processing-worker can
+    // read them and pass them to the PDF processor.
+    const [doc] = await ctx.db
+      .insert(portalDocuments)
+      .values({
+        portalName: input.portalName,
+        portalUrl: input.pdfUrl,
+        sourcePageType: "previous_questions",
+        documentType: input.documentType,
+        title: input.title,
+        examName: input.examName ?? exam.name,
+        examYear: input.examYear ?? null,
+        originalUrl: input.pdfUrl,
+        processingStatus: "discovered",
+        examId: input.examId,
+        metadata: {
+          extractedFrom: "direct_upload",
+          isOfficialAnswerKey: input.isOfficialAnswerKey,
+          paperNumber: input.paperNumber ?? null,
+        },
+      })
+      .returning({ id: portalDocuments.id });
+
+    if (!doc) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to create portal document row",
+      });
+    }
+
+    // Queue processing immediately — no discovery step needed.
+    try {
+      const jobId = await addProcessDocumentJob({
+        documentId: doc.id,
+        userId: ctx.userId,
+        orgId: ctx.orgId ?? "",
+      });
+
+      await ctx.db
+        .update(portalDocuments)
+        .set({ processingStatus: "downloading", updatedAt: new Date() })
+        .where(eq(portalDocuments.id, doc.id));
+
+      return { documentId: doc.id, jobId };
+    } catch (err) {
+      await ctx.db
+        .update(portalDocuments)
+        .set({
+          processingStatus: "error",
+          errorMessage: err instanceof Error ? err.message : String(err),
+          updatedAt: new Date(),
+        })
+        .where(eq(portalDocuments.id, doc.id));
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: `Failed to queue processing job: ${err instanceof Error ? err.message : String(err)}. Is Redis running?`,
       });
     }
   }),
@@ -268,6 +352,15 @@ export const portalIngestionRouter = router({
       let approved = 0;
 
       for (const sq of staged) {
+        // Trust metadata stashed by the PDF processor lives on
+        // staged_questions.metadata (no dedicated columns yet). Promote
+        // it into real questions.sourceType / answerSource columns here
+        // so the verification pipeline and topic-seed filter see it.
+        const stagedMeta = (sq.metadata as Record<string, unknown>) ?? {};
+        const promotedSourceType = (stagedMeta.sourceType as string | undefined) ?? "real_paper";
+        const promotedAnswerSource =
+          (stagedMeta.answerSource as string | undefined) ?? "unverified";
+
         // Insert into main questions table
         const [newQuestion] = await ctx.db
           .insert(questions)
@@ -282,7 +375,16 @@ export const portalIngestionRouter = router({
             paperYear: sq.paperYear,
             paperNumber: sq.paperNumber,
             questionNumber: sq.questionNumber,
-            metadata: { ...(sq.metadata as Record<string, unknown>), approvedFrom: "staging" },
+            sourceType: promotedSourceType,
+            answerSource: promotedAnswerSource,
+            sourceDetail: {
+              kind: "real_paper",
+              documentId: sq.portalDocumentId,
+              paperYear: sq.paperYear,
+              paperNumber: sq.paperNumber,
+              isOfficialAnswerKey: promotedAnswerSource === "official_key",
+            },
+            metadata: { ...stagedMeta, approvedFrom: "staging" },
           })
           .returning({ id: questions.id });
 

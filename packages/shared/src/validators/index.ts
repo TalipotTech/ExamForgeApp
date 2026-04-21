@@ -128,6 +128,7 @@ export type {
 
 export {
   ingestPortalSchema,
+  ingestDirectPdfSchema,
   portalPageEntrySchema,
   answerKeySchema,
   descriptiveQuestionSchema,
@@ -141,6 +142,7 @@ export {
 } from "./portal-ingestion";
 export type {
   IngestPortal,
+  IngestDirectPdf,
   PortalPageEntry,
   AnswerKey,
   DescriptiveQuestion,
