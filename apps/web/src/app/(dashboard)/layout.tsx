@@ -1,5 +1,26 @@
 "use client";
 
+/**
+ * Dashboard layout — left sidebar (collapsible) + thin top bar.
+ *
+ * Structure:
+ *   ┌──────────┬──────────────────────────┐
+ *   │          │  Top bar: toggle + user  │
+ *   │ Sidebar  ├──────────────────────────┤
+ *   │ (nav)    │                          │
+ *   │          │  Main content            │
+ *   │          │                          │
+ *   └──────────┴──────────────────────────┘
+ *
+ * - Desktop: sidebar toggles between expanded (240px with labels) and
+ *   collapsed (64px icons-only). State persisted to localStorage.
+ * - Mobile: sidebar hidden by default; hamburger button opens it as a
+ *   left-side drawer (Sheet).
+ * - Question-Generation sub-pages render a nested sidebar inside the
+ *   main content area — both sidebars coexist, like VS Code's activity
+ *   bar + explorer panel.
+ */
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -25,10 +46,14 @@ import {
   StickyNote,
   MessageSquare,
   FlaskConical,
+  Users,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const ADMIN_ROLES = ["admin", "superadmin"];
+const SIDEBAR_COLLAPSED_KEY = "examforge.sidebar.collapsed";
 
 interface NavItem {
   href: string;
@@ -40,12 +65,8 @@ interface NavItem {
 
 const ADMIN_NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: Home, adminOnly: true, group: "core" },
-  // Question Generation — entry point to the grouped workflow at
-  // /admin/question-generation (dashboard + left-sidebar covering
-  // Content Hub, Verification, Topic Generation, Questions library).
-  // Replaces the four separate top-nav entries those pages used to
-  // have. Ingest stays on the top nav because it's shared with
-  // non-question pipelines.
+  // Grouped question-generation workflow — each workflow step lives
+  // inside its own nested sidebar at /admin/question-generation/*.
   {
     href: "/admin/question-generation",
     label: "Question Gen",
@@ -53,8 +74,6 @@ const ADMIN_NAV: NavItem[] = [
     adminOnly: true,
     group: "core",
   },
-  // "/generate" moved to Question Gen sidebar (support section) —
-  // accessed via /admin/question-generation/generate.
   { href: "/exams/start", label: "Exam", icon: Play, adminOnly: true, group: "core" },
   { href: "/scraper", label: "Scraper", icon: Bot, adminOnly: true, group: "content" },
   {
@@ -73,12 +92,19 @@ const ADMIN_NAV: NavItem[] = [
     adminOnly: true,
     group: "content",
   },
-  // Pattern Analysis moved under Question Generation's sidebar (below
-  // Help in the support section) since its output directly feeds the
-  // Pattern Exam generator that also lives in that workflow.
   { href: "/learn", label: "Learn", icon: Library, group: "content" },
   { href: "/dashboard/find", label: "Find", icon: Search, adminOnly: true, group: "content" },
   { href: "/dashboard/saved", label: "Saved", icon: Bookmark, adminOnly: true, group: "content" },
+  // Admin-only — users + global settings. Pulled off the UserMenu so
+  // they show up in the main nav alongside the other admin tools.
+  { href: "/admin/users", label: "Users", icon: Users, adminOnly: true, group: "admin" },
+  {
+    href: "/admin/settings",
+    label: "Settings",
+    icon: Settings,
+    adminOnly: true,
+    group: "admin",
+  },
 ];
 
 const STUDENT_NAV: NavItem[] = [
@@ -101,6 +127,55 @@ function isLinkActive(pathname: string, href: string): boolean {
   return pathname.startsWith(href);
 }
 
+/**
+ * Renders the vertical nav list used by both the desktop sidebar and
+ * the mobile drawer. Shared so the two stay in sync.
+ */
+function NavList({
+  navItems,
+  isAdmin,
+  pathname,
+  collapsed,
+  onNavigate,
+}: {
+  navItems: NavItem[];
+  isAdmin: boolean;
+  pathname: string;
+  collapsed: boolean;
+  onNavigate?: () => void;
+}): React.ReactElement {
+  return (
+    <nav className="flex flex-col gap-0.5 px-2">
+      {navItems.map((item, idx) => {
+        const Icon = item.icon;
+        const active = isLinkActive(pathname, item.href);
+        const prevGroup = idx > 0 ? navItems[idx - 1]?.group : null;
+        const currentGroup = item.group;
+        const showSeparator = isAdmin && prevGroup && currentGroup && prevGroup !== currentGroup;
+
+        return (
+          <div key={item.href}>
+            {showSeparator && <div className="border-border my-1.5 border-t" />}
+            <Link
+              href={item.href as "/"}
+              onClick={onNavigate}
+              title={collapsed ? item.label : undefined}
+              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+                active
+                  ? "bg-accent text-accent-foreground font-medium"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+              } ${collapsed ? "justify-center px-2" : ""}`}
+            >
+              <Icon className="size-4 shrink-0" />
+              {!collapsed && <span className="truncate">{item.label}</span>}
+            </Link>
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -109,10 +184,32 @@ export default function DashboardLayout({
   const { data: session } = useSession();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  // Mount + hydrate collapsed state from localStorage. Guarded so SSR
+  // render and initial client render agree (both start expanded).
   useEffect(() => {
     setMounted(true);
+    try {
+      const saved = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      if (saved === "1") setCollapsed(true);
+    } catch {
+      // localStorage unavailable (privacy mode, tests) — fall back to default.
+    }
   }, []);
+
+  function toggleCollapsed(): void {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
+      } catch {
+        // Ignore persistence errors.
+      }
+      return next;
+    });
+  }
 
   const isAdmin = mounted && ADMIN_ROLES.includes(session?.user?.role ?? "");
   const isSubscriber =
@@ -125,104 +222,118 @@ export default function DashboardLayout({
 
   return (
     <div className="bg-background min-h-screen">
-      <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 border-b backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-7xl items-center px-4">
+      {/* ── Desktop sidebar — fixed left rail ───────────────────────
+          Width animates between w-60 (expanded) and w-16 (collapsed).
+          Hidden below md; use the mobile drawer for small screens. */}
+      <aside
+        className={`bg-background fixed inset-y-0 left-0 z-40 hidden flex-col border-r transition-[width] duration-200 md:flex ${
+          collapsed ? "w-16" : "w-60"
+        }`}
+      >
+        {/* Brand + collapse toggle */}
+        <div
+          className={`flex h-14 items-center border-b px-3 ${
+            collapsed ? "justify-center" : "justify-between"
+          }`}
+        >
           <Link
             href={isAdmin ? "/admin" : "/dashboard"}
-            className="shrink-0 text-lg font-bold tracking-tight"
+            className="flex items-center gap-2 text-lg font-bold tracking-tight"
+            title="ExamForge"
           >
-            ExamForge
+            {collapsed ? (
+              <span className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md">
+                E
+              </span>
+            ) : (
+              <span>ExamForge</span>
+            )}
           </Link>
+          {!collapsed && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleCollapsed}
+              aria-label="Collapse sidebar"
+              className="size-7"
+            >
+              <PanelLeftClose className="size-4" />
+            </Button>
+          )}
+        </div>
 
-          {/* Desktop nav — scrollable for admin's many items */}
-          <nav
-            className={`ml-4 hidden items-center text-sm md:flex ${
-              isAdmin ? "scrollbar-none gap-1 overflow-x-auto" : "gap-5"
-            }`}
-          >
-            {navItems.map((item, idx) => {
-              const Icon = item.icon;
-              const active = isLinkActive(pathname, item.href);
-              // Add separator between admin nav groups
-              const prevGroup =
-                idx > 0 ? (navItems[idx - 1] as NavItem & { group?: string }).group : null;
-              const currentGroup = (item as NavItem & { group?: string }).group;
-              const showSeparator =
-                isAdmin && prevGroup && currentGroup && prevGroup !== currentGroup;
+        {/* Nav (scrollable if it overflows) */}
+        <div className="flex-1 overflow-y-auto py-3">
+          <NavList
+            navItems={navItems}
+            isAdmin={isAdmin}
+            pathname={pathname}
+            collapsed={collapsed}
+          />
+        </div>
 
-              return (
-                <div key={item.href} className="flex items-center">
-                  {showSeparator && <div className="bg-border mx-1 h-4 w-px shrink-0" />}
-                  <Link
-                    href={item.href as "/"}
-                    className={`flex shrink-0 items-center gap-1 whitespace-nowrap transition-colors ${
-                      isAdmin ? "rounded-md px-2 py-1.5" : "gap-1.5"
-                    } ${
-                      active
-                        ? isAdmin
-                          ? "bg-accent text-foreground font-medium"
-                          : "text-foreground font-medium"
-                        : "text-foreground/60 hover:text-foreground"
-                    }`}
-                  >
-                    <Icon className="size-3.5" />
-                    {item.label}
-                  </Link>
-                </div>
-              );
-            })}
-          </nav>
+        {/* Bottom expand button shown only when collapsed — so the user
+            can re-expand without scrolling to find a toggle. */}
+        {collapsed && (
+          <div className="border-t p-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleCollapsed}
+              aria-label="Expand sidebar"
+              className="w-full"
+            >
+              <PanelLeftOpen className="size-4" />
+            </Button>
+          </div>
+        )}
+      </aside>
 
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            <UserMenu />
-
-            {/* Mobile hamburger — hidden on desktop */}
+      {/* ── Main column — offset by the sidebar width on desktop ── */}
+      <div
+        className={`flex min-h-screen flex-col transition-[padding] ${collapsed ? "md:pl-16" : "md:pl-60"}`}
+      >
+        <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30 border-b backdrop-blur">
+          <div className="flex h-14 items-center px-4">
+            {/* Mobile hamburger — opens drawer */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open menu">
                   <Menu className="size-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-72 overflow-y-auto">
-                <SheetHeader>
+              <SheetContent side="left" className="w-72 overflow-y-auto p-0">
+                <SheetHeader className="border-b px-4 py-3">
                   <SheetTitle className="text-left text-lg font-bold">ExamForge</SheetTitle>
                 </SheetHeader>
-                <nav className="flex flex-col gap-1 px-2 pt-2">
-                  {navItems.map((item, idx) => {
-                    const Icon = item.icon;
-                    const active = isLinkActive(pathname, item.href);
-                    const prevGroup =
-                      idx > 0 ? (navItems[idx - 1] as NavItem & { group?: string }).group : null;
-                    const currentGroup = (item as NavItem & { group?: string }).group;
-                    const showSeparator =
-                      isAdmin && prevGroup && currentGroup && prevGroup !== currentGroup;
-
-                    return (
-                      <div key={item.href}>
-                        {showSeparator && <div className="my-1.5 border-t" />}
-                        <Link
-                          href={item.href as "/"}
-                          onClick={() => setMobileOpen(false)}
-                          className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
-                            active
-                              ? "bg-accent text-accent-foreground font-medium"
-                              : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                          }`}
-                        >
-                          <Icon className="size-4" />
-                          {item.label}
-                        </Link>
-                      </div>
-                    );
-                  })}
-                </nav>
+                <div className="py-3">
+                  <NavList
+                    navItems={navItems}
+                    isAdmin={isAdmin}
+                    pathname={pathname}
+                    collapsed={false}
+                    onNavigate={() => setMobileOpen(false)}
+                  />
+                </div>
               </SheetContent>
             </Sheet>
+
+            {/* Mobile brand — desktop has it in the sidebar */}
+            <Link
+              href={isAdmin ? "/admin" : "/dashboard"}
+              className="ml-2 text-base font-bold tracking-tight md:hidden"
+            >
+              ExamForge
+            </Link>
+
+            <div className="ml-auto flex items-center gap-2">
+              <UserMenu />
+            </div>
           </div>
-        </div>
-      </header>
-      {!isAdmin && <VerificationBanner />}
-      <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
+        </header>
+        {!isAdmin && <VerificationBanner />}
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+      </div>
     </div>
   );
 }
