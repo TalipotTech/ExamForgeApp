@@ -357,6 +357,56 @@ export default function AdminGenerationPage(): React.ReactElement {
         </div>
       )}
 
+      {/* Empty-seeds explainer — every topic's Generate button is disabled
+          until this exam has ≥3 real-paper or textbook questions mapped to
+          at least one syllabus node (strategy doc §4.3). This card makes
+          the upstream actions obvious so the admin doesn't have to guess. */}
+      {examId && !nodesQuery.isLoading && totals.nodes > 0 && totals.totalSeeds === 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="flex flex-col gap-3 py-4">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-0.5 size-5 shrink-0 text-amber-600" />
+              <div className="flex-1 text-sm">
+                <p className="font-medium">No real-paper or textbook seeds yet</p>
+                <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+                  Topic-seeded generation needs at least <strong>3 real-paper</strong> or{" "}
+                  <strong>textbook</strong> questions mapped to a syllabus topic before it will
+                  generate anything. Your exam currently has {totals.nodes} syllabus
+                  {totals.nodes === 1 ? " node" : " nodes"} but 0 seeds, so every topic&rsquo;s
+                  Generate button stays disabled.
+                </p>
+                <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+                  Do one of these upstream steps first:
+                </p>
+                <ul className="text-muted-foreground mt-1 list-disc space-y-0.5 pl-5 text-xs">
+                  <li>
+                    <strong>Ingest past papers</strong> via{" "}
+                    <Link href={"/scraper/ingest" as "/"} className="underline">
+                      Portal Ingestion
+                    </Link>{" "}
+                    — scraped questions become <code>real_paper</code> seeds.
+                  </li>
+                  <li>
+                    <strong>Ingest textbook MCQs</strong> via{" "}
+                    <Link href={"/syllabus" as "/"} className="underline">
+                      Syllabus
+                    </Link>{" "}
+                    — textbook extractions become <code>textbook</code> seeds.
+                  </li>
+                  <li>
+                    After ingest, run{" "}
+                    <Link href={"/admin/patterns" as "/"} className="underline">
+                      Pattern Analysis
+                    </Link>{" "}
+                    so each seed gets classified and mapped to a syllabus node.
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Syllabus nodes table */}
       {examId && (
         <Card>
