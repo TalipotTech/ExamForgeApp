@@ -62,7 +62,7 @@ export const examSessionRouter = router({
   start: protectedProcedure
     .input(examSessionStartSchema)
     .mutation(async ({ ctx, input }): Promise<{ sessionId: string }> => {
-      const { examId, totalQuestions, durationMinutes } = input;
+      const { examId, totalQuestions, durationMinutes, sourceTypes } = input;
 
       const [exam] = await ctx.db
         .select({ id: exams.id, name: exams.name })
@@ -74,10 +74,19 @@ export const examSessionRouter = router({
         throw new Error("Exam not found or inactive");
       }
 
+      // Build the question-pool filter. If the admin / student picked
+      // one or more source tiers ("Previous year questions", "Textbook",
+      // …) we scope to questions.source_type IN (...). Otherwise the
+      // pool stays wide open, matching the old behaviour.
+      const whereConditions = [eq(questions.examId, examId)];
+      if (sourceTypes && sourceTypes.length > 0) {
+        whereConditions.push(inArray(questions.sourceType, sourceTypes));
+      }
+
       const questionRows = await ctx.db
         .select({ id: questions.id })
         .from(questions)
-        .where(eq(questions.examId, examId))
+        .where(and(...whereConditions))
         .orderBy(sql`random()`)
         .limit(totalQuestions);
 
