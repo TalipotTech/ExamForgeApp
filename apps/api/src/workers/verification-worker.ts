@@ -50,6 +50,11 @@ import {
   buildSyllabusAlignmentPrompt,
   type SyllabusNodeSummary,
 } from "../ai/prompts/syllabus-alignment.js";
+import {
+  inferVerificationCategory,
+  type VerificationCategory,
+} from "../config/verification-references.js";
+import { getOverlapScore } from "../config/exam-overlap-matrix.js";
 
 // ─── Thresholds (from QUESTION_ACQUISITION_STRATEGY.md §3.1) ───
 
@@ -149,6 +154,9 @@ async function verifyQuestion(
     examName: exam.name,
     examLevel: exam.level ?? "Assistant Professor",
     subjectDomain: q.subject,
+    // Category is inferred from the exam name + subject so the factual
+    // verifier picks the right textbook set (pharmacy / medical / etc.)
+    category: inferVerificationCategory(exam.name, q.subject),
   };
 
   const outcomes: LayerOutcome[] = [];
@@ -195,6 +203,15 @@ async function verifyQuestion(
   outcomes.push(compositeOutcome);
   await writeAuditRow(db, data.questionId, compositeOutcome);
 
+  // Cross-exam relevance: if this question came from a different exam
+  // (e.g. GPAT question being used to prep Kerala PSC Asst Prof
+  // Pharmacy), look up the overlap matrix to get a 0-1 relevance score.
+  // Same exam = 1.0; unrelated / not in matrix = 0; else fractional.
+  const relevanceToTarget =
+    q.originalExam && q.originalExam !== exam.name
+      ? getOverlapScore(q.originalExam, exam.name)
+      : 1.0;
+
   // Write back to questions row
   await db
     .update(questions)
@@ -215,6 +232,7 @@ async function verifyQuestion(
       },
       mappedSyllabusNodeId: (syllabusOutcome.details.syllabusNodeId as number | null) ?? null,
       historicallyTested: (syllabusOutcome.details.historicallyTested as boolean) ?? false,
+      relevanceToTarget,
       verifiedAt: new Date(),
       updatedAt: new Date(),
     })
@@ -277,7 +295,12 @@ function layerSource(q: typeof questions.$inferSelect): LayerOutcome {
 
 async function layerFactual(
   q: typeof questions.$inferSelect,
-  examContext: { examName: string; examLevel: string; subjectDomain: string },
+  examContext: {
+    examName: string;
+    examLevel: string;
+    subjectDomain: string;
+    category: VerificationCategory;
+  },
   data: VerificationJobData,
   db: ReturnType<typeof createDatabase>,
 ): Promise<LayerOutcome> {
@@ -317,6 +340,9 @@ async function layerFactual(
     examName: examContext.examName,
     subjectDomain: examContext.subjectDomain,
     examLevel: examContext.examLevel,
+    // Category drives which textbook list + fact-check addendum gets
+    // injected. Inferred from exam.name + q.subject at call-time.
+    category: examContext.category,
     question: content.question,
     options: content.options,
     markedAnswer: content.answer ?? "unknown",
