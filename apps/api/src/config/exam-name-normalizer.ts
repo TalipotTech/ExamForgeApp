@@ -130,6 +130,81 @@ export const EXAM_ALIASES: Record<string, string> = {
   fda: "KPSC FDA",
   "kpsc sda": "KPSC SDA",
   sda: "KPSC SDA",
+
+  // ── Medical (additional legacy aliases) ──
+  aipmt: "NEET UG",
+  "all india pre-medical test": "NEET UG",
+  "mci screening": "FMGE",
+
+  // ── Engineering (GATE branches + JEE Advanced) ──
+  "iit jee": "JEE Advanced",
+  "jee (advanced)": "JEE Advanced",
+  "gate cse": "GATE CS",
+  "gate cs": "GATE CS",
+  "gate ece": "GATE EC",
+  "gate ec": "GATE EC",
+  "gate ee": "GATE EE",
+  "gate me": "GATE ME",
+  "gate ce": "GATE CE",
+
+  // ── UPSC (legacy shorthands) ──
+  upsc: "UPSC CSE",
+  ias: "UPSC CSE",
+  "indian engineering services": "IES/ESE",
+
+  // ── State PSCs (additions) ──
+  tnpsc: "TNPSC",
+  "tamilnadu psc": "TNPSC",
+  "tamil nadu psc": "TNPSC",
+  appsc: "APPSC",
+  "andhra pradesh psc": "APPSC",
+  kpsc: "KPSC Karnataka",
+  "karnataka psc": "KPSC Karnataka",
+  mpsc: "MPSC",
+  "maharashtra psc": "MPSC",
+  "mpsc state services": "MPSC State Services",
+  "mpsc combined": "MPSC Combined",
+  uppsc: "UPPSC",
+  "up psc": "UPPSC",
+  "uttar pradesh psc": "UPPSC",
+  "uppsc pcs": "UPPSC PCS",
+  "uppsc ro/aro": "UPPSC RO/ARO",
+
+  // ── Banking ──
+  "sbi po": "SBI PO",
+  "sbi clerk": "SBI Clerk",
+  "sbi so": "SBI SO",
+  "state bank of india po": "SBI PO",
+  "ibps po": "IBPS PO",
+  "ibps clerk": "IBPS Clerk",
+  "ibps so": "IBPS SO",
+  "ibps rrb": "IBPS RRB",
+  "rbi grade b": "RBI Grade B",
+  "rbi assistant": "RBI Assistant",
+  "reserve bank of india grade b": "RBI Grade B",
+
+  // ── SSC ──
+  "ssc cgl": "SSC CGL",
+  "ssc chsl": "SSC CHSL",
+  "ssc mts": "SSC MTS",
+  "ssc cpo": "SSC CPO",
+  "ssc je": "SSC JE",
+  "ssc gd": "SSC GD",
+  "staff selection commission": "SSC CGL",
+  "combined graduate level": "SSC CGL",
+  "combined higher secondary level": "SSC CHSL",
+
+  // ── Teaching (SET / additional) ──
+  set: "SET",
+  "state eligibility test": "SET",
+
+  // ── Pharmacy (additions) ──
+  "drug inspector": "Drug Inspector",
+  "kerala drug inspector": "Kerala Drug Inspector",
+  "tn drug inspector": "TN Drug Inspector",
+  "tamil nadu drug inspector": "TN Drug Inspector",
+  "pharmacy officer": "Kerala Pharmacy Officer",
+  "kerala pharmacy officer": "Kerala Pharmacy Officer",
 };
 
 /**

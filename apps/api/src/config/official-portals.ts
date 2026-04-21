@@ -116,12 +116,42 @@ export const OFFICIAL_PORTALS: OfficialPortal[] = [
     type: "exam_specific",
     pages: {
       notifications: "https://ugcnet.nta.ac.in/",
+      previousPapers: "https://nta.ac.in/Download/QP-UGC-NET",
     },
     examsConducted: ["UGC NET"],
     fetchMethod: "playwright",
     rateLimit: 3000,
     checkFrequency: "daily",
     priority: 1,
+  },
+  {
+    id: "nta-csirnet",
+    name: "NTA CSIR NET Portal",
+    domain: "csirnet.nta.ac.in",
+    type: "exam_specific",
+    pages: {
+      notifications: "https://csirnet.nta.ac.in/",
+    },
+    examsConducted: ["CSIR NET"],
+    fetchMethod: "playwright",
+    rateLimit: 3000,
+    checkFrequency: "weekly",
+    priority: 2,
+  },
+  {
+    id: "nta-jeemain",
+    name: "NTA JEE Main Portal",
+    domain: "jeemain.nta.nic.in",
+    type: "exam_specific",
+    pages: {
+      notifications: "https://jeemain.nta.nic.in/",
+      previousPapers: "https://nta.ac.in/Download/QP-JEE-Main",
+    },
+    examsConducted: ["JEE Main"],
+    fetchMethod: "playwright",
+    rateLimit: 3000,
+    checkFrequency: "daily",
+    priority: 2,
   },
 
   // ══════════ NATIONAL — UPSC ══════════
@@ -294,6 +324,96 @@ export const OFFICIAL_PORTALS: OfficialPortal[] = [
     checkFrequency: "weekly",
     priority: 3,
   },
+  {
+    id: "mpsc",
+    name: "Maharashtra Public Service Commission",
+    domain: "mpsc.gov.in",
+    type: "conducting_body",
+    pages: {
+      notifications: "https://mpsc.gov.in/",
+    },
+    examsConducted: ["MPSC State Services", "MPSC Combined", "MPSC Assistant Professor"],
+    fetchMethod: "cheerio",
+    rateLimit: 5000,
+    checkFrequency: "weekly",
+    priority: 3,
+  },
+  {
+    id: "uppsc",
+    name: "Uttar Pradesh Public Service Commission",
+    domain: "uppsc.up.nic.in",
+    type: "conducting_body",
+    pages: {
+      notifications: "http://uppsc.up.nic.in/Notifications.aspx",
+    },
+    examsConducted: ["UPPSC PCS", "UPPSC RO/ARO", "UPPSC Assistant Professor"],
+    fetchMethod: "cheerio",
+    rateLimit: 5000,
+    checkFrequency: "weekly",
+    priority: 3,
+  },
+
+  // ══════════ BANKING ══════════
+  {
+    id: "ibps",
+    name: "Institute of Banking Personnel Selection",
+    domain: "ibps.in",
+    type: "conducting_body",
+    pages: {
+      notifications: "https://www.ibps.in/",
+    },
+    examsConducted: ["IBPS PO", "IBPS Clerk", "IBPS SO", "IBPS RRB"],
+    fetchMethod: "playwright",
+    rateLimit: 5000,
+    checkFrequency: "weekly",
+    priority: 2,
+  },
+  {
+    id: "sbi",
+    name: "State Bank of India — Careers",
+    domain: "sbi.co.in",
+    type: "conducting_body",
+    pages: {
+      notifications: "https://bank.sbi/web/careers",
+    },
+    examsConducted: ["SBI PO", "SBI Clerk", "SBI SO"],
+    fetchMethod: "playwright",
+    rateLimit: 5000,
+    checkFrequency: "weekly",
+    priority: 2,
+  },
+  {
+    id: "rbi",
+    name: "Reserve Bank of India — Careers",
+    domain: "rbi.org.in",
+    type: "conducting_body",
+    pages: {
+      notifications: "https://opportunities.rbi.org.in/",
+    },
+    examsConducted: ["RBI Grade B", "RBI Assistant"],
+    fetchMethod: "playwright",
+    rateLimit: 5000,
+    checkFrequency: "weekly",
+    priority: 3,
+  },
+
+  // ══════════ SSC ══════════
+  {
+    id: "ssc",
+    name: "Staff Selection Commission",
+    domain: "ssc.gov.in",
+    type: "conducting_body",
+    pages: {
+      notifications: "https://ssc.gov.in/whats-new",
+      previousPapers: "https://ssc.gov.in/question-paper-download",
+    },
+    examsConducted: ["SSC CGL", "SSC CHSL", "SSC MTS", "SSC CPO", "SSC JE", "SSC GD"],
+    fetchMethod: "playwright",
+    rateLimit: 5000,
+    checkFrequency: "weekly",
+    priority: 2,
+    notes: "Domain recently moved from ssc.nic.in to ssc.gov.in — keep both aliases handy.",
+  },
 
   // ══════════ PHARMA-SPECIFIC STATE CADRES ══════════
   // Kerala Drugs Control Department: conducts Drug Inspector
@@ -364,6 +484,36 @@ export const OFFICIAL_PORTALS: OfficialPortal[] = [
     priority: 2,
     notes: "Large PDF collection organized by year. Answer keys included.",
   },
+
+  // ══════════ MULTI-EXAM COMMUNITY AGGREGATORS ══════════
+  // Low priority — use for discovery, not primary source.
+  {
+    id: "testbook",
+    name: "Testbook (Previous Papers)",
+    domain: "testbook.com",
+    type: "aggregator",
+    pages: {
+      previousPapers: "https://testbook.com/previous-year-papers",
+    },
+    examsConducted: ["*"],
+    fetchMethod: "playwright",
+    rateLimit: 5000,
+    checkFrequency: "weekly",
+    priority: 3,
+    notes: "Large aggregator across most Indian exams. Use for discovery, not primary source.",
+  },
+  {
+    id: "embibe",
+    name: "Embibe (Previous Papers)",
+    domain: "embibe.com",
+    type: "aggregator",
+    pages: {},
+    examsConducted: ["NEET UG", "JEE Main", "JEE Advanced"],
+    fetchMethod: "playwright",
+    rateLimit: 5000,
+    checkFrequency: "weekly",
+    priority: 3,
+  },
 ];
 
 /** Map of portal id -> portal, for O(1) lookup. */
@@ -375,7 +525,9 @@ export const PORTAL_BY_ID: Record<string, OfficialPortal> = Object.fromEntries(
 export function getPortalsForExam(examName: string): OfficialPortal[] {
   return OFFICIAL_PORTALS.filter((p) =>
     p.examsConducted.some((e) => {
-      // Wildcard match (e.g. "Kerala PSC *" matches "Kerala PSC LDC")
+      // Universal wildcard — aggregator covers every exam.
+      if (e === "*") return true;
+      // Prefix wildcard (e.g. "Kerala PSC *" matches "Kerala PSC LDC").
       if (e.endsWith(" *")) {
         const prefix = e.slice(0, -2).toLowerCase();
         return examName.toLowerCase().startsWith(prefix);
