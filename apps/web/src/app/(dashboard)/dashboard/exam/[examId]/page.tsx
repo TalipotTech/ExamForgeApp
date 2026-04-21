@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { trpc } from "@/lib/trpc";
@@ -17,7 +17,6 @@ const ADMIN_ROLES = ["admin", "superadmin"];
 
 export default function ExamHubPage(): React.ReactElement {
   const params = useParams();
-  const router = useRouter();
   const { data: session } = useSession();
   const examId = params.examId as string;
   const isAdmin = ADMIN_ROLES.includes(session?.user?.role ?? "");
@@ -29,10 +28,13 @@ export default function ExamHubPage(): React.ReactElement {
     { staleTime: 5 * 60_000 },
   );
 
+  // Pattern-exam generation is queued (see /exams/start for the full
+  // polling UX). Here we just fire-and-toast — the user will find the
+  // resulting practice exam in their exam history in ~60s once the
+  // pattern-exam-generation-worker finishes.
   const generateMutation = trpc.examPattern.generatePatternExam.useMutation({
-    onSuccess: (data) => {
-      toast.success(`Generated ${data.questionCount}-question pattern exam`);
-      router.push(`/practice/${data.examId}` as "/");
+    onSuccess: () => {
+      toast.success("Pattern exam queued. It'll appear in your exam history in ~60 seconds.");
     },
     onError: (err) => {
       toast.error(err.message);

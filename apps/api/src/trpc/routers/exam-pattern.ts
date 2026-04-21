@@ -4,9 +4,7 @@ import {
   examPatterns,
   paperAnalysis,
   questions,
-  exams,
   portalDocuments,
-  userGeneratedExams,
 } from "@examforge/shared/db/schema";
 import type { ExamFingerprint } from "@examforge/shared/db/schema";
 import {
@@ -18,12 +16,14 @@ import {
   getTopicPredictionsInputSchema,
   getRepeatCandidatesInputSchema,
   getClassificationStatusInputSchema,
-  patternGeneratedExamSchema,
 } from "@examforge/shared/validators";
 import { router, protectedProcedure, adminProcedure } from "../trpc.js";
 import { addClassifyPaperJob, addAnalyzePatternJob } from "../../queues/pattern-analysis-queue.js";
-import { routeAIRequest } from "../../ai/ai-router.js";
-import { buildPatternGenerationPrompt } from "../../ai/prompts/pattern-generation.js";
+import {
+  addPatternExamGenerationJob,
+  getPatternExamGenerationJobStatus,
+} from "../../queues/pattern-exam-generation-queue.js";
+import { z } from "zod";
 
 export const examPatternRouter = router({
   // ─── Admin: Classify a single paper ───
@@ -198,13 +198,21 @@ export const examPatternRouter = router({
       };
     }),
 
-  // ─── Generate a pattern-matched exam ───
+  /**
+   * Queue a pattern-matched exam generation job and return immediately
+   * with a jobId. Formerly this did the AI call inline; that took 30-90
+   * seconds and tripped the Next.js dev proxy's socket timeout
+   * (ECONNRESET) on the first click. The UI now polls
+   * `getGeneratePatternExamStatus` for completion instead of waiting
+   * on a single long HTTP call.
+   */
   generatePatternExam: protectedProcedure
     .input(generatePatternExamInputSchema)
-    .mutation(async ({ input, ctx }) => {
-      // Load the current pattern
+    .mutation(async ({ input, ctx }): Promise<{ success: true; jobId: string }> => {
+      // Cheap pre-flight check so the UI sees the "no pattern" error
+      // instantly, not after queuing a job that's doomed to fail.
       const [pattern] = await ctx.db
-        .select()
+        .select({ id: examPatterns.id })
         .from(examPatterns)
         .where(
           and(
@@ -222,67 +230,34 @@ export const examPatternRouter = router({
         });
       }
 
-      const fingerprint = pattern.fingerprint as ExamFingerprint;
-
-      // Build and execute the generation prompt
-      const { systemPrompt, prompt } = buildPatternGenerationPrompt(fingerprint, {
-        totalQuestions: input.questionCount,
-        includeRepeats: input.includeRepeats,
-        includeCurrentAffairs: input.includeCurrentAffairs,
-        yearFocus: input.yearFocus,
-      });
-
-      const result = await routeAIRequest(
-        {
-          task: "generate_pattern_exam",
-          prompt,
-          systemPrompt,
-          schema: patternGeneratedExamSchema,
-          userId: ctx.userId,
+      try {
+        const jobId = await addPatternExamGenerationJob({
           examId: input.examId,
-          temperature: 0.7,
-        },
-        ctx.db,
-      );
-
-      // Get exam details
-      const [exam] = await ctx.db.select().from(exams).where(eq(exams.id, input.examId)).limit(1);
-
-      if (!exam) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Exam not found" });
+          userId: ctx.userId,
+          orgId: ctx.orgId ?? "",
+          questionCount: input.questionCount,
+          includeRepeats: input.includeRepeats,
+          includeCurrentAffairs: input.includeCurrentAffairs,
+          yearFocus: input.yearFocus,
+        });
+        return { success: true, jobId };
+      } catch (err) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to queue pattern-exam generation: ${err instanceof Error ? err.message : String(err)}. Is Redis running?`,
+        });
       }
+    }),
 
-      // Save as user-generated exam
-      const generatedQuestions = result.data.questions.map((q, idx) => ({
-        question: q.question,
-        options: q.options,
-        answer: q.answer,
-        explanation: q.explanation,
-        subject: q.subject,
-        difficulty: q.difficulty,
-        questionNumber: idx + 1,
-      }));
-
-      const [userExam] = await ctx.db
-        .insert(userGeneratedExams)
-        .values({
-          userId: ctx.userId,
-          examId: input.examId,
-          title: `${exam.name} — Pattern Exam`,
-          questions: generatedQuestions,
-          questionCount: generatedQuestions.length,
-          ownerType: "user",
-          ownerId: ctx.userId,
-        })
-        .returning({ id: userGeneratedExams.id });
-
-      return {
-        success: true,
-        examId: userExam!.id,
-        questionCount: generatedQuestions.length,
-        patternVersion: pattern.version,
-        papersAnalyzed: pattern.papersAnalyzed,
-      };
+  /**
+   * Poll the queue for a pattern-exam generation job. Returns null if
+   * the job id has been GC'd. On completion the `result` field carries
+   * the `userExamId` that the UI can navigate to.
+   */
+  getGeneratePatternExamStatus: protectedProcedure
+    .input(z.object({ jobId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      return await getPatternExamGenerationJobStatus(input.jobId);
     }),
 
   // ─── Topic predictions ───

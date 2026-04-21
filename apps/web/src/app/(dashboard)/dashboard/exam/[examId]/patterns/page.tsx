@@ -42,9 +42,12 @@ export default function ExamPatternsPage(): React.ReactElement {
     },
   });
 
+  // Pattern-exam generation is queued — the AI call takes 30-90s, so
+  // running it inside the mutation handler would time out at the dev
+  // proxy. The user finds the resulting exam in their exam history.
   const generateMutation = trpc.examPattern.generatePatternExam.useMutation({
-    onSuccess: (data) => {
-      toast.success(`Generated pattern exam with ${data.questionCount} questions`);
+    onSuccess: () => {
+      toast.success("Pattern exam queued — ready in ~60 seconds.");
     },
     onError: (err) => {
       toast.error(`Generation failed: ${err.message}`);

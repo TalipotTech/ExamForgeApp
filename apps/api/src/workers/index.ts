@@ -21,6 +21,8 @@ import { createVerificationWorker } from "./verification-worker.js";
 import { closeVerificationQueue } from "../queues/verification-queue.js";
 import { createTopicGenerationWorker } from "./topic-generation-worker.js";
 import { closeTopicGenerationQueue } from "../queues/topic-generation-queue.js";
+import { createPatternExamGenerationWorker } from "./pattern-exam-generation-worker.js";
+import { closePatternExamGenerationQueue } from "../queues/pattern-exam-generation-queue.js";
 
 async function main(): Promise<void> {
   console.log("[workers] Starting ExamForge workers...");
@@ -35,6 +37,7 @@ async function main(): Promise<void> {
   const universalDiscoveryWorker = createUniversalDiscoveryWorker();
   const verificationWorker = createVerificationWorker();
   const topicGenerationWorker = createTopicGenerationWorker();
+  const patternExamGenerationWorker = createPatternExamGenerationWorker();
 
   // Schedule daily note summary generation
   await scheduleNoteSummaryJob();
@@ -51,6 +54,7 @@ async function main(): Promise<void> {
     await universalDiscoveryWorker.close();
     await verificationWorker.close();
     await topicGenerationWorker.close();
+    await patternExamGenerationWorker.close();
     await closeScraperQueue();
     await closePortalIngestionQueue();
     await closePortalProcessingQueue();
@@ -61,6 +65,7 @@ async function main(): Promise<void> {
     await closeUniversalDiscoveryQueue();
     await closeVerificationQueue();
     await closeTopicGenerationQueue();
+    await closePatternExamGenerationQueue();
     console.log("[workers] Shutdown complete.");
     process.exit(0);
   };
@@ -69,7 +74,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   console.log(
-    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery + Verification + Topic Generation workers started. Waiting for jobs...",
+    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery + Verification + Topic Generation + Pattern Exam Generation workers started. Waiting for jobs...",
   );
 }
 
