@@ -18,6 +18,12 @@
  * second opinion rather than the same model agreeing with itself.
  */
 
+import {
+  VERIFICATION_REFERENCES,
+  getReferencesForCategory,
+  type VerificationCategory,
+} from "../../config/verification-references.js";
+
 export interface QuestionVerifierPromptParams {
   /** "Kerala PSC Assistant Professor Pharmacy 2026" */
   examName: string;
@@ -27,9 +33,17 @@ export interface QuestionVerifierPromptParams {
   /** Target level for difficulty appropriateness check. Freeform — e.g.
    *  "Assistant Professor", "Postgraduate", "Drug Inspector". */
   examLevel?: string;
-  /** Textbooks the verifier should cite. Defaults to the pharmacy set
-   *  from the spec — pass a different list for other subjects. */
+  /** Textbooks the verifier should cite. Explicit pass-through — wins
+   *  over `category` if both are provided. */
   referenceTextbooks?: string[];
+  /** Verification category from `verification-references.ts`. If given
+   *  (and no explicit `referenceTextbooks`), the prompt pulls the
+   *  category's primary texts and the category-specific fact-check
+   *  addendum + common-error list. */
+  category?: VerificationCategory;
+  /** Engineering branch hint (CS / EC / ME / EE / CE) used with
+   *  category = "engineering" to pick branch-specific texts. */
+  engineeringBranch?: string | null;
 
   /** The question being verified. */
   question: string;
@@ -41,14 +55,7 @@ export interface QuestionVerifierPromptParams {
   source: string;
 }
 
-const DEFAULT_PHARMACY_TEXTBOOKS = [
-  "KD Tripathi — Essentials of Medical Pharmacology",
-  "Rang & Dale — Pharmacology",
-  "Remington — The Science and Practice of Pharmacy",
-  "Lachman — Theory and Practice of Industrial Pharmacy",
-  "Indian Pharmacopoeia (current edition)",
-  "Goodman & Gilman — Pharmacological Basis of Therapeutics",
-];
+const DEFAULT_PHARMACY_TEXTBOOKS = VERIFICATION_REFERENCES.pharmacy.primaryTexts;
 
 function formatLetteredOptions(options: string[]): string {
   return options.map((opt, idx) => `${String.fromCharCode(65 + idx)}) ${opt}`).join("\n");
@@ -71,13 +78,29 @@ export function buildQuestionVerifierPrompt(params: QuestionVerifierPromptParams
     examName,
     subjectDomain,
     examLevel = "the stated exam level",
-    referenceTextbooks = DEFAULT_PHARMACY_TEXTBOOKS,
+    referenceTextbooks,
+    category,
+    engineeringBranch,
     question,
     options,
     markedAnswer,
     explanation,
     source,
   } = params;
+
+  // Resolve references in priority: explicit list > category list > pharmacy fallback.
+  const refs =
+    referenceTextbooks ??
+    (category ? getReferencesForCategory(category, engineeringBranch) : DEFAULT_PHARMACY_TEXTBOOKS);
+
+  const categoryAddendum = category
+    ? `\n\n${VERIFICATION_REFERENCES[category].factCheckPromptAddition}`
+    : "";
+  const commonErrors = category ? VERIFICATION_REFERENCES[category].commonErrors : [];
+  const commonErrorsBlock =
+    commonErrors.length > 0
+      ? `\n\nActively look for these common errors:\n${commonErrors.map((e) => `- ${e}`).join("\n")}`
+      : "";
 
   const systemPrompt = `You are a ${subjectDomain} subject-matter expert verifying MCQ questions
 for Indian competitive exams. You verify factual accuracy, answer
@@ -86,7 +109,7 @@ who does NOT rubber-stamp questions — if anything is wrong or
 ambiguous, you flag it.
 
 You reference standard textbooks:
-${referenceTextbooks.map((t) => `- ${t}`).join("\n")}
+${refs.map((t) => `- ${t}`).join("\n")}${categoryAddendum}${commonErrorsBlock}
 
 Your output MUST be valid JSON matching the schema provided.`;
 
