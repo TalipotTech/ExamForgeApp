@@ -53,10 +53,14 @@ export function getVerificationQueue(): VerificationQueue {
 
 export async function addVerifyQuestionJob(data: VerificationJobData): Promise<string> {
   const queue = getVerificationQueue();
-  const job = await queue.add(`verify:${data.questionId}`, data, {
+  // BullMQ rejects `:` in custom jobIds ("Custom Id cannot contain :")
+  // because Redis uses `:` as its key delimiter internally. Use `-`
+  // instead — the semantics (one-dedup-key per question) are the same.
+  const dedupKey = `verify-${data.questionId}`;
+  const job = await queue.add(dedupKey, data, {
     // Dedupe — if another job for the same question is already queued,
     // a later attempt will replace it.
-    jobId: `verify:${data.questionId}`,
+    jobId: dedupKey,
   });
   return job.id!;
 }
