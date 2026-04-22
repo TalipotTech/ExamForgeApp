@@ -56,6 +56,7 @@ async function resolveRevenueSharePercent(
 
 type Listing = typeof marketplaceListings.$inferSelect;
 type Profile = typeof creatorProfiles.$inferSelect;
+type PaymentOrder = typeof paymentOrders.$inferSelect;
 
 async function loadListingAndCreator(
   db: Database,
@@ -114,10 +115,7 @@ export async function createMarketplacePurchaseOrder(
     )
     .limit(1);
   if (existing) {
-    throw new TRPCError({
-      code: "CONFLICT",
-      message: "You already own this listing",
-    });
+    throw new TRPCError({ code: "CONFLICT", message: "You already own this listing" });
   }
 
   const sharePercent = await resolveRevenueSharePercent(db, creator.creatorTier);
@@ -185,58 +183,38 @@ export async function createMarketplacePurchaseOrder(
   };
 }
 
-export type VerifyPurchaseResult =
-  | { success: true; purchaseId: string; listingId: string }
-  | { success: false; reason: "INVALID_SIGNATURE" | "ORDER_NOT_FOUND" | "ALREADY_FULFILLED" };
+type FulfillOutcome =
+  | { fulfilled: true; purchaseId: string; listingId: string; alreadyPaid: boolean }
+  | { fulfilled: false; reason: "ORDER_NOT_FOUND" | "PURCHASE_NOT_FOUND" };
 
-export async function verifyAndFulfillMarketplacePurchase(
+/**
+ * Idempotent state transition: captured payment → paid purchase → wallet +
+ * earnings + counters. Callers (client verify + webhook) are responsible for
+ * authenticating the payment beforehand (either HMAC on payment_id|order_id
+ * or the Razorpay webhook HMAC over the raw body).
+ */
+async function applyPurchaseCaptured(
   db: Database,
-  buyerId: string,
-  params: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string },
-): Promise<VerifyPurchaseResult> {
-  const { keySecret } = getRazorpayCredentials();
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET ?? keySecret;
-  const expectedSignature = crypto
-    .createHmac("sha256", secret)
-    .update(`${params.razorpayOrderId}|${params.razorpayPaymentId}`)
-    .digest("hex");
-  if (expectedSignature !== params.razorpaySignature) {
-    return { success: false, reason: "INVALID_SIGNATURE" };
-  }
-
-  const [order] = await db
-    .select()
-    .from(paymentOrders)
-    .where(
-      and(
-        eq(paymentOrders.razorpayOrderId, params.razorpayOrderId),
-        eq(paymentOrders.userId, buyerId),
-        eq(paymentOrders.orderType, "marketplace_purchase"),
-      ),
-    )
-    .limit(1);
-  if (!order) {
-    return { success: false, reason: "ORDER_NOT_FOUND" };
-  }
-  if (order.status === "captured") {
-    const [existing] = await db
-      .select({ id: marketplacePurchases.id, listingId: marketplacePurchases.listingId })
-      .from(marketplacePurchases)
-      .where(eq(marketplacePurchases.paymentOrderId, order.id))
-      .limit(1);
-    if (existing) {
-      return { success: true, purchaseId: existing.id, listingId: existing.listingId };
-    }
-    return { success: false, reason: "ALREADY_FULFILLED" };
-  }
-
+  order: PaymentOrder,
+  razorpayPaymentId: string,
+  razorpaySignature?: string,
+): Promise<FulfillOutcome> {
   const [purchase] = await db
     .select()
     .from(marketplacePurchases)
     .where(eq(marketplacePurchases.paymentOrderId, order.id))
     .limit(1);
   if (!purchase) {
-    return { success: false, reason: "ORDER_NOT_FOUND" };
+    return { fulfilled: false, reason: "PURCHASE_NOT_FOUND" };
+  }
+
+  if (purchase.status === "paid") {
+    return {
+      fulfilled: true,
+      purchaseId: purchase.id,
+      listingId: purchase.listingId,
+      alreadyPaid: true,
+    };
   }
 
   const now = new Date();
@@ -246,8 +224,8 @@ export async function verifyAndFulfillMarketplacePurchase(
     .update(paymentOrders)
     .set({
       status: "captured",
-      razorpayPaymentId: params.razorpayPaymentId,
-      razorpaySignature: params.razorpaySignature,
+      razorpayPaymentId,
+      ...(razorpaySignature ? { razorpaySignature } : {}),
       updatedAt: now,
     })
     .where(eq(paymentOrders.id, order.id));
@@ -304,14 +282,169 @@ export async function verifyAndFulfillMarketplacePurchase(
     })
     .where(eq(creatorProfiles.id, purchase.creatorId));
 
-  return { success: true, purchaseId: purchase.id, listingId: purchase.listingId };
+  return {
+    fulfilled: true,
+    purchaseId: purchase.id,
+    listingId: purchase.listingId,
+    alreadyPaid: false,
+  };
+}
+
+export type VerifyPurchaseResult =
+  | { success: true; purchaseId: string; listingId: string }
+  | { success: false; reason: "INVALID_SIGNATURE" | "ORDER_NOT_FOUND" | "ALREADY_FULFILLED" };
+
+export async function verifyAndFulfillMarketplacePurchase(
+  db: Database,
+  buyerId: string,
+  params: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string },
+): Promise<VerifyPurchaseResult> {
+  const { keySecret } = getRazorpayCredentials();
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET ?? keySecret;
+  const expectedSignature = crypto
+    .createHmac("sha256", secret)
+    .update(`${params.razorpayOrderId}|${params.razorpayPaymentId}`)
+    .digest("hex");
+  if (expectedSignature !== params.razorpaySignature) {
+    return { success: false, reason: "INVALID_SIGNATURE" };
+  }
+
+  const [order] = await db
+    .select()
+    .from(paymentOrders)
+    .where(
+      and(
+        eq(paymentOrders.razorpayOrderId, params.razorpayOrderId),
+        eq(paymentOrders.userId, buyerId),
+        eq(paymentOrders.orderType, "marketplace_purchase"),
+      ),
+    )
+    .limit(1);
+  if (!order) {
+    return { success: false, reason: "ORDER_NOT_FOUND" };
+  }
+
+  const outcome = await applyPurchaseCaptured(
+    db,
+    order,
+    params.razorpayPaymentId,
+    params.razorpaySignature,
+  );
+  if (!outcome.fulfilled) {
+    return { success: false, reason: "ORDER_NOT_FOUND" };
+  }
+  return { success: true, purchaseId: outcome.purchaseId, listingId: outcome.listingId };
+}
+
+export type WebhookOutcome =
+  | { handled: true; action: "fulfilled" | "already_fulfilled" | "failed_recorded" | "ignored" }
+  | { handled: false; reason: "ORDER_NOT_FOUND" | "MISSING_FIELDS" };
+
+/**
+ * Handles Razorpay webhook events relevant to marketplace orders. The caller
+ * MUST have verified the x-razorpay-signature header over the raw body before
+ * invoking this — we don't re-verify here.
+ *
+ * Supported events:
+ *   - payment.captured  → mark purchase paid (idempotent)
+ *   - order.paid        → mark purchase paid (idempotent)
+ *   - payment.failed    → annotate paymentOrders.errorMessage, leave purchase pending
+ *   - subscription.*    → ignored here (handled by payment-service.handleWebhook)
+ */
+export async function handleMarketplaceWebhook(
+  db: Database,
+  event: string,
+  payload: Record<string, unknown>,
+): Promise<WebhookOutcome> {
+  if (event === "payment.captured" || event === "order.paid") {
+    const razorpayOrderId = extractOrderId(event, payload);
+    const razorpayPaymentId = extractPaymentId(event, payload);
+    if (!razorpayOrderId || !razorpayPaymentId) {
+      return { handled: false, reason: "MISSING_FIELDS" };
+    }
+
+    const [order] = await db
+      .select()
+      .from(paymentOrders)
+      .where(
+        and(
+          eq(paymentOrders.razorpayOrderId, razorpayOrderId),
+          eq(paymentOrders.orderType, "marketplace_purchase"),
+        ),
+      )
+      .limit(1);
+    if (!order) {
+      return { handled: false, reason: "ORDER_NOT_FOUND" };
+    }
+
+    const outcome = await applyPurchaseCaptured(db, order, razorpayPaymentId);
+    if (!outcome.fulfilled) {
+      return { handled: false, reason: "ORDER_NOT_FOUND" };
+    }
+    return {
+      handled: true,
+      action: outcome.alreadyPaid ? "already_fulfilled" : "fulfilled",
+    };
+  }
+
+  if (event === "payment.failed") {
+    const razorpayOrderId = extractOrderId(event, payload);
+    if (!razorpayOrderId) {
+      return { handled: false, reason: "MISSING_FIELDS" };
+    }
+    const paymentEntity = (payload.payment as { entity?: Record<string, unknown> } | undefined)
+      ?.entity;
+    const errorDescription =
+      (paymentEntity?.error_description as string | undefined) ?? "Payment failed";
+
+    await db
+      .update(paymentOrders)
+      .set({ status: "failed", errorMessage: errorDescription, updatedAt: new Date() })
+      .where(
+        and(
+          eq(paymentOrders.razorpayOrderId, razorpayOrderId),
+          eq(paymentOrders.orderType, "marketplace_purchase"),
+        ),
+      );
+    return { handled: true, action: "failed_recorded" };
+  }
+
+  return { handled: true, action: "ignored" };
+}
+
+function extractPaymentEntity(payload: Record<string, unknown>): Record<string, unknown> | null {
+  const payment = payload.payment as { entity?: Record<string, unknown> } | undefined;
+  return payment?.entity ?? null;
+}
+
+function extractOrderEntity(payload: Record<string, unknown>): Record<string, unknown> | null {
+  const order = payload.order as { entity?: Record<string, unknown> } | undefined;
+  return order?.entity ?? null;
+}
+
+function extractOrderId(event: string, payload: Record<string, unknown>): string | null {
+  if (event === "order.paid") {
+    const entity = extractOrderEntity(payload);
+    return (entity?.id as string | undefined) ?? null;
+  }
+  const entity = extractPaymentEntity(payload);
+  return (entity?.order_id as string | undefined) ?? null;
+}
+
+function extractPaymentId(event: string, payload: Record<string, unknown>): string | null {
+  if (event === "order.paid") {
+    // order.paid includes a payment entity alongside the order
+    const payment = extractPaymentEntity(payload);
+    return (payment?.id as string | undefined) ?? null;
+  }
+  const entity = extractPaymentEntity(payload);
+  return (entity?.id as string | undefined) ?? null;
 }
 
 /**
- * Move all `pending` creator_earnings past their cooldown into `available`, and
- * reflect that by moving funds from wallet.pendingInr → balanceInr.
- * Intended to be called by a daily cron/worker. Kept here (not a worker yet)
- * so Phase B can stay backend-only and a simple admin action or cron can call it.
+ * Move all `pending` creator_earnings past their cooldown into `available`,
+ * and reflect that by moving funds from wallet.pendingInr → balanceInr.
+ * Invoked by the earnings-settlement worker on a daily cron.
  */
 export async function settleMatureEarnings(db: Database): Promise<{ settledCount: number }> {
   const now = new Date();
