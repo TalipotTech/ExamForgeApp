@@ -1,5 +1,5 @@
 {
-  "id": "fe750715-ad09-4a2a-82a7-b75eb516b9fd",
+  "id": "61f69518-fdb5-45b9-ae3f-806c211948e8",
   "prevId": "1ffbda8f-3aa5-4fe7-ab48-aba7a280b7e0",
   "version": "7",
   "dialect": "postgresql",
@@ -1883,13 +1883,13 @@
         },
         "syllabus_id": {
           "name": "syllabus_id",
-          "type": "uuid",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
         "syllabus_node_id": {
           "name": "syllabus_node_id",
-          "type": "uuid",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
@@ -3257,7 +3257,7 @@
         },
         "syllabus_node_id": {
           "name": "syllabus_node_id",
-          "type": "uuid",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },

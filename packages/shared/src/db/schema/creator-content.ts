@@ -1,6 +1,7 @@
 import {
   pgTable,
   uuid,
+  bigint,
   varchar,
   text,
   jsonb,
@@ -41,8 +42,10 @@ export const creatorContent = pgTable(
     durationSeconds: integer("duration_seconds"),
 
     examId: uuid("exam_id").references(() => exams.id),
-    syllabusId: uuid("syllabus_id").references(() => syllabi.id),
-    syllabusNodeId: uuid("syllabus_node_id").references(() => syllabusNodes.id),
+    syllabusId: bigint("syllabus_id", { mode: "number" }).references(() => syllabi.id),
+    syllabusNodeId: bigint("syllabus_node_id", { mode: "number" }).references(
+      () => syllabusNodes.id,
+    ),
     subject: varchar("subject", { length: 255 }),
     topic: varchar("topic", { length: 255 }),
 

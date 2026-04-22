@@ -1,6 +1,7 @@
 import {
   pgTable,
   uuid,
+  bigint,
   varchar,
   text,
   jsonb,
@@ -28,7 +29,9 @@ export const doubts = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     creatorId: uuid("creator_id").references(() => users.id),
     contentId: uuid("content_id").references(() => creatorContent.id),
-    syllabusNodeId: uuid("syllabus_node_id").references(() => syllabusNodes.id),
+    syllabusNodeId: bigint("syllabus_node_id", { mode: "number" }).references(
+      () => syllabusNodes.id,
+    ),
     classroomId: uuid("classroom_id").references(() => classrooms.id),
 
     questionText: text("question_text").notNull(),

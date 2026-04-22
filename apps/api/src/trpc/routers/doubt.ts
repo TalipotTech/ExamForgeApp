@@ -24,7 +24,7 @@ export const doubtRouter = router({
         creatorId: z.string().uuid().optional(),
         contentId: z.string().uuid().optional(),
         classroomId: z.string().uuid().optional(),
-        syllabusNodeId: z.string().uuid().optional(),
+        syllabusNodeId: z.number().int().positive().optional(),
         isPublic: z.boolean().default(true),
       }),
     )
