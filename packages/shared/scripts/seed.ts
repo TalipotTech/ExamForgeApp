@@ -2,6 +2,7 @@ import { config } from "dotenv";
 config({ path: "../../.env.local" });
 
 import bcrypt from "bcryptjs";
+import { eq } from "drizzle-orm";
 import { createDatabase } from "../src/db/index";
 import {
   organizations,
@@ -179,13 +180,28 @@ async function seed(): Promise<void> {
       orgId: ORG_ID,
       authProvider: "credentials",
       emailVerified: new Date(),
+      phoneVerified: new Date(),
       isActive: true,
       isBanned: false,
       loginCount: 0,
+      unverifiedLoginCount: 0,
       signupSource: "seed",
       onboardingCompleted: true,
     })
     .onConflictDoNothing();
+  // Reset verification state on re-seed so a previously-locked seed user
+  // becomes usable again (onConflictDoNothing above leaves existing rows
+  // untouched, so this update is the escape hatch for dev loops).
+  await db
+    .update(users)
+    .set({
+      phoneVerified: new Date(),
+      emailVerified: new Date(),
+      unverifiedLoginCount: 0,
+      isActive: true,
+      isBanned: false,
+    })
+    .where(eq(users.id, STUDENT_ID));
 
   console.log("  Creating test creator user + profile...");
   const creatorPasswordHash = await bcrypt.hash("creator123", 12);
@@ -202,13 +218,26 @@ async function seed(): Promise<void> {
       orgId: ORG_ID,
       authProvider: "credentials",
       emailVerified: new Date(),
+      phoneVerified: new Date(),
       isActive: true,
       isBanned: false,
       loginCount: 0,
+      unverifiedLoginCount: 0,
       signupSource: "seed",
       onboardingCompleted: true,
     })
     .onConflictDoNothing();
+  // Reset verification state on re-seed (see note above).
+  await db
+    .update(users)
+    .set({
+      phoneVerified: new Date(),
+      emailVerified: new Date(),
+      unverifiedLoginCount: 0,
+      isActive: true,
+      isBanned: false,
+    })
+    .where(eq(users.id, CREATOR_ID));
   await db
     .insert(creatorProfiles)
     .values({
