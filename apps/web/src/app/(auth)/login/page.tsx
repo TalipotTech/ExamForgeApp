@@ -245,6 +245,34 @@ function LoginForm(): React.ReactElement {
     await signIn("google", { callbackUrl });
   }
 
+  // Dev-only: one-click sign-in for seeded demo users.
+  async function handleDemoLogin(
+    demoIdentifier: string,
+    demoPassword: string,
+    demoCallback: string,
+  ): Promise<void> {
+    setErrorCode(null);
+    setLoading(true);
+    try {
+      const result = await signIn("credentials", {
+        identifier: demoIdentifier,
+        password: demoPassword,
+        loginMethod: "password",
+        redirect: false,
+      });
+      if (result?.error) {
+        setErrorCode("LOGIN_FAILED");
+        setLoading(false);
+        return;
+      }
+      router.push(demoCallback as "/");
+      router.refresh();
+    } catch {
+      setErrorCode("LOGIN_FAILED");
+      setLoading(false);
+    }
+  }
+
   // Build available tabs
   const tabs: { value: LoginMethod; label: string }[] = [{ value: "password", label: "Password" }];
   if (flags?.otpLoginEnabled) tabs.push({ value: "otp", label: "OTP" });
@@ -557,6 +585,45 @@ function LoginForm(): React.ReactElement {
               Continue with Google
             </Button>
           </>
+        )}
+
+        {process.env.NODE_ENV !== "production" && (
+          <div className="mt-4 space-y-2">
+            <div className="text-muted-foreground text-center text-[10px] uppercase tracking-wider">
+              Dev demo accounts
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={loading}
+                onClick={() => handleDemoLogin("admin@examforge.dev", "password123", "/admin")}
+              >
+                Admin
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={loading}
+                onClick={() => handleDemoLogin("student@examforge.dev", "student123", "/dashboard")}
+              >
+                Student
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={loading}
+                onClick={() =>
+                  handleDemoLogin("creator@examforge.dev", "creator123", "/dashboard/creator")
+                }
+              >
+                Creator
+              </Button>
+            </div>
+          </div>
         )}
 
         <p className="text-muted-foreground mt-4 text-center text-sm">

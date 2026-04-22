@@ -14,6 +14,7 @@ import {
   userSubscriptions,
   userCredits,
   adminFeatureFlags,
+  creatorProfiles,
 } from "../src/db/schema/index";
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -27,6 +28,8 @@ const db = createDatabase(DATABASE_URL);
 const ORG_ID = "a0000000-0000-0000-0000-000000000001";
 const ADMIN_ID = "b0000000-0000-0000-0000-000000000001";
 const STUDENT_ID = "b0000000-0000-0000-0000-000000000002";
+const CREATOR_ID = "b0000000-0000-0000-0000-000000000003";
+const CREATOR_PROFILE_ID = "f0000000-0000-0000-0000-000000000001";
 const PLAN_IDS = {
   free: "e0000000-0000-0000-0000-000000000001",
   pro: "e0000000-0000-0000-0000-000000000002",
@@ -180,6 +183,43 @@ async function seed(): Promise<void> {
       isBanned: false,
       loginCount: 0,
       signupSource: "seed",
+      onboardingCompleted: true,
+    })
+    .onConflictDoNothing();
+
+  console.log("  Creating test creator user + profile...");
+  const creatorPasswordHash = await bcrypt.hash("creator123", 12);
+  await db
+    .insert(users)
+    .values({
+      id: CREATOR_ID,
+      name: "Test Creator",
+      email: "creator@examforge.dev",
+      username: "testcreator",
+      phone: "+919999999997",
+      passwordHash: creatorPasswordHash,
+      role: "student",
+      orgId: ORG_ID,
+      authProvider: "credentials",
+      emailVerified: new Date(),
+      isActive: true,
+      isBanned: false,
+      loginCount: 0,
+      signupSource: "seed",
+      onboardingCompleted: true,
+    })
+    .onConflictDoNothing();
+  await db
+    .insert(creatorProfiles)
+    .values({
+      id: CREATOR_PROFILE_ID,
+      userId: CREATOR_ID,
+      displayName: "Test Creator",
+      bio: "Seeded demo creator for end-to-end testing of the marketplace flow.",
+      institutionType: "independent",
+      qualification: "M.Pharm, GPAT topper",
+      verificationStatus: "unverified",
+      creatorTier: "free",
     })
     .onConflictDoNothing();
 
@@ -199,6 +239,13 @@ async function seed(): Promise<void> {
         currentPeriodStart: periodStart,
         currentPeriodEnd: periodEnd,
       },
+      {
+        userId: CREATOR_ID,
+        planId: PLAN_IDS.free,
+        status: "active",
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+      },
     ])
     .onConflictDoNothing();
 
@@ -208,6 +255,13 @@ async function seed(): Promise<void> {
     .values([
       {
         userId: STUDENT_ID,
+        periodStart: periodStart.toISOString().split("T")[0],
+        periodEnd: periodEnd.toISOString().split("T")[0],
+        creditsTotal: 50,
+        creditsUsed: 0,
+      },
+      {
+        userId: CREATOR_ID,
         periodStart: periodStart.toISOString().split("T")[0],
         periodEnd: periodEnd.toISOString().split("T")[0],
         creditsTotal: 50,
@@ -981,6 +1035,7 @@ async function seed(): Promise<void> {
   console.log("──────────────────────────────────────");
   console.log("  Admin:    admin@examforge.dev / password123");
   console.log("  Student:  student@examforge.dev / student123");
+  console.log("  Creator:  creator@examforge.dev / creator123");
   console.log("  Exams:    10 seeded");
   console.log("  Sources:  3 seeded");
   console.log("  Plans:    3 seeded (free, pro, premium)");
