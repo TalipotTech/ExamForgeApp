@@ -156,7 +156,7 @@ export default function MarketplacePage(): React.ReactElement {
           {listings.map((listing) => (
             <Link
               key={listing.id}
-              href={`/dashboard/marketplace/${listing.slug ?? listing.id}`}
+              href={`/marketplace/${listing.slug ?? listing.id}`}
               className="block"
             >
               <Card className="h-full transition-shadow hover:shadow-md">
@@ -200,7 +200,7 @@ export default function MarketplacePage(): React.ReactElement {
 
       <div className="flex justify-end">
         <Button variant="outline" asChild>
-          <Link href="/dashboard/creator">Become a creator</Link>
+          <Link href="/creator">Become a creator</Link>
         </Button>
       </div>
     </div>

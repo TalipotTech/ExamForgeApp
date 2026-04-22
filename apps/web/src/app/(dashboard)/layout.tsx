@@ -101,16 +101,17 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/learn", label: "Learn", icon: Library, group: "content" },
   { href: "/dashboard/find", label: "Find", icon: Search, adminOnly: true, group: "content" },
   { href: "/dashboard/saved", label: "Saved", icon: Bookmark, adminOnly: true, group: "content" },
-  // Creators ecosystem (only when master flag is on)
+  // Creators ecosystem (only when master flag is on).
+  // Marketplace is public, Creator Hub has its own /creator/* layout.
   {
-    href: "/dashboard/marketplace",
+    href: "/marketplace",
     label: "Marketplace",
     icon: Store,
     requiresCreators: true,
     group: "creators",
   },
   {
-    href: "/dashboard/creator",
+    href: "/creator",
     label: "Creator Hub",
     icon: Sparkles,
     requiresCreators: true,
@@ -137,8 +138,9 @@ const STUDENT_NAV: NavItem[] = [
   { href: "/dashboard/topics", label: "My Topics", icon: BookMarked },
   { href: "/dashboard/ai-chat", label: "AI Chat", icon: MessageSquare },
   // { href: "/dashboard/voice-exam", label: "Voice Tutor", icon: Mic }, // TODO: re-enable after polish
+  // Creators ecosystem — marketplace is public, creator hub lives at /creator/*
   {
-    href: "/dashboard/marketplace",
+    href: "/marketplace",
     label: "Marketplace",
     icon: Store,
     requiresCreators: true,
@@ -152,7 +154,7 @@ const STUDENT_NAV: NavItem[] = [
     group: "creators",
   },
   {
-    href: "/dashboard/creator",
+    href: "/creator",
     label: "Creator Hub",
     icon: Sparkles,
     requiresCreators: true,

@@ -616,9 +616,7 @@ function LoginForm(): React.ReactElement {
                 variant="secondary"
                 size="sm"
                 disabled={loading}
-                onClick={() =>
-                  handleDemoLogin("creator@examforge.dev", "creator123", "/dashboard/creator")
-                }
+                onClick={() => handleDemoLogin("creator@examforge.dev", "creator123", "/creator")}
               >
                 Creator
               </Button>

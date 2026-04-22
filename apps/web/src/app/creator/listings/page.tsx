@@ -37,7 +37,7 @@ export default function CreatorListingsPage(): React.ReactElement {
       <div className="flex items-center justify-between">
         <div>
           <Button variant="ghost" size="sm" asChild className="-ml-3">
-            <Link href="/dashboard/creator">
+            <Link href="/creator">
               <ArrowLeft className="mr-1 size-4" />
               Creator Hub
             </Link>
@@ -45,7 +45,7 @@ export default function CreatorListingsPage(): React.ReactElement {
           <h1 className="text-2xl font-bold">My Listings</h1>
         </div>
         <Button asChild>
-          <Link href="/dashboard/creator/listings/new">
+          <Link href="/creator/listings/new">
             <Plus className="mr-1 size-4" />
             New listing
           </Link>
@@ -79,7 +79,7 @@ export default function CreatorListingsPage(): React.ReactElement {
               Create your first listing to start earning from your content.
             </p>
             <Button asChild>
-              <Link href="/dashboard/creator/listings/new">
+              <Link href="/creator/listings/new">
                 <Plus className="mr-1 size-4" />
                 New listing
               </Link>
@@ -141,7 +141,7 @@ export default function CreatorListingsPage(): React.ReactElement {
                 )}
                 {listing.slug && (
                   <Button size="sm" variant="ghost" asChild>
-                    <Link href={`/dashboard/marketplace/${listing.slug}`}>View</Link>
+                    <Link href={`/marketplace/${listing.slug}`}>View</Link>
                   </Button>
                 )}
               </div>

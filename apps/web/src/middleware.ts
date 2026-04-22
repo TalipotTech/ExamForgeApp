@@ -48,6 +48,8 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     pathname.startsWith("/exams") ||
     pathname.startsWith("/examinations") ||
     pathname.startsWith("/topics") ||
+    pathname.startsWith("/marketplace") ||
+    pathname.startsWith("/creators") ||
     pathname.startsWith("/_next");
 
   if (isPublic) return NextResponse.next();

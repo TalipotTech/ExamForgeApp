@@ -43,7 +43,7 @@ export default function NewListingPage(): React.ReactElement {
   const createMutation = trpc.marketplace.createListing.useMutation({
     onSuccess: (data) => {
       toast.success("Draft listing created. Publish it from My Listings when ready.");
-      router.push(`/dashboard/creator/listings`);
+      router.push(`/creator/listings`);
       void data;
     },
     onError: (err) => toast.error(err.message),
@@ -80,7 +80,7 @@ export default function NewListingPage(): React.ReactElement {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <Button variant="ghost" size="sm" asChild className="-ml-3">
-        <Link href="/dashboard/creator/listings">
+        <Link href="/creator/listings">
           <ArrowLeft className="mr-1 size-4" />
           My Listings
         </Link>
@@ -216,7 +216,7 @@ export default function NewListingPage(): React.ReactElement {
                 {createMutation.isPending ? "Creating…" : "Create draft"}
               </Button>
               <Button type="button" variant="outline" asChild>
-                <Link href="/dashboard/creator/listings">Cancel</Link>
+                <Link href="/creator/listings">Cancel</Link>
               </Button>
             </div>
           </form>

@@ -229,7 +229,7 @@ export default function CreatorHubPage(): React.ReactElement {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Button variant="outline" className="h-auto justify-between px-4 py-4" asChild>
-          <Link href="/dashboard/creator/listings">
+          <Link href="/creator/listings">
             <span className="flex flex-col items-start">
               <span className="font-semibold">My Listings</span>
               <span className="text-muted-foreground text-xs">
@@ -240,7 +240,7 @@ export default function CreatorHubPage(): React.ReactElement {
           </Link>
         </Button>
         <Button variant="outline" className="h-auto justify-between px-4 py-4" asChild>
-          <Link href="/dashboard/creator/listings/new">
+          <Link href="/creator/listings/new">
             <span className="flex flex-col items-start">
               <span className="font-semibold">New Listing</span>
               <span className="text-muted-foreground text-xs">
@@ -251,7 +251,7 @@ export default function CreatorHubPage(): React.ReactElement {
           </Link>
         </Button>
         <Button variant="outline" className="h-auto justify-between px-4 py-4" asChild>
-          <Link href="/dashboard/creator/wallet">
+          <Link href="/creator/wallet">
             <span className="flex flex-col items-start">
               <span className="font-semibold">Wallet</span>
               <span className="text-muted-foreground text-xs">

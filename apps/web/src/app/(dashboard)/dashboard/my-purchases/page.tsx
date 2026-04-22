@@ -57,7 +57,7 @@ export default function MyPurchasesPage(): React.ReactElement {
             <Package className="text-muted-foreground size-8" />
             <p className="font-medium">No purchases yet.</p>
             <Button asChild>
-              <Link href="/dashboard/marketplace">Browse the marketplace</Link>
+              <Link href="/marketplace">Browse the marketplace</Link>
             </Button>
           </CardContent>
         </Card>
@@ -81,7 +81,7 @@ export default function MyPurchasesPage(): React.ReactElement {
                   </Badge>
                 </div>
                 <Button size="sm" variant="ghost" asChild>
-                  <Link href={`/dashboard/marketplace/${purchase.listingId}`}>View</Link>
+                  <Link href={`/marketplace/${purchase.listingId}`}>View</Link>
                 </Button>
               </CardContent>
             </Card>

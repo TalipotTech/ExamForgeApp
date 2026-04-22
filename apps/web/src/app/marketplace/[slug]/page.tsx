@@ -60,7 +60,7 @@ export default function MarketplaceListingPage(props: {
         <Card>
           <CardContent className="py-6 text-center text-sm">
             Listing not found.{" "}
-            <Link className="underline" href="/dashboard/marketplace">
+            <Link className="underline" href="/marketplace">
               Back to marketplace
             </Link>
           </CardContent>
@@ -74,7 +74,7 @@ export default function MarketplaceListingPage(props: {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <Button variant="ghost" size="sm" asChild>
-        <Link href="/dashboard/marketplace">
+        <Link href="/marketplace">
           <ArrowLeft className="mr-1 size-4" />
           Back to marketplace
         </Link>

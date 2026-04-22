@@ -79,7 +79,7 @@ export default function CreatorWalletPage(): React.ReactElement {
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <Button variant="ghost" size="sm" asChild className="-ml-3">
-          <Link href="/dashboard/creator">
+          <Link href="/creator">
             <ArrowLeft className="mr-1 size-4" />
             Creator Hub
           </Link>
