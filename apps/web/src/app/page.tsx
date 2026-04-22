@@ -73,6 +73,12 @@ export default function HomePage(): React.ReactElement {
             >
               Exams
             </Link>
+            <Link
+              href="/marketplace"
+              className="text-foreground/80 hover:text-foreground text-sm transition-colors"
+            >
+              Marketplace
+            </Link>
             <Link href="/login">
               <Button variant="outline" size="sm">
                 Sign in
