@@ -29,6 +29,7 @@ import { liveSessionRouter } from "./routers/live-session.js";
 import { marketplaceRouter } from "./routers/marketplace.js";
 import { creatorEarningsRouter } from "./routers/creator-earnings.js";
 import { promotionRouter } from "./routers/promotion.js";
+import { contentRatingRouter } from "./routers/content-rating.js";
 
 export const appRouter = router({
   health: healthRouter,
@@ -61,6 +62,7 @@ export const appRouter = router({
   marketplace: marketplaceRouter,
   creatorEarnings: creatorEarningsRouter,
   promotion: promotionRouter,
+  contentRating: contentRatingRouter,
 });
 
 export type AppRouter = typeof appRouter;

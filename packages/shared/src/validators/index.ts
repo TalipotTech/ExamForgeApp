@@ -377,6 +377,31 @@ export type {
   RunExamValidationInput,
 } from "./discovery";
 
+// ─── Creators Ecosystem — Marketplace ───────────────────
+
+export {
+  marketplaceListingTypeSchema,
+  marketplaceListingStatusSchema,
+  createMarketplaceListingSchema,
+  updateMarketplaceListingSchema,
+  marketplaceBrowseFilterSchema,
+  createPurchaseOrderSchema,
+  verifyPurchaseSchema,
+  rateListingSchema,
+  requestPayoutSchema,
+} from "./marketplace";
+export type {
+  MarketplaceListingType,
+  MarketplaceListingStatus,
+  CreateMarketplaceListing,
+  UpdateMarketplaceListing,
+  MarketplaceBrowseFilter,
+  CreatePurchaseOrderInput,
+  VerifyPurchaseInput,
+  RateListingInput,
+  RequestPayoutInput,
+} from "./marketplace";
+
 // ─── Question verification pipeline ─────────────────────
 
 export {
