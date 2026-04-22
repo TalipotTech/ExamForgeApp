@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "turbo dev",
+    "dev:clean": "node -e \"const fs=require('fs');for(const d of ['apps/web/.next','apps/web/.turbo','.turbo']){fs.rmSync(d,{recursive:true,force:true})}\" && turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "lint:fix": "turbo lint -- --fix",
