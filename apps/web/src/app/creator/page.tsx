@@ -227,7 +227,7 @@ export default function CreatorHubPage(): React.ReactElement {
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Button variant="outline" className="h-auto justify-between px-4 py-4" asChild>
           <Link href="/creator/listings">
             <span className="flex flex-col items-start">
@@ -246,6 +246,26 @@ export default function CreatorHubPage(): React.ReactElement {
               <span className="text-muted-foreground text-xs">
                 Publish a question set or tutorial
               </span>
+            </span>
+            <ArrowRight className="size-4" />
+          </Link>
+        </Button>
+        <Button variant="outline" className="h-auto justify-between px-4 py-4" asChild>
+          <Link href="/creator/classrooms">
+            <span className="flex flex-col items-start">
+              <span className="font-semibold">Classrooms</span>
+              <span className="text-muted-foreground text-xs">
+                Cohorts of students, assigned content
+              </span>
+            </span>
+            <ArrowRight className="size-4" />
+          </Link>
+        </Button>
+        <Button variant="outline" className="h-auto justify-between px-4 py-4" asChild>
+          <Link href="/creator/doubts">
+            <span className="flex flex-col items-start">
+              <span className="font-semibold">Doubt Inbox</span>
+              <span className="text-muted-foreground text-xs">Answer student questions</span>
             </span>
             <ArrowRight className="size-4" />
           </Link>

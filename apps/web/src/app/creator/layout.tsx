@@ -23,6 +23,8 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  GraduationCap,
+  Inbox,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -39,6 +41,8 @@ type NavItem = {
 const CREATOR_NAV: NavItem[] = [
   { href: "/creator", label: "Overview", icon: Sparkles },
   { href: "/creator/listings", label: "Listings", icon: LayoutGrid },
+  { href: "/creator/classrooms", label: "Classrooms", icon: GraduationCap },
+  { href: "/creator/doubts", label: "Doubt Inbox", icon: Inbox },
   { href: "/creator/wallet", label: "Wallet", icon: Wallet },
 ];
 

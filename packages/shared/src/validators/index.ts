@@ -377,6 +377,50 @@ export type {
   RunExamValidationInput,
 } from "./discovery";
 
+// ─── Creators Ecosystem — Classrooms ────────────────────
+
+export {
+  billingCycleSchema,
+  classroomSettingsSchema,
+  classroomScheduleSchema,
+  createClassroomSchema,
+  updateClassroomSchema,
+  classroomIdInputSchema,
+  joinClassroomByCodeSchema,
+  assignContentToClassroomSchema,
+  removeMemberSchema,
+} from "./classroom";
+export type {
+  BillingCycle,
+  ClassroomSettingsInput,
+  ClassroomScheduleInput,
+  CreateClassroomInput,
+  UpdateClassroomInput,
+  ClassroomIdInput,
+  JoinClassroomByCodeInput,
+  AssignContentToClassroomInput,
+  RemoveMemberInput,
+} from "./classroom";
+
+// ─── Creators Ecosystem — Doubts ────────────────────────
+
+export {
+  doubtStatusSchema,
+  askDoubtSchema,
+  respondToDoubtSchema,
+  doubtIdInputSchema,
+  classroomDoubtsInputSchema,
+  myDoubtsInputSchema,
+} from "./doubt";
+export type {
+  DoubtStatus,
+  AskDoubtInput,
+  RespondToDoubtInput,
+  DoubtIdInput,
+  ClassroomDoubtsInput,
+  MyDoubtsInput,
+} from "./doubt";
+
 // ─── Creators Ecosystem — Marketplace ───────────────────
 
 export {
