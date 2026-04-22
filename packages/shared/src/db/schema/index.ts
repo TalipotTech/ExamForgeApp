@@ -68,3 +68,30 @@ export type {
 } from "./exam-patterns";
 export { paperAnalysis } from "./paper-analysis";
 export type { RepeatedFromEntry } from "./paper-analysis";
+
+// Creators Ecosystem (Phase A foundation — gated by creators.enabled flag)
+export { creatorProfiles } from "./creator-profiles";
+export type { CreatorKycDetails, CreatorBankDetails, CreatorSocialLinks } from "./creator-profiles";
+export { fileUploads } from "./file-uploads";
+export type { ProcessedVariants } from "./file-uploads";
+export { creatorContent } from "./creator-content";
+export { classrooms } from "./classrooms";
+export type { ClassroomSettings, ClassroomSchedule } from "./classrooms";
+export { classroomMembers } from "./classroom-members";
+export { classroomAssignments } from "./classroom-assignments";
+export type { ExamSessionConfig } from "./classroom-assignments";
+export { assignmentSubmissions } from "./assignment-submissions";
+export { doubts } from "./doubts";
+export type { DoubtImage } from "./doubts";
+export { doubtResponses } from "./doubt-responses";
+export { liveSessions } from "./live-sessions";
+export { liveSessionAttendees } from "./live-session-attendees";
+export { creatorFollowers } from "./creator-followers";
+export { contentViews } from "./content-views";
+export { marketplaceListings } from "./marketplace-listings";
+export { marketplacePurchases } from "./marketplace-purchases";
+export { creatorWallets } from "./creator-wallets";
+export { creatorEarnings } from "./creator-earnings";
+export { contentRatings } from "./content-ratings";
+export { subscriptionPool } from "./subscription-pool";
+export { promotions } from "./promotions";

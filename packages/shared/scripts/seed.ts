@@ -368,6 +368,134 @@ async function seed(): Promise<void> {
         category: "feature",
         description: "Show maintenance page to non-admins",
       },
+      // Creators Ecosystem (Phase A — all disabled at launch, enable progressively)
+      {
+        key: "creators.enabled",
+        value: false,
+        category: "creators",
+        description: "Master switch for the creators ecosystem",
+      },
+      {
+        key: "creators.registration_open",
+        value: false,
+        category: "creators",
+        description: "Allow users to register as creators",
+      },
+      {
+        key: "creators.marketplace_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable paid content marketplace",
+      },
+      {
+        key: "creators.classrooms_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable classroom creation and enrolment",
+      },
+      {
+        key: "creators.live_sessions_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable scheduling and joining live sessions",
+      },
+      {
+        key: "creators.video_upload_enabled",
+        value: false,
+        category: "creators",
+        description: "Allow creators to upload video lessons",
+      },
+      {
+        key: "creators.audio_upload_enabled",
+        value: false,
+        category: "creators",
+        description: "Allow creators to upload audio lessons",
+      },
+      {
+        key: "creators.ocr_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable handwritten-note OCR ingestion",
+      },
+      {
+        key: "creators.promotions_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable paid promotions/featured placements",
+      },
+      {
+        key: "creators.doubts_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable student doubt submission and responses",
+      },
+      {
+        key: "creators.ai_tutor_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable creator-branded AI tutor (RAG on creator content)",
+      },
+      {
+        key: "creators.paid_classrooms_enabled",
+        value: false,
+        category: "creators",
+        description: "Allow classrooms to charge recurring fees",
+      },
+      {
+        key: "creators.revenue_share_verified",
+        value: 70,
+        category: "creators",
+        description: "Verified creator revenue share percentage",
+      },
+      {
+        key: "creators.revenue_share_premium",
+        value: 80,
+        category: "creators",
+        description: "Premium/institute creator revenue share percentage",
+      },
+      {
+        key: "creators.subscription_pool_percent",
+        value: 20,
+        category: "creators",
+        description:
+          "Percent of subscription revenue that flows into the free-content creator pool",
+      },
+      {
+        key: "creators.classroom_platform_fee_percent",
+        value: 15,
+        category: "creators",
+        description: "Platform cut on paid classroom fees",
+      },
+      {
+        key: "creators.min_payout_inr",
+        value: 500,
+        category: "creators",
+        description: "Minimum creator wallet balance eligible for payout",
+      },
+      {
+        key: "creators.max_video_size_mb",
+        value: 2048,
+        category: "creators",
+        description: "Maximum creator video upload size in MB",
+      },
+      {
+        key: "creators.max_audio_size_mb",
+        value: 500,
+        category: "creators",
+        description: "Maximum creator audio upload size in MB",
+      },
+      {
+        key: "creators.kyc_required_for_payout",
+        value: true,
+        category: "creators",
+        description: "Require completed KYC before first payout",
+      },
+      {
+        key: "creators.auto_publish_threshold",
+        value: 0.75,
+        category: "creators",
+        description: "AI quality score threshold for auto-publishing without manual review",
+      },
     ])
     .onConflictDoNothing();
 
@@ -856,7 +984,7 @@ async function seed(): Promise<void> {
   console.log("  Exams:    10 seeded");
   console.log("  Sources:  3 seeded");
   console.log("  Plans:    3 seeded (free, pro, premium)");
-  console.log("  Flags:    24 seeded");
+  console.log("  Flags:    45 seeded");
   console.log("──────────────────────────────────────");
 
   process.exit(0);

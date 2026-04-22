@@ -21,6 +21,14 @@ import { voiceTutorRouter } from "./routers/voice-tutor.js";
 import { examPatternRouter } from "./routers/exam-pattern.js";
 import { questionVerificationRouter } from "./routers/question-verification.js";
 import { topicGenerationRouter } from "./routers/topic-generation.js";
+import { creatorRouter } from "./routers/creator.js";
+import { creatorContentRouter } from "./routers/creator-content.js";
+import { classroomRouter } from "./routers/classroom.js";
+import { doubtRouter } from "./routers/doubt.js";
+import { liveSessionRouter } from "./routers/live-session.js";
+import { marketplaceRouter } from "./routers/marketplace.js";
+import { creatorEarningsRouter } from "./routers/creator-earnings.js";
+import { promotionRouter } from "./routers/promotion.js";
 
 export const appRouter = router({
   health: healthRouter,
@@ -45,6 +53,14 @@ export const appRouter = router({
   examPattern: examPatternRouter,
   questionVerification: questionVerificationRouter,
   topicGeneration: topicGenerationRouter,
+  creator: creatorRouter,
+  creatorContent: creatorContentRouter,
+  classroom: classroomRouter,
+  doubt: doubtRouter,
+  liveSession: liveSessionRouter,
+  marketplace: marketplaceRouter,
+  creatorEarnings: creatorEarningsRouter,
+  promotion: promotionRouter,
 });
 
 export type AppRouter = typeof appRouter;
