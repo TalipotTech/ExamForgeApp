@@ -153,14 +153,17 @@ export async function POST(
       })
       .where(eq(creatorContent.id, contentId));
 
-    await enqueueOcrJob({
-      contentId,
-      mediaOrder: body.order,
-      diskPath,
-      mimeType: target.mimeType,
-      model,
-      userId,
-    });
+    await enqueueOcrJob(
+      {
+        contentId,
+        mediaOrder: body.order,
+        diskPath,
+        mimeType: target.mimeType,
+        model,
+        userId,
+      },
+      { force: true },
+    );
 
     return NextResponse.json({ success: true, data: { model } });
   } catch (err) {

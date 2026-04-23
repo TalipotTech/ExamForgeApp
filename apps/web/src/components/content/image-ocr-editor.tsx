@@ -214,6 +214,17 @@ export function ImageOcrEditor({
             variant="ghost"
             size="icon"
             className="size-6"
+            title="Open in lightbox (zoom / rotate / prev-next)"
+            onClick={onOpenLightbox}
+            disabled={isBusy}
+          >
+            <ZoomIn className="size-3" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-6"
             title="Replace image"
             onClick={() => replaceRef.current?.click()}
             disabled={isBusy}

@@ -132,26 +132,51 @@ function MediaPreview({
                 <ImageIcon className="size-4 text-amber-500" />
                 <span className="text-sm font-medium">Image</span>
                 <span className="text-muted-foreground ml-auto text-xs">{item.fileName}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={() => onOpenLightbox(imageItems.indexOf(item))}
+                >
+                  <ZoomIn className="size-3.5" />
+                  Open
+                </Button>
               </div>
-              <div
-                className="group relative flex cursor-pointer justify-center p-4"
-                onClick={() => onOpenLightbox(imageItems.indexOf(item))}
-              >
-                <img
-                  src={item.url}
-                  alt=""
-                  className="max-h-[400px] rounded border object-contain"
-                />
-                <div className="absolute inset-0 flex items-center justify-center rounded bg-black/20 opacity-0 transition-opacity group-hover:opacity-100">
-                  <ZoomIn className="size-8 text-white drop-shadow-lg" />
-                </div>
-              </div>
-              {item.extractedText && (
-                <div className="border-t p-4">
-                  <div className="text-muted-foreground mb-2 text-xs font-medium uppercase">
-                    Extracted text
+              {item.extractedText ? (
+                <div className="grid grid-cols-1 gap-0 md:grid-cols-2">
+                  <div
+                    className="bg-muted/10 group relative flex cursor-pointer items-start justify-center border-r p-4"
+                    onClick={() => onOpenLightbox(imageItems.indexOf(item))}
+                  >
+                    <img
+                      src={item.url}
+                      alt=""
+                      className="max-h-[400px] rounded border object-contain"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center rounded bg-black/20 opacity-0 transition-opacity group-hover:opacity-100">
+                      <ZoomIn className="size-8 text-white drop-shadow-lg" />
+                    </div>
                   </div>
-                  <MarkdownRenderer content={item.extractedText} />
+                  <div className="max-h-[500px] overflow-y-auto p-4">
+                    <div className="text-muted-foreground mb-2 text-xs font-medium uppercase">
+                      Extracted text
+                    </div>
+                    <MarkdownRenderer content={item.extractedText} />
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="group relative flex cursor-pointer justify-center p-4"
+                  onClick={() => onOpenLightbox(imageItems.indexOf(item))}
+                >
+                  <img
+                    src={item.url}
+                    alt=""
+                    className="max-h-[400px] rounded border object-contain"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center rounded bg-black/20 opacity-0 transition-opacity group-hover:opacity-100">
+                    <ZoomIn className="size-8 text-white drop-shadow-lg" />
+                  </div>
                 </div>
               )}
             </>

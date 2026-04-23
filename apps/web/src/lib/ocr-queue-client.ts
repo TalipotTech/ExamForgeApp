@@ -54,8 +54,14 @@ function getQueue(): Queue<OcrJobData> {
   return queue;
 }
 
-export async function enqueueOcrJob(data: OcrJobData): Promise<void> {
-  await getQueue().add("extract", data, {
-    jobId: `ocr:${data.contentId}:${data.mediaOrder}`,
-  });
+export async function enqueueOcrJob(data: OcrJobData, opts?: { force?: boolean }): Promise<void> {
+  // Default jobId dedupes initial uploads (if the upload route is
+  // retried, the same `ocr:{contentId}:{order}` won't double-process).
+  // For explicit re-runs from the UI we append a timestamp so BullMQ
+  // treats it as a new job — otherwise a completed / failed job with
+  // the same ID silently skips the re-enqueue.
+  const jobId = opts?.force
+    ? `ocr:${data.contentId}:${data.mediaOrder}:${Date.now()}`
+    : `ocr:${data.contentId}:${data.mediaOrder}`;
+  await getQueue().add("extract", data, { jobId });
 }
