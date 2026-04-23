@@ -15,7 +15,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
-  Sparkles,
+  LayoutDashboard,
   LayoutGrid,
   Wallet,
   Store,
@@ -40,7 +40,7 @@ type NavItem = {
 };
 
 const CREATOR_NAV: NavItem[] = [
-  { href: "/creator", label: "Overview", icon: Sparkles },
+  { href: "/creator", label: "Dashboard", icon: LayoutDashboard },
   { href: "/creator/content", label: "Content", icon: FileStack },
   { href: "/creator/listings", label: "Listings", icon: LayoutGrid },
   { href: "/creator/classrooms", label: "Classrooms", icon: GraduationCap },

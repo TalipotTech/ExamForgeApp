@@ -156,12 +156,25 @@ export function ImageOcrEditor({
     }
   }
 
-  const isBusy = replacing || retrying;
+  // Two separate concerns:
+  //   - `isReplacing` dims the whole card (file swap + re-processing is
+  //     a destructive operation, we don't want stray edits during it)
+  //   - `ocrInFlight` disables only the Re-run OCR + Save text buttons
+  //     so the user can still flip Visual/Markdown modes and edit the
+  //     textarea while the worker is running. The key change: the
+  //     button's disabled state follows item.ocrStatus, which stays
+  //     in pending/processing until the worker reaches a terminal
+  //     state (completed or failed) — so retry failures DO re-enable
+  //     the button for another attempt.
+  const ocrInFlight = item.ocrStatus === "pending" || item.ocrStatus === "processing";
+  const retryDisabled = replacing || retrying || ocrInFlight;
+  const saveDisabled = !dirty || saveMutation.isPending || replacing || ocrInFlight;
+  const isReplacing = replacing;
 
   return (
     <div
       className={`overflow-hidden rounded-lg border transition-opacity ${
-        isBusy ? "pointer-events-none opacity-60" : ""
+        isReplacing ? "pointer-events-none opacity-60" : ""
       }`}
     >
       {/* Header */}
@@ -216,7 +229,7 @@ export function ImageOcrEditor({
             className="size-6"
             title="Open in lightbox (zoom / rotate / prev-next)"
             onClick={onOpenLightbox}
-            disabled={isBusy}
+            disabled={isReplacing}
           >
             <ZoomIn className="size-3" />
           </Button>
@@ -227,7 +240,7 @@ export function ImageOcrEditor({
             className="size-6"
             title="Replace image"
             onClick={() => replaceRef.current?.click()}
-            disabled={isBusy}
+            disabled={isReplacing || ocrInFlight}
           >
             <RefreshCw className="size-3" />
           </Button>
@@ -238,7 +251,7 @@ export function ImageOcrEditor({
             className="text-destructive hover:text-destructive size-6"
             title="Remove"
             onClick={onRemove}
-            disabled={isBusy}
+            disabled={isReplacing || ocrInFlight}
           >
             <Trash2 className="size-3" />
           </Button>
@@ -306,7 +319,11 @@ export function ImageOcrEditor({
       {/* Footer — save + retry */}
       <div className="bg-muted/20 flex items-center justify-between gap-2 border-t px-3 py-2">
         <div className="flex items-center gap-2">
-          <Select value={retryModel} onValueChange={(v) => setRetryModel(v as OcrModel)}>
+          <Select
+            value={retryModel}
+            onValueChange={(v) => setRetryModel(v as OcrModel)}
+            disabled={retryDisabled}
+          >
             <SelectTrigger className="h-7 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -322,9 +339,9 @@ export function ImageOcrEditor({
             size="sm"
             className="h-7 gap-1 text-xs"
             onClick={() => void handleRetry()}
-            disabled={isBusy}
+            disabled={retryDisabled}
           >
-            {retrying ? (
+            {retrying || ocrInFlight ? (
               <Loader2 className="size-3 animate-spin" />
             ) : (
               <RefreshCw className="size-3" />
@@ -336,7 +353,7 @@ export function ImageOcrEditor({
           type="button"
           size="sm"
           className="h-7 gap-1 text-xs"
-          disabled={!dirty || saveMutation.isPending}
+          disabled={saveDisabled}
           onClick={() =>
             saveMutation.mutate({
               contentId,

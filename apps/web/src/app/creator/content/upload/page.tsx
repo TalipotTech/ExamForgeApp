@@ -12,7 +12,7 @@
  */
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Upload,
   Loader2,
@@ -22,6 +22,10 @@ import {
   Image as ImageIcon,
   X,
   Sparkles,
+  ArrowLeft,
+  FolderOpen,
+  CheckCircle2,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,11 +80,18 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function ContentUploadPage(): React.ReactElement {
-  const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+type OcrModel = "gemini-2.5-pro" | "gemini-2.5-flash" | "claude-sonnet-4-6";
 
-  type OcrModel = "gemini-2.5-pro" | "gemini-2.5-flash" | "claude-sonnet-4-6";
+type LastUpload = {
+  id: string;
+  title: string;
+  fileCount: number;
+  ocrQueued: number;
+  at: number; // ms timestamp — used as React key so the badge re-mounts (and re-animates) on each new success
+};
+
+export default function ContentUploadPage(): React.ReactElement {
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -94,6 +105,7 @@ export default function ContentUploadPage(): React.ReactElement {
   const [examId, setExamId] = useState<string>("");
   const [subject, setSubject] = useState("");
   const [topic, setTopic] = useState("");
+  const [lastUpload, setLastUpload] = useState<LastUpload | null>(null);
 
   const examsQuery = trpc.exam.listPublic.useQuery({
     page: 1,
@@ -122,6 +134,28 @@ export default function ContentUploadPage(): React.ReactElement {
     });
   }
 
+  /** Clear every form field + selected file so the page is ready for a fresh
+   *  upload without a manual reload. Revokes blob URLs to avoid leaking image
+   *  previews across uploads. Does NOT touch the success badge — that lives
+   *  in `lastUpload` and is set immediately before this runs. */
+  function resetForm(): void {
+    for (const sf of selectedFiles) {
+      if (sf.preview) URL.revokeObjectURL(sf.preview);
+    }
+    setSelectedFiles([]);
+    setHandwritten(false);
+    setOcrModel("gemini-2.5-pro");
+    setTitle("");
+    setDescription("");
+    setBody("");
+    setLanguage("en");
+    setIsPremium(false);
+    setExamId("");
+    setSubject("");
+    setTopic("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     if (title.trim().length < 2) {
@@ -134,8 +168,10 @@ export default function ContentUploadPage(): React.ReactElement {
     }
 
     setUploading(true);
+    const fileCount = selectedFiles.length;
+    const submittedTitle = title.trim();
     const fd = new FormData();
-    fd.append("title", title.trim());
+    fd.append("title", submittedTitle);
     if (description.trim()) fd.append("description", description.trim());
     if (body.trim()) fd.append("body", body.trim());
     fd.append("language", language);
@@ -156,7 +192,7 @@ export default function ContentUploadPage(): React.ReactElement {
         credentials: "include",
       });
       const data = (await res.json()) as
-        | { success: true; data: { id: string } }
+        | { success: true; data: { id: string; ocrQueued?: number } }
         | { success: false; error: { message: string } };
       if (!res.ok || !data.success) {
         const msg = !data.success ? data.error?.message : "Upload failed";
@@ -164,7 +200,22 @@ export default function ContentUploadPage(): React.ReactElement {
         return;
       }
       toast.success("Content uploaded!");
-      router.push(`/creator/content/${data.data.id}`);
+      // Stay on the page so the creator can immediately upload another item.
+      // Surface a persistent badge with a deep-link to the new content so
+      // they don't lose track of what they just submitted.
+      setLastUpload({
+        id: data.data.id,
+        title: submittedTitle,
+        fileCount,
+        ocrQueued: data.data.ocrQueued ?? 0,
+        at: Date.now(),
+      });
+      resetForm();
+      // Scroll back to the top so the success badge is in view after the
+      // form below collapses to its empty state.
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -179,7 +230,73 @@ export default function ContentUploadPage(): React.ReactElement {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold">Upload Content</h1>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link href="/creator/content">
+            <Button variant="ghost" size="icon" type="button" title="Back to My Contents">
+              <ArrowLeft className="size-4" />
+            </Button>
+          </Link>
+          <h1 className="text-2xl font-bold">Upload Content</h1>
+        </div>
+        <Link href="/creator/content">
+          <Button variant="outline" size="sm" type="button" className="gap-1.5">
+            <FolderOpen className="size-3.5" />
+            My Contents
+          </Button>
+        </Link>
+      </div>
+
+      {lastUpload && (
+        // `key={lastUpload.at}` re-mounts the badge on each new success so the
+        // fade-in animation re-runs even if the previous badge was still on
+        // screen (creator uploads two items back-to-back).
+        <div
+          key={lastUpload.at}
+          className="animate-in fade-in slide-in-from-top-2 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 duration-300 dark:border-emerald-900 dark:bg-emerald-950/30"
+          role="status"
+        >
+          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+              Upload complete
+            </p>
+            <p className="mt-0.5 truncate text-xs text-emerald-800/80 dark:text-emerald-200/80">
+              <span className="font-medium">{lastUpload.title}</span>
+              {lastUpload.fileCount > 0
+                ? ` · ${lastUpload.fileCount} file${lastUpload.fileCount !== 1 ? "s" : ""}`
+                : ""}
+              {lastUpload.ocrQueued > 0
+                ? ` · ${lastUpload.ocrQueued} image${lastUpload.ocrQueued !== 1 ? "s" : ""} queued for OCR`
+                : ""}
+              . The form is reset — upload another or open it below.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Link href={`/creator/content/${lastUpload.id}` as "/"}>
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                className="h-7 gap-1 border-emerald-300 bg-white text-xs text-emerald-900 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100 dark:hover:bg-emerald-900"
+              >
+                <ExternalLink className="size-3" />
+                Open
+              </Button>
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              type="button"
+              className="size-7 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-900"
+              title="Dismiss"
+              onClick={() => setLastUpload(null)}
+            >
+              <X className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Drop Zone */}

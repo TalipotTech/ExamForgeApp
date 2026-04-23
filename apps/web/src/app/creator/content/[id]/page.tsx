@@ -33,7 +33,6 @@ import {
   RefreshCw,
   Trash2,
   Plus,
-  ZoomIn,
   BookOpen,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -46,7 +45,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MarkdownRenderer } from "@/components/content/markdown-renderer";
 import { ImageLightbox } from "@/components/content/image-lightbox";
 import { ImageOcrEditor } from "@/components/content/image-ocr-editor";
-import { PdfViewer } from "@/components/content/pdf-viewer";
+import { MediaPreview } from "@/components/content/media-preview";
 import { trpc } from "@/lib/trpc";
 
 type MediaType = "video" | "audio" | "image" | "document";
@@ -85,143 +84,6 @@ function formatSize(bytes: number): string {
   if (!bytes) return "";
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function MediaPreview({
-  items,
-  body,
-  onOpenLightbox,
-}: {
-  items: MediaItem[];
-  body: string | null;
-  onOpenLightbox: (idx: number) => void;
-}): React.ReactElement {
-  const imageItems = items.filter((i) => i.type === "image");
-
-  return (
-    <div className="space-y-4">
-      {items.map((item, i) => (
-        <div key={`${item.url}-${i}`} className="bg-card overflow-hidden rounded-lg border">
-          {item.type === "video" && (
-            <>
-              <div className="bg-muted/30 flex items-center gap-2 border-b px-4 py-2">
-                <FileVideo className="size-4 text-blue-500" />
-                <span className="text-sm font-medium">Video</span>
-                <span className="text-muted-foreground ml-auto text-xs">{item.fileName}</span>
-              </div>
-              <div className="aspect-video bg-black">
-                <video src={item.url} controls className="h-full w-full" />
-              </div>
-            </>
-          )}
-          {item.type === "audio" && (
-            <>
-              <div className="bg-muted/30 flex items-center gap-2 border-b px-4 py-2">
-                <FileAudio className="size-4 text-green-500" />
-                <span className="text-sm font-medium">Audio</span>
-                <span className="text-muted-foreground ml-auto text-xs">{item.fileName}</span>
-              </div>
-              <div className="p-4">
-                <audio src={item.url} controls className="w-full" />
-              </div>
-            </>
-          )}
-          {item.type === "image" && (
-            <>
-              <div className="bg-muted/30 flex items-center gap-2 border-b px-4 py-2">
-                <ImageIcon className="size-4 text-amber-500" />
-                <span className="text-sm font-medium">Image</span>
-                <span className="text-muted-foreground ml-auto text-xs">{item.fileName}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1 text-xs"
-                  onClick={() => onOpenLightbox(imageItems.indexOf(item))}
-                >
-                  <ZoomIn className="size-3.5" />
-                  Open
-                </Button>
-              </div>
-              {item.extractedText ? (
-                <div className="grid grid-cols-1 gap-0 md:grid-cols-2">
-                  <div
-                    className="bg-muted/10 group relative flex cursor-pointer items-start justify-center border-r p-4"
-                    onClick={() => onOpenLightbox(imageItems.indexOf(item))}
-                  >
-                    <img
-                      src={item.url}
-                      alt=""
-                      className="max-h-[400px] rounded border object-contain"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center rounded bg-black/20 opacity-0 transition-opacity group-hover:opacity-100">
-                      <ZoomIn className="size-8 text-white drop-shadow-lg" />
-                    </div>
-                  </div>
-                  <div className="max-h-[500px] overflow-y-auto p-4">
-                    <div className="text-muted-foreground mb-2 text-xs font-medium uppercase">
-                      Extracted text
-                    </div>
-                    <MarkdownRenderer content={item.extractedText} />
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className="group relative flex cursor-pointer justify-center p-4"
-                  onClick={() => onOpenLightbox(imageItems.indexOf(item))}
-                >
-                  <img
-                    src={item.url}
-                    alt=""
-                    className="max-h-[400px] rounded border object-contain"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center rounded bg-black/20 opacity-0 transition-opacity group-hover:opacity-100">
-                    <ZoomIn className="size-8 text-white drop-shadow-lg" />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-          {item.type === "document" && (
-            <>
-              <div className="bg-muted/30 flex items-center justify-between border-b px-4 py-2">
-                <div className="flex items-center gap-2">
-                  <FileText className="size-4 text-red-500" />
-                  <span className="text-sm font-medium">Document</span>
-                </div>
-                <a href={item.url} target="_blank" rel="noopener noreferrer">
-                  <Button variant="ghost" size="sm" className="gap-1 text-xs">
-                    <Download className="size-3" />
-                    Open
-                  </Button>
-                </a>
-              </div>
-              {item.mimeType === "application/pdf" ||
-              item.fileName?.toLowerCase().endsWith(".pdf") ? (
-                <PdfViewer url={item.url} fileName={item.fileName} />
-              ) : (
-                <div className="flex flex-col items-center gap-2 p-6">
-                  <FileText className="text-muted-foreground size-10" />
-                  <p className="text-sm">{item.fileName}</p>
-                  <p className="text-muted-foreground text-xs">{formatSize(item.fileSize)}</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      ))}
-      {body && (
-        <div className="bg-card rounded-lg border">
-          <div className="bg-muted/30 flex items-center gap-2 border-b px-4 py-2">
-            <FileText className="text-muted-foreground size-4" />
-            <span className="text-sm font-medium">Text Notes</span>
-          </div>
-          <div className="max-h-[500px] overflow-y-auto p-6">
-            <MarkdownRenderer content={body} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 function MediaItemEditor({
@@ -663,25 +525,47 @@ export default function ContentDetailPage(props: {
             </CardContent>
           </Card>
 
-          <Button
-            onClick={() =>
-              updateMutation.mutate({
-                contentId: id,
-                title: title.trim(),
-                description: description.trim() || undefined,
-                body: body.trim() || undefined,
-              })
-            }
-            disabled={updateMutation.isPending}
-            className="gap-2"
-          >
-            {updateMutation.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Save className="size-4" />
-            )}
-            Save Changes
-          </Button>
+          {((): React.ReactElement => {
+            const detailsDirty =
+              title.trim() !== content.title ||
+              (description.trim() || "") !== (content.description ?? "") ||
+              (body.trim() || "") !== (content.body ?? "");
+            const saveBlocked =
+              updateMutation.isPending || hasInFlightOcr || addingFiles || replacingOrder !== null;
+            const saveDisabled = !detailsDirty || saveBlocked;
+            return (
+              <Button
+                onClick={() =>
+                  updateMutation.mutate({
+                    contentId: id,
+                    title: title.trim(),
+                    description: description.trim() || undefined,
+                    body: body.trim() || undefined,
+                  })
+                }
+                disabled={saveDisabled}
+                className="gap-2"
+                title={
+                  hasInFlightOcr
+                    ? "Wait for OCR to finish before saving"
+                    : addingFiles
+                      ? "Wait for uploads to finish"
+                      : replacingOrder !== null
+                        ? "Wait for replacement to finish"
+                        : !detailsDirty
+                          ? "No changes to save"
+                          : undefined
+                }
+              >
+                {updateMutation.isPending || hasInFlightOcr ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Save className="size-4" />
+                )}
+                {hasInFlightOcr ? "Waiting for OCR…" : "Save Changes"}
+              </Button>
+            );
+          })()}
         </TabsContent>
       </Tabs>
     </div>
