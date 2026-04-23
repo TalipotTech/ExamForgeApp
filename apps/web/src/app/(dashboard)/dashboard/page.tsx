@@ -25,9 +25,13 @@ import {
   Zap,
   Plus,
   Mic,
+  FileStack,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrowseExamsDialog } from "@/components/exam/browse-exams-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ContentCard } from "@/components/content/content-card";
 
 function getDeviceInfo(): string {
   if (typeof navigator === "undefined") return "Unknown";
@@ -58,10 +62,24 @@ export default function DashboardPage(): React.ReactElement {
   const quotaQuery = trpc.tutorialAgent.getExamQuota.useQuery(undefined, {
     staleTime: 60_000,
   });
+  // Classroom-assigned creator content. Gated server-side by the
+  // `creators.classrooms_enabled` feature flag; if the flag is off the
+  // query throws FEATURE_DISABLED and we render nothing — `useQuery` caches
+  // the error, so subsequent renders stay quiet. Stale-time of 60 s keeps
+  // the dashboard snappy when students bounce between tabs.
+  const assignedContentQuery = trpc.classroom.myAssignedContent.useQuery(
+    { limit: 8 },
+    { staleTime: 60_000, retry: false },
+  );
 
   const data = dashboardQuery.data;
   const quota = quotaQuery.data;
   const userName = session?.user?.name?.split(" ")[0] ?? "there";
+  const assignedContent = assignedContentQuery.data ?? [];
+  // Hide the whole section when the feature is disabled or errors out so
+  // non-enrolled users don't see a broken/empty card.
+  const showAssignedSection =
+    !assignedContentQuery.error && (assignedContentQuery.isLoading || assignedContent.length > 0);
 
   const [browseOpen, setBrowseOpen] = useState(false);
 
@@ -322,6 +340,88 @@ export default function DashboardPage(): React.ReactElement {
         </CardContent>
       </Card>
       <BrowseExamsDialog open={browseOpen} onOpenChange={setBrowseOpen} />
+
+      {/* Classroom-assigned creator content — same card grid + hover-autoplay
+          video previews as the Creator Hub's Recent Contents. Shown only when
+          the student has enrolled classrooms with assigned content. */}
+      {showAssignedSection && (
+        <section>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-base font-semibold">
+              <FileStack className="h-4 w-4" />
+              Recent Contents
+            </h2>
+            <Link
+              href="/dashboard/classrooms"
+              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs"
+            >
+              My classrooms
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+          {assignedContentQuery.isLoading ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="aspect-video w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {assignedContent.map((c) => {
+                // Student-side single-content viewer. Access is gated
+                // server-side via `classroom.getAssignedContentById`.
+                const href = `/dashboard/content/${c.id}`;
+                return (
+                  <ContentCard
+                    key={c.id}
+                    content={{
+                      id: c.id,
+                      title: c.title,
+                      contentType: c.contentType,
+                      isPublished: c.isPublished,
+                      viewCount: c.viewCount,
+                      createdAt: c.createdAt,
+                      thumbnailUrl: c.thumbnailUrl,
+                      metadata: c.metadata,
+                      subject: c.subject,
+                      topic: c.topic,
+                      creatorDisplayName: c.creatorDisplayName,
+                    }}
+                    href={href}
+                    // Published-badge adds noise on the student side — every
+                    // assigned piece is already live to them by definition.
+                    showPublishedBadge={false}
+                    contextBadge={
+                      c.classroomName ? (
+                        <Badge
+                          variant="secondary"
+                          className="max-w-full truncate border-white/20 bg-black/60 px-1.5 py-0 text-[9px] text-white backdrop-blur-sm"
+                          title={c.classroomName}
+                        >
+                          <GraduationCap className="mr-1 size-3 shrink-0" />
+                          <span className="truncate">{c.classroomName}</span>
+                        </Badge>
+                      ) : undefined
+                    }
+                    footer={
+                      <Link href={href as "/"} className="flex-1">
+                        <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs">
+                          <ExternalLink className="size-3" />
+                          Open
+                        </Button>
+                      </Link>
+                    }
+                  />
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Three Column: My Topics + Continue Learning + Recent Exams */}
       <div className="grid gap-6 lg:grid-cols-3">

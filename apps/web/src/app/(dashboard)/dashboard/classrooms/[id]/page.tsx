@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { use, useState } from "react";
-import { ArrowLeft, GraduationCap, FileText, MessageCircle, Plus, LogOut } from "lucide-react";
+import {
+  ArrowLeft,
+  GraduationCap,
+  FileText,
+  MessageCircle,
+  Plus,
+  LogOut,
+  ExternalLink,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
+import { ContentCard } from "@/components/content/content-card";
 
 export default function StudentClassroomDetailPage(props: {
   params: Promise<{ id: string }>;
@@ -119,7 +128,7 @@ export default function StudentClassroomDetailPage(props: {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="content" className="space-y-3">
+        <TabsContent value="content">
           {content.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-sm">
@@ -130,31 +139,51 @@ export default function StudentClassroomDetailPage(props: {
               </CardContent>
             </Card>
           ) : (
-            content.map((c) => (
-              <Card key={c.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    {c.thumbnailUrl && (
-                      <div
-                        className="bg-muted size-16 shrink-0 rounded-md bg-cover bg-center"
-                        style={{ backgroundImage: `url('${c.thumbnailUrl}')` }}
-                      />
-                    )}
-                    <div className="flex-1">
-                      <h2 className="font-semibold">{c.title}</h2>
-                      {c.description && (
-                        <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">
-                          {c.description}
-                        </p>
-                      )}
-                      <Badge variant="outline" className="mt-2 text-[10px]">
-                        {c.contentType}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+            // Same card grid used on the Creator Hub + Student Dashboard
+            // "Recent Contents" sections: hover-autoplay video previews,
+            // image thumbnails, typed-gradient placeholders for audio /
+            // document / note. Consistent visual language across the app.
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {content.map((c) => {
+                // Students → read-only viewer (access gated by their
+                // classroom membership). Teachers → their own creator
+                // detail page where they can also edit.
+                const contentHref = isTeacher
+                  ? `/creator/content/${c.id}`
+                  : `/dashboard/content/${c.id}`;
+                return (
+                  <ContentCard
+                    key={c.id}
+                    content={{
+                      id: c.id,
+                      title: c.title,
+                      contentType: c.contentType,
+                      isPublished: c.isPublished,
+                      viewCount: c.viewCount,
+                      createdAt: c.createdAt,
+                      thumbnailUrl: c.thumbnailUrl,
+                      metadata: c.metadata,
+                      subject: c.subject,
+                      topic: c.topic,
+                      creatorDisplayName: c.creatorDisplayName,
+                    }}
+                    href={contentHref}
+                    // Published-badge adds noise here — every assigned
+                    // piece is already live to the classroom by definition,
+                    // same reasoning as the student dashboard.
+                    showPublishedBadge={false}
+                    footer={
+                      <Link href={contentHref as "/"} className="flex-1">
+                        <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs">
+                          <ExternalLink className="size-3" />
+                          Open
+                        </Button>
+                      </Link>
+                    }
+                  />
+                );
+              })}
+            </div>
           )}
         </TabsContent>
 

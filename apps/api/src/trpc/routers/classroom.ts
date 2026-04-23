@@ -1,4 +1,5 @@
-import { and, arrayContains, desc, eq, sql } from "drizzle-orm";
+import { and, arrayContains, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
+import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
   classroomMembers,
@@ -187,6 +188,269 @@ export const classroomRouter = router({
       .orderBy(desc(classrooms.createdAt));
   }),
 
+  /**
+   * Aggregated view for the student dashboard: every piece of creator content
+   * assigned to ANY classroom the student is actively enrolled in, newest
+   * first. Returns enough shape for the dashboard card grid (thumbnail,
+   * metadata with mediaItems for video previews, plus the first matching
+   * classroom name so the card can badge which class it came from).
+   *
+   * Implementation notes:
+   * - `assignedClassrooms` is a JSONB string[] column, so postgres `&&`
+   *   (arrayOverlaps) is NOT valid here — that operator only works on
+   *   native arrays. We fall back to OR-ing N `jsonb @> '[id]'` clauses
+   *   (one per classroom the student is in). Worst case the student is
+   *   enrolled in a few classrooms, so this stays cheap.
+   * - We only select the columns the card actually needs. `metadata` is
+   *   returned as `unknown` (JSONB) and parsed client-side — same pattern
+   *   the creator dashboard uses.
+   */
+  myAssignedContent: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(12) }).optional())
+    .query(async ({ ctx, input }) => {
+      await assertCreatorsFeature(ctx.db, "creators.classrooms_enabled");
+      const limit = input?.limit ?? 12;
+
+      const memberships = await ctx.db
+        .select({ classroomId: classroomMembers.classroomId })
+        .from(classroomMembers)
+        .where(
+          and(eq(classroomMembers.studentId, ctx.userId), eq(classroomMembers.status, "active")),
+        );
+      if (memberships.length === 0) return [];
+
+      const classroomIds = memberships.map((m) => m.classroomId);
+
+      // OR of `assignedClassrooms @> '[<id>]'` for each enrolled classroom.
+      // arrayContains on a JSONB column emits `@>`, which works for jsonb
+      // containment semantics.
+      const overlapClauses = classroomIds.map((id) =>
+        arrayContains(creatorContent.assignedClassrooms, [id]),
+      );
+      const overlap = or(...overlapClauses) as SQL;
+
+      const rows = await ctx.db
+        .select({
+          id: creatorContent.id,
+          title: creatorContent.title,
+          description: creatorContent.description,
+          contentType: creatorContent.contentType,
+          thumbnailUrl: creatorContent.thumbnailUrl,
+          isPublished: creatorContent.isPublished,
+          viewCount: creatorContent.viewCount,
+          createdAt: creatorContent.createdAt,
+          metadata: creatorContent.metadata,
+          assignedClassrooms: creatorContent.assignedClassrooms,
+          creatorId: creatorContent.creatorId,
+          subject: creatorContent.subject,
+          topic: creatorContent.topic,
+        })
+        .from(creatorContent)
+        .where(overlap)
+        .orderBy(desc(creatorContent.createdAt))
+        .limit(limit);
+
+      if (rows.length === 0) return [];
+
+      // Side-load classroom + creator display info for the card label.
+      const [classroomRows, creatorRows] = await Promise.all([
+        ctx.db
+          .select({ id: classrooms.id, name: classrooms.name })
+          .from(classrooms)
+          .where(inArray(classrooms.id, classroomIds)),
+        ctx.db
+          .select({ id: creatorProfiles.id, displayName: creatorProfiles.displayName })
+          .from(creatorProfiles)
+          .where(inArray(creatorProfiles.id, Array.from(new Set(rows.map((r) => r.creatorId))))),
+      ]);
+      const classroomMap = new Map(classroomRows.map((c) => [c.id, c]));
+      const creatorMap = new Map(creatorRows.map((c) => [c.id, c]));
+
+      return rows.map((row) => {
+        // An item may be assigned to multiple of the student's classrooms;
+        // we surface the first matching one as the badge on the card. The
+        // student can still see the full list by opening the content.
+        const assigned = (row.assignedClassrooms ?? []) as string[];
+        const firstMatch = assigned.find((id) => classroomMap.has(id));
+        const classroom = firstMatch ? (classroomMap.get(firstMatch) ?? null) : null;
+        const creator = creatorMap.get(row.creatorId) ?? null;
+        return {
+          id: row.id,
+          title: row.title,
+          description: row.description,
+          contentType: row.contentType,
+          thumbnailUrl: row.thumbnailUrl,
+          isPublished: row.isPublished,
+          viewCount: row.viewCount,
+          createdAt: row.createdAt,
+          metadata: row.metadata,
+          subject: row.subject,
+          topic: row.topic,
+          classroomId: classroom?.id ?? null,
+          classroomName: classroom?.name ?? null,
+          creatorDisplayName: creator?.displayName ?? null,
+        };
+      });
+    }),
+
+  /**
+   * Student-side: fetch a single piece of creator content by id, but only if
+   * it's assigned to a classroom the caller is actively enrolled in. Returns
+   * the full row plus parsed mediaItems (same shape the MediaPreview
+   * component consumes on both the creator and student pages).
+   *
+   * Access model:
+   *   1. Caller must be an active member of at least one classroom.
+   *   2. `content.assignedClassrooms` must overlap that set.
+   *
+   * Errors:
+   *   - FORBIDDEN if the caller has no classroom memberships or the content
+   *     isn't assigned to one of them.
+   *   - NOT_FOUND if the content id doesn't exist.
+   */
+  getAssignedContentById: protectedProcedure
+    .input(z.object({ contentId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertCreatorsFeature(ctx.db, "creators.classrooms_enabled");
+
+      const memberships = await ctx.db
+        .select({ classroomId: classroomMembers.classroomId })
+        .from(classroomMembers)
+        .where(
+          and(eq(classroomMembers.studentId, ctx.userId), eq(classroomMembers.status, "active")),
+        );
+      if (memberships.length === 0) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You're not enrolled in any classrooms.",
+        });
+      }
+      const classroomIds = memberships.map((m) => m.classroomId);
+
+      const [content] = await ctx.db
+        .select()
+        .from(creatorContent)
+        .where(eq(creatorContent.id, input.contentId))
+        .limit(1);
+      if (!content) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Content not found" });
+      }
+
+      const assigned = (content.assignedClassrooms ?? []) as string[];
+      const matchedClassroomId = assigned.find((id) => classroomIds.includes(id));
+      if (!matchedClassroomId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This content isn't assigned to any of your classrooms.",
+        });
+      }
+
+      // Parse mediaItems out of metadata, sorted by `order` so the preview
+      // renders them in upload order. Defensive against malformed rows.
+      const meta = content.metadata;
+      let mediaItems: unknown[] = [];
+      if (meta && typeof meta === "object") {
+        const raw = (meta as { mediaItems?: unknown }).mediaItems;
+        if (Array.isArray(raw)) {
+          mediaItems = [...raw].sort((a, b) => {
+            const ao =
+              a && typeof a === "object" && typeof (a as { order?: unknown }).order === "number"
+                ? (a as { order: number }).order
+                : 0;
+            const bo =
+              b && typeof b === "object" && typeof (b as { order?: unknown }).order === "number"
+                ? (b as { order: number }).order
+                : 0;
+            return ao - bo;
+          });
+        }
+      }
+
+      const [classroomRow] = await ctx.db
+        .select({ id: classrooms.id, name: classrooms.name })
+        .from(classrooms)
+        .where(eq(classrooms.id, matchedClassroomId))
+        .limit(1);
+      const [creatorRow] = await ctx.db
+        .select({
+          id: creatorProfiles.id,
+          displayName: creatorProfiles.displayName,
+        })
+        .from(creatorProfiles)
+        .where(eq(creatorProfiles.id, content.creatorId))
+        .limit(1);
+
+      return {
+        ...content,
+        mediaItems,
+        classroom: classroomRow ?? null,
+        creatorDisplayName: creatorRow?.displayName ?? null,
+      };
+    }),
+
+  /**
+   * Increment `creator_content.view_count` for a piece of assigned content.
+   * Called by the student viewer once per page visit (useEffect on id).
+   *
+   * Access is gated identically to `getAssignedContentById`: caller must be
+   * an active member of a classroom this content is assigned to. Without
+   * that check, anyone with a valid content UUID could inflate counters.
+   *
+   * The update is atomic (`SET view_count = view_count + 1`) so concurrent
+   * opens from multiple students don't race. We also skip incrementing when
+   * the caller is the content's own creator — creators previewing their own
+   * drafts shouldn't inflate their public metrics.
+   */
+  recordContentView: protectedProcedure
+    .input(z.object({ contentId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertCreatorsFeature(ctx.db, "creators.classrooms_enabled");
+
+      const memberships = await ctx.db
+        .select({ classroomId: classroomMembers.classroomId })
+        .from(classroomMembers)
+        .where(
+          and(eq(classroomMembers.studentId, ctx.userId), eq(classroomMembers.status, "active")),
+        );
+      if (memberships.length === 0) {
+        return { recorded: false as const };
+      }
+      const classroomIds = new Set(memberships.map((m) => m.classroomId));
+
+      const [content] = await ctx.db
+        .select({
+          id: creatorContent.id,
+          creatorId: creatorContent.creatorId,
+          assignedClassrooms: creatorContent.assignedClassrooms,
+        })
+        .from(creatorContent)
+        .where(eq(creatorContent.id, input.contentId))
+        .limit(1);
+      if (!content) return { recorded: false as const };
+
+      const assigned = (content.assignedClassrooms ?? []) as string[];
+      const hasAccess = assigned.some((id) => classroomIds.has(id));
+      if (!hasAccess) return { recorded: false as const };
+
+      // Don't inflate on a creator previewing their own material — look up
+      // the caller's creator profile (if any) and short-circuit on match.
+      const [ownProfile] = await ctx.db
+        .select({ id: creatorProfiles.id })
+        .from(creatorProfiles)
+        .where(eq(creatorProfiles.userId, ctx.userId))
+        .limit(1);
+      if (ownProfile && ownProfile.id === content.creatorId) {
+        return { recorded: false as const };
+      }
+
+      await ctx.db
+        .update(creatorContent)
+        .set({ viewCount: sql`${creatorContent.viewCount} + 1` })
+        .where(eq(creatorContent.id, input.contentId));
+
+      return { recorded: true as const };
+    }),
+
   joinByCode: protectedProcedure
     .input(joinClassroomByCodeSchema)
     .mutation(async ({ ctx, input }) => {
@@ -373,6 +637,13 @@ export const classroomRouter = router({
     .query(async ({ ctx, input }) => {
       await assertCreatorsFeature(ctx.db, "creators.classrooms_enabled");
       await requireMemberOrTeacher(ctx.db, input.classroomId, ctx.userId);
+      // `metadata` + `viewCount` are surfaced so the classroom content tab
+      // can render the same ContentCard grid used on the dashboard
+      // (hover-autoplay video previews + image thumbnails pulled out of
+      // `metadata.mediaItems`). `subject` / `topic` / the creator's display
+      // name go into the card's secondary meta row ("Subject › Topic · by
+      // Creator"). LEFT JOIN on creator_profiles keeps rows with a deleted
+      // creator profile from dropping out of the list.
       return ctx.db
         .select({
           id: creatorContent.id,
@@ -382,8 +653,14 @@ export const classroomRouter = router({
           thumbnailUrl: creatorContent.thumbnailUrl,
           isPublished: creatorContent.isPublished,
           createdAt: creatorContent.createdAt,
+          metadata: creatorContent.metadata,
+          viewCount: creatorContent.viewCount,
+          subject: creatorContent.subject,
+          topic: creatorContent.topic,
+          creatorDisplayName: creatorProfiles.displayName,
         })
         .from(creatorContent)
+        .leftJoin(creatorProfiles, eq(creatorProfiles.id, creatorContent.creatorId))
         .where(arrayContains(creatorContent.assignedClassrooms, [input.classroomId]))
         .orderBy(desc(creatorContent.createdAt));
     }),
