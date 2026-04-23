@@ -117,6 +117,14 @@ type PutObjectCommandCtor = new (input: {
 
 let s3ClientCache: { client: S3ClientLike; PutObjectCommand: PutObjectCommandCtor } | null = null;
 
+// The AWS SDK is an optional runtime dep — installed only when the s3
+// backend is selected in production. Hide the specifier from the
+// bundler with the Function constructor so Webpack / Turbopack don't
+// try to resolve it at build time in dev where the package is absent.
+const loadAwsSdk: () => Promise<unknown> = new Function(
+  "return import('@aws-sdk/client-s3').catch(() => null)",
+) as () => Promise<unknown>;
+
 async function getS3Client(): Promise<{
   client: S3ClientLike;
   PutObjectCommand: PutObjectCommandCtor;
@@ -126,8 +134,7 @@ async function getS3Client(): Promise<{
   if (!region) {
     throw new Error("CONTENT_S3_REGION is required for the s3 storage backend");
   }
-  // @ts-expect-error dynamic import; package installed only when s3 backend is used
-  const mod = (await import("@aws-sdk/client-s3").catch(() => null)) as {
+  const mod = (await loadAwsSdk()) as {
     S3Client: new (opts: { region: string }) => S3ClientLike;
     PutObjectCommand: PutObjectCommandCtor;
   } | null;
