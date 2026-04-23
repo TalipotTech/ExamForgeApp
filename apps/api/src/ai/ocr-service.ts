@@ -81,7 +81,10 @@ export async function runOcrOnImage(
 ): Promise<OcrResult> {
   const started = Date.now();
   const bytes = await readFile(imagePath);
-  const dataUrl = `data:${mimeType};base64,${bytes.toString("base64")}`;
+  // AI SDK v6 rejects data: URLs for image parts — it expects an
+  // http/https URL, Uint8Array, ArrayBuffer, or Buffer. Pass the raw
+  // bytes with mediaType so the SDK handles base64-encoding per provider.
+  const imageBytes = new Uint8Array(bytes);
 
   const result = await generateText({
     model: resolveModel(model),
@@ -94,7 +97,7 @@ export async function runOcrOnImage(
             type: "text",
             text: "Extract all text from this image and format it as Markdown per the system instructions.",
           },
-          { type: "image", image: dataUrl },
+          { type: "image", image: imageBytes, mediaType: mimeType },
         ],
       },
     ],
