@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Sparkles, Package, Wallet, ArrowRight, Users, ShoppingBag } from "lucide-react";
+import { Sparkles, Package, Wallet, ArrowRight, Users, ShoppingBag, FileStack } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -228,6 +228,18 @@ export default function CreatorHubPage(): React.ReactElement {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Button variant="outline" className="h-auto justify-between px-4 py-4" asChild>
+          <Link href="/creator/content">
+            <span className="flex flex-col items-start">
+              <span className="flex items-center gap-2 font-semibold">
+                <FileStack className="size-4" />
+                Content
+              </span>
+              <span className="text-muted-foreground text-xs">Upload & manage study content</span>
+            </span>
+            <ArrowRight className="size-4" />
+          </Link>
+        </Button>
         <Button variant="outline" className="h-auto justify-between px-4 py-4" asChild>
           <Link href="/creator/listings">
             <span className="flex flex-col items-start">

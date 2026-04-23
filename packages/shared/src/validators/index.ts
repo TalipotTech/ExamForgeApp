@@ -377,6 +377,27 @@ export type {
   RunExamValidationInput,
 } from "./discovery";
 
+// ─── Creators Ecosystem — Content ───────────────────────
+
+export {
+  creatorContentTypeSchema,
+  mediaItemTypeSchema,
+  mediaItemSchema,
+  contentIdInputSchema,
+  updateContentSchema,
+  removeMediaSchema,
+  myContentListSchema,
+} from "./creator-content";
+export type {
+  CreatorContentType,
+  MediaItemType,
+  MediaItem,
+  ContentIdInput,
+  UpdateContentInput,
+  RemoveMediaInput,
+  MyContentListInput,
+} from "./creator-content";
+
 // ─── Creators Ecosystem — Classrooms ────────────────────
 
 export {

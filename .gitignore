@@ -42,6 +42,10 @@ docker-compose.override.yml
 # ──── Database ────
 *.sql.bak
 
+# ──── Local uploads (dev-only; prod uses S3) ────
+apps/web/storage/
+apps/api/storage/
+
 # ──── Misc ────
 *.tsbuildinfo
 .eslintcache
