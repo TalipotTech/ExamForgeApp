@@ -62,7 +62,7 @@ export default function CreatorDoubtInboxPage(): React.ReactElement {
 
       <div className="space-y-3">
         {items.map((d) => (
-          <Link key={d.id} href={`/dashboard/doubts/${d.id}`}>
+          <Link key={d.id} href={`/creator/doubts/${d.id}`}>
             <Card className="transition-shadow hover:shadow-md">
               <CardContent className="space-y-1 p-4">
                 <div className="flex items-start justify-between gap-2">

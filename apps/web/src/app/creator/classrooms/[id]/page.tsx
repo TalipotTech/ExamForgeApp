@@ -282,7 +282,7 @@ export default function CreatorClassroomDetailPage(props: {
             </Card>
           )}
           {doubts.map((d) => (
-            <Link key={d.id} href={`/dashboard/doubts/${d.id}`}>
+            <Link key={d.id} href={`/creator/doubts/${d.id}`}>
               <Card className="transition-shadow hover:shadow-md">
                 <CardContent className="space-y-1 p-3">
                   <div className="flex items-center justify-between gap-2">
