@@ -52,6 +52,16 @@ export const removeMediaSchema = z.object({
 });
 export type RemoveMediaInput = z.infer<typeof removeMediaSchema>;
 
+export const updateMediaTextSchema = z.object({
+  contentId: z.string().uuid(),
+  order: z.number().int().min(0),
+  extractedText: z.string().max(100000),
+});
+export type UpdateMediaTextInput = z.infer<typeof updateMediaTextSchema>;
+
+export const ocrModelSchema = z.enum(["gemini-2.5-pro", "gemini-2.5-flash", "claude-sonnet-4-6"]);
+export type OcrModelValue = z.infer<typeof ocrModelSchema>;
+
 export const myContentListSchema = z.object({
   page: z.number().int().min(1).default(1),
   limit: z.number().int().min(1).max(100).default(20),

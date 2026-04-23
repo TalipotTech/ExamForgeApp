@@ -6,8 +6,8 @@
  *   - Routes at /creator/content/*
  *   - Tags by Exam + Subject + Topic (ExamForge's model) instead of
  *     PadVik's Board/Standard/Subject/Chapter/Topic cascade
- *   - OCR for handwritten images is flagged — shown as "coming soon"
- *     and the checkbox is disabled until the pipeline lands
+ *   - OCR for handwritten images — Gemini 2.5 Pro / Flash or Claude
+ *     Sonnet 4.6 via the ocr-worker queue (async after upload)
  *   - File upload goes through the Next.js route at /api/creator-content
  */
 
@@ -80,9 +80,12 @@ export default function ContentUploadPage(): React.ReactElement {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  type OcrModel = "gemini-2.5-pro" | "gemini-2.5-flash" | "claude-sonnet-4-6";
+
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [handwritten, setHandwritten] = useState(false);
+  const [ocrModel, setOcrModel] = useState<OcrModel>("gemini-2.5-pro");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [body, setBody] = useState("");
@@ -137,6 +140,10 @@ export default function ContentUploadPage(): React.ReactElement {
     if (body.trim()) fd.append("body", body.trim());
     fd.append("language", language);
     fd.append("isPremium", String(isPremium));
+    if (handwritten) {
+      fd.append("handwritten", "true");
+      fd.append("ocrModel", ocrModel);
+    }
     if (examId) fd.append("examId", examId);
     if (subject.trim()) fd.append("subject", subject.trim());
     if (topic.trim()) fd.append("topic", topic.trim());
@@ -257,25 +264,45 @@ export default function ContentUploadPage(): React.ReactElement {
                     checked={handwritten}
                     onChange={(e) => setHandwritten(e.target.checked)}
                     className="rounded"
-                    disabled
-                    title="OCR pipeline not yet enabled — flag creators.ocr_enabled"
                   />
                   <div className="flex items-center gap-2">
                     <Sparkles className="size-4 text-violet-500" />
                     <div>
-                      <p className="text-sm font-medium">
-                        Extract text from images (AI OCR){" "}
-                        <span className="text-muted-foreground text-xs font-normal">
-                          — coming soon
-                        </span>
-                      </p>
+                      <p className="text-sm font-medium">Extract text from images (AI OCR)</p>
                       <p className="text-muted-foreground text-xs">
-                        Handwritten notes → Markdown via Claude Vision / Gemini. Enable once the OCR
-                        worker ships.
+                        Handwritten notes → Markdown via Claude Vision or Gemini. Processing happens
+                        in the background after upload.
                       </p>
                     </div>
                   </div>
                 </label>
+                {handwritten && (
+                  <div className="bg-muted/20 space-y-2 rounded-lg border p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1">
+                        <Label className="text-sm font-medium">OCR Model</Label>
+                        <p className="text-muted-foreground mt-0.5 text-xs">
+                          Gemini 2.5 Pro is best for handwriting. Worker falls back to the next
+                          model on failure.
+                        </p>
+                      </div>
+                      <Select value={ocrModel} onValueChange={(v) => setOcrModel(v as OcrModel)}>
+                        <SelectTrigger className="w-[260px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="gemini-2.5-pro">
+                            Gemini 2.5 Pro (best for vision)
+                          </SelectItem>
+                          <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (fast)</SelectItem>
+                          <SelectItem value="claude-sonnet-4-6">
+                            Claude Sonnet 4.6 (Anthropic)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

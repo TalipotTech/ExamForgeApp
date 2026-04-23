@@ -386,6 +386,8 @@ export {
   contentIdInputSchema,
   updateContentSchema,
   removeMediaSchema,
+  updateMediaTextSchema,
+  ocrModelSchema,
   myContentListSchema,
 } from "./creator-content";
 export type {
@@ -395,6 +397,8 @@ export type {
   ContentIdInput,
   UpdateContentInput,
   RemoveMediaInput,
+  UpdateMediaTextInput,
+  OcrModelValue,
   MyContentListInput,
 } from "./creator-content";
 

@@ -4,11 +4,16 @@
  * Content detail / edit page — structural port of PadVik's
  * /dashboard/creator/content/[id] with ExamForge's ids and schema.
  *
- * Tabs: Preview (media + body) · Edit (details + per-file ops + add-more).
- * Images open in a fullscreen lightbox with pan/zoom.
+ * Tabs:
+ *   - Preview — media (video / audio / image / inline PDF) + body
+ *     with image lightbox.
+ *   - Edit — details, per-file replace/delete for non-image media,
+ *     side-by-side ImageOcrEditor for each image on handwritten
+ *     content, add-more dropzone, markdown body textarea.
  *
- * PadVik's OCR side-by-side editor is simplified to "show extracted text
- * if present" — the full OCR pipeline lands in a later phase.
+ * When the content is flagged handwritten and OCR is enabled, the page
+ * polls the byId query every 5 s while any image is pending/processing
+ * so the extracted text appears without a manual refresh.
  */
 
 import Link from "next/link";
@@ -40,9 +45,12 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MarkdownRenderer } from "@/components/content/markdown-renderer";
 import { ImageLightbox } from "@/components/content/image-lightbox";
+import { ImageOcrEditor } from "@/components/content/image-ocr-editor";
+import { PdfViewer } from "@/components/content/pdf-viewer";
 import { trpc } from "@/lib/trpc";
 
 type MediaType = "video" | "audio" | "image" | "document";
+type OcrStatus = "pending" | "processing" | "completed" | "failed";
 
 type MediaItem = {
   type: MediaType;
@@ -54,6 +62,9 @@ type MediaItem = {
   order: number;
   extractedText?: string;
   duration?: number;
+  ocrStatus?: OcrStatus;
+  ocrModel?: string;
+  ocrError?: string;
 };
 
 function FileIcon({ type, className }: { type: string; className?: string }): React.ReactElement {
@@ -161,16 +172,7 @@ function MediaPreview({
               </div>
               {item.mimeType === "application/pdf" ||
               item.fileName?.toLowerCase().endsWith(".pdf") ? (
-                <div className="bg-muted/10 flex flex-col items-center gap-4 p-8">
-                  <FileText className="size-16 text-red-400" />
-                  <p className="text-sm font-medium">{item.fileName}</p>
-                  <a href={item.url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" className="gap-1.5">
-                      <Eye className="size-3.5" />
-                      View PDF
-                    </Button>
-                  </a>
-                </div>
+                <PdfViewer url={item.url} fileName={item.fileName} />
               ) : (
                 <div className="flex flex-col items-center gap-2 p-6">
                   <FileText className="text-muted-foreground size-10" />
@@ -277,6 +279,18 @@ export default function ContentDetailPage(props: {
   const contentQuery = trpc.creatorContent.byId.useQuery({ contentId: id });
   const content = contentQuery.data ?? null;
 
+  // Auto-refetch while any OCR job is in flight so extracted text lands
+  // without the creator having to reload the page.
+  const hasInFlightOcr =
+    ((content?.mediaItems as MediaItem[] | undefined) ?? []).some(
+      (m) => m.ocrStatus === "pending" || m.ocrStatus === "processing",
+    ) ?? false;
+  useEffect(() => {
+    if (!hasInFlightOcr) return;
+    const id = setInterval(() => void contentQuery.refetch(), 5000);
+    return (): void => clearInterval(id);
+  }, [hasInFlightOcr, contentQuery]);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [body, setBody] = useState("");
@@ -337,6 +351,10 @@ export default function ContentDetailPage(props: {
 
   const mediaItems = (content.mediaItems as MediaItem[] | undefined) ?? [];
   const imageUrls = mediaItems.filter((i) => i.type === "image").map((i) => i.url);
+  const meta = (content.metadata as Record<string, unknown> | null) ?? {};
+  const isHandwritten = (meta as { handwritten?: boolean }).handwritten === true;
+  const imageMediaItems = mediaItems.filter((m) => m.type === "image");
+  const nonImageMediaItems = mediaItems.filter((m) => m.type !== "image");
 
   async function handleReplace(order: number, file: File): Promise<void> {
     setReplacingOrder(order);
@@ -497,13 +515,13 @@ export default function ContentDetailPage(props: {
             </CardContent>
           </Card>
 
-          {mediaItems.length > 0 && (
+          {nonImageMediaItems.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Files</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {mediaItems.map((item, i) => (
+                {nonImageMediaItems.map((item, i) => (
                   <MediaItemEditor
                     key={`${item.url}-${i}`}
                     item={item}
@@ -519,6 +537,66 @@ export default function ContentDetailPage(props: {
               </CardContent>
             </Card>
           )}
+
+          {imageMediaItems.length > 0 &&
+            (isHandwritten ? (
+              <div className="space-y-3">
+                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                  <ImageIcon className="size-4" />
+                  Images ({imageMediaItems.length})
+                  <Badge variant="secondary" className="text-[10px]">
+                    Handwritten OCR
+                  </Badge>
+                </h3>
+                {imageMediaItems.map((item, i) => (
+                  <ImageOcrEditor
+                    key={`${item.url}-${i}`}
+                    contentId={id}
+                    item={{
+                      url: item.url,
+                      fileName: item.fileName,
+                      order: item.order,
+                      extractedText: item.extractedText,
+                      ocrStatus: item.ocrStatus,
+                      ocrModel: item.ocrModel,
+                      ocrError: item.ocrError,
+                    }}
+                    onRemove={() => {
+                      if (confirm(`Remove "${item.fileName}"?`)) {
+                        removeMediaMutation.mutate({ contentId: id, order: item.order });
+                      }
+                    }}
+                    onReplace={(file) => void handleReplace(item.order, file)}
+                    onOpenLightbox={() =>
+                      setLightboxIndex(imageMediaItems.findIndex((m) => m.order === item.order))
+                    }
+                    onSaved={() => void contentQuery.refetch()}
+                    replacing={replacingOrder === item.order}
+                  />
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Images</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {imageMediaItems.map((item, i) => (
+                    <MediaItemEditor
+                      key={`${item.url}-${i}`}
+                      item={item}
+                      onRemove={() => {
+                        if (confirm(`Remove "${item.fileName}"?`)) {
+                          removeMediaMutation.mutate({ contentId: id, order: item.order });
+                        }
+                      }}
+                      onReplace={(file) => void handleReplace(item.order, file)}
+                      replacing={replacingOrder === item.order}
+                    />
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
 
           <div className="rounded-lg border-2 border-dashed p-4 text-center">
             <input

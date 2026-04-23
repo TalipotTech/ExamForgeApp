@@ -8,6 +8,7 @@ import {
   contentIdInputSchema,
   updateContentSchema,
   removeMediaSchema,
+  updateMediaTextSchema,
   myContentListSchema,
   type MediaItem,
 } from "@examforge/shared/validators";
@@ -217,4 +218,29 @@ export const creatorContentRouter = router({
     }
     return { success: true as const, removed: true };
   }),
+
+  /** Update extractedText for an image media item (user-edited OCR). */
+  updateMediaText: protectedProcedure
+    .input(updateMediaTextSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertCreatorsFeature(ctx.db, "creators.enabled");
+      const { content } = await requireOwnedContent(ctx.db, input.contentId, ctx.userId);
+      const items = readMediaItems(content.metadata);
+      const target = items.find((i) => i.order === input.order);
+      if (!target) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Media item not found" });
+      }
+      const updated = items.map((m) =>
+        m.order === input.order ? { ...m, extractedText: input.extractedText } : m,
+      );
+      const meta = (content.metadata as Record<string, unknown> | null) ?? {};
+      await ctx.db
+        .update(creatorContent)
+        .set({
+          metadata: { ...meta, mediaItems: updated },
+          updatedAt: new Date(),
+        })
+        .where(eq(creatorContent.id, input.contentId));
+      return { success: true as const };
+    }),
 });

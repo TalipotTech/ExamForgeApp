@@ -15,6 +15,7 @@ import {
   fileUploads,
 } from "@examforge/shared/db/schema";
 import { saveUploadedFile, type MediaKind } from "@/lib/content-storage";
+import { enqueueOcrJob, type OcrModel } from "@/lib/ocr-queue-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +29,9 @@ type StoredMediaItem = {
   mimeType: string;
   order: number;
   extractedText?: string;
+  ocrStatus?: "pending" | "processing" | "completed" | "failed";
+  ocrModel?: string;
+  ocrError?: string;
 };
 
 function deriveTopLevelType(items: StoredMediaItem[], hasBody: boolean): string {
@@ -122,6 +126,11 @@ export async function POST(
 
     const addedItems: StoredMediaItem[] = [];
     const savedDiskPaths: string[] = [];
+    const ocrJobSpecs: Array<{ order: number; diskPath: string; mimeType: string }> = [];
+
+    const contentIsHandwritten = (existingMeta as { handwritten?: boolean }).handwritten === true;
+    const contentOcrModel: OcrModel =
+      ((existingMeta as { ocrModel?: OcrModel }).ocrModel as OcrModel) ?? "gemini-2.5-pro";
 
     try {
       for (let i = 0; i < rawFiles.length; i++) {
@@ -140,6 +149,8 @@ export async function POST(
           })
           .returning({ id: fileUploads.id });
         if (!fileRow) throw new Error("Failed to record file upload");
+        const order = startOrder + i;
+        const needsOcr = contentIsHandwritten && saved.kind === "image";
         addedItems.push({
           type: saved.kind,
           url: saved.publicUrl,
@@ -147,8 +158,12 @@ export async function POST(
           fileName: saved.fileName,
           fileSize: saved.size,
           mimeType: saved.mimeType,
-          order: startOrder + i,
+          order,
+          ...(needsOcr ? { ocrStatus: "pending" } : {}),
         });
+        if (needsOcr) {
+          ocrJobSpecs.push({ order, diskPath: saved.diskPath, mimeType: saved.mimeType });
+        }
       }
 
       const allItems = [...existingItems, ...addedItems];
@@ -166,9 +181,37 @@ export async function POST(
         })
         .where(eq(creatorContent.id, contentId));
 
+      if (ocrJobSpecs.length > 0) {
+        const [ocrFlag] = await db
+          .select({ value: adminFeatureFlags.value })
+          .from(adminFeatureFlags)
+          .where(eq(adminFeatureFlags.key, "creators.ocr_enabled"))
+          .limit(1);
+        if (ocrFlag?.value === true) {
+          await Promise.all(
+            ocrJobSpecs.map((spec) =>
+              enqueueOcrJob({
+                contentId,
+                mediaOrder: spec.order,
+                diskPath: spec.diskPath,
+                mimeType: spec.mimeType,
+                model: contentOcrModel,
+                userId,
+              }).catch((e) => {
+                console.error(`[add-media] failed to enqueue OCR for order ${spec.order}:`, e);
+              }),
+            ),
+          );
+        }
+      }
+
       return NextResponse.json({
         success: true,
-        data: { added: addedItems.length, total: allItems.length },
+        data: {
+          added: addedItems.length,
+          total: allItems.length,
+          ocrQueued: ocrJobSpecs.length,
+        },
       });
     } catch (err) {
       await Promise.all(savedDiskPaths.map((p) => fs.unlink(p).catch(() => undefined)));

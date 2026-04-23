@@ -32,6 +32,9 @@ import {
   fileUploads,
 } from "@examforge/shared/db/schema";
 import { saveUploadedFile, type MediaKind } from "@/lib/content-storage";
+import { enqueueOcrJob, type OcrModel } from "@/lib/ocr-queue-client";
+
+const VALID_OCR_MODELS: OcrModel[] = ["gemini-2.5-pro", "gemini-2.5-flash", "claude-sonnet-4-6"];
 
 // Route handlers run on Node.js runtime by default in Next 15; body
 // size can get large for multi-file uploads.
@@ -124,6 +127,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const syllabusNodeId = syllabusNodeIdRaw ? Number.parseInt(syllabusNodeIdRaw, 10) : null;
     const subject = String(fd.get("subject") ?? "").trim() || null;
     const topic = String(fd.get("topic") ?? "").trim() || null;
+    const handwritten = String(fd.get("handwritten") ?? "false") === "true";
+    const ocrModelRaw = String(fd.get("ocrModel") ?? "gemini-2.5-pro");
+    const ocrModel: OcrModel = VALID_OCR_MODELS.includes(ocrModelRaw as OcrModel)
+      ? (ocrModelRaw as OcrModel)
+      : "gemini-2.5-pro";
 
     const rawFiles = fd.getAll("files").filter((f): f is File => f instanceof File);
     if (rawFiles.length > MAX_FILES) {
@@ -170,8 +178,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       fileSize: number;
       mimeType: string;
       order: number;
+      ocrStatus?: "pending" | "processing" | "completed" | "failed";
     }> = [];
     const savedDiskPaths: string[] = [];
+    const ocrJobSpecs: Array<{
+      order: number;
+      diskPath: string;
+      mimeType: string;
+    }> = [];
 
     try {
       for (let i = 0; i < rawFiles.length; i++) {
@@ -192,6 +206,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           .returning({ id: fileUploads.id });
         if (!fileRow) throw new Error("Failed to insert file_uploads row");
 
+        const needsOcr = handwritten && saved.kind === "image";
         mediaItems.push({
           type: saved.kind,
           url: saved.publicUrl,
@@ -200,7 +215,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           fileSize: saved.size,
           mimeType: saved.mimeType,
           order: i,
+          ...(needsOcr ? { ocrStatus: "pending" as const } : {}),
         });
+        if (needsOcr) {
+          ocrJobSpecs.push({
+            order: i,
+            diskPath: saved.diskPath,
+            mimeType: saved.mimeType,
+          });
+        }
       }
 
       const kinds = mediaItems.map((m) => m.type);
@@ -208,6 +231,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const thumbnailUrl = mediaItems.find((m) => m.type === "image")?.url ?? null;
       const slugBase = slugify(title) || "content";
       const slug = `${slugBase}-${Date.now().toString(36)}`;
+
+      const meta: Record<string, unknown> = { mediaItems };
+      if (handwritten) {
+        meta.handwritten = true;
+        meta.ocrModel = ocrModel;
+      }
 
       await db.insert(creatorContent).values({
         id: contentId,
@@ -225,12 +254,39 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         isPremium,
         language,
         uploadStatus: "completed",
-        metadata: { mediaItems },
+        metadata: meta,
       });
+
+      // Enqueue OCR for handwritten images — gated by creators.ocr_enabled.
+      // Enqueuing is best-effort; the upload still succeeds even if Redis
+      // is unavailable so we don't block the creator flow.
+      if (ocrJobSpecs.length > 0) {
+        const [ocrFlag] = await db
+          .select({ value: adminFeatureFlags.value })
+          .from(adminFeatureFlags)
+          .where(eq(adminFeatureFlags.key, "creators.ocr_enabled"))
+          .limit(1);
+        if (ocrFlag?.value === true) {
+          await Promise.all(
+            ocrJobSpecs.map((spec) =>
+              enqueueOcrJob({
+                contentId,
+                mediaOrder: spec.order,
+                diskPath: spec.diskPath,
+                mimeType: spec.mimeType,
+                model: ocrModel,
+                userId,
+              }).catch((e) => {
+                console.error(`[upload] failed to enqueue OCR for order ${spec.order}:`, e);
+              }),
+            ),
+          );
+        }
+      }
 
       return NextResponse.json({
         success: true,
-        data: { id: contentId, title, slug },
+        data: { id: contentId, title, slug, ocrQueued: ocrJobSpecs.length },
       });
     } catch (err) {
       // Best-effort cleanup: remove any files we wrote before the failure

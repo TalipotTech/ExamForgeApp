@@ -28,6 +28,8 @@ import {
   closeEarningsSettlementQueue,
   scheduleEarningsSettlementJob,
 } from "../queues/earnings-settlement-queue.js";
+import { createOcrWorker } from "./ocr-worker.js";
+import { closeOcrQueue } from "../queues/ocr-queue.js";
 
 async function main(): Promise<void> {
   console.log("[workers] Starting ExamForge workers...");
@@ -44,6 +46,7 @@ async function main(): Promise<void> {
   const topicGenerationWorker = createTopicGenerationWorker();
   const patternExamGenerationWorker = createPatternExamGenerationWorker();
   const earningsSettlementWorker = createEarningsSettlementWorker();
+  const ocrWorker = createOcrWorker();
 
   // Schedule daily note summary generation
   await scheduleNoteSummaryJob();
@@ -64,6 +67,7 @@ async function main(): Promise<void> {
     await topicGenerationWorker.close();
     await patternExamGenerationWorker.close();
     await earningsSettlementWorker.close();
+    await ocrWorker.close();
     await closeScraperQueue();
     await closePortalIngestionQueue();
     await closePortalProcessingQueue();
@@ -76,6 +80,7 @@ async function main(): Promise<void> {
     await closeTopicGenerationQueue();
     await closePatternExamGenerationQueue();
     await closeEarningsSettlementQueue();
+    await closeOcrQueue();
     console.log("[workers] Shutdown complete.");
     process.exit(0);
   };
@@ -84,7 +89,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   console.log(
-    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery + Verification + Topic Generation + Pattern Exam Generation + Earnings Settlement workers started. Waiting for jobs...",
+    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery + Verification + Topic Generation + Pattern Exam Generation + Earnings Settlement + OCR workers started. Waiting for jobs...",
   );
 }
 
