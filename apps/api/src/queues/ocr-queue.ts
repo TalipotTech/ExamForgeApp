@@ -38,7 +38,8 @@ export async function enqueueOcrJob(data: OcrJobData): Promise<void> {
   const queue = getOcrQueue();
   await queue.add("extract", data, {
     // Unique per (content, mediaOrder) so repeated submits don't duplicate.
-    jobId: `ocr:${data.contentId}:${data.mediaOrder}`,
+    // Hyphens — BullMQ v5 rejects `:` in custom ids.
+    jobId: `ocr-${data.contentId}-${data.mediaOrder}`,
   });
 }
 
