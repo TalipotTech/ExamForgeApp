@@ -288,7 +288,7 @@ function ChartCard({
               return (
                 <div
                   key={d.date}
-                  className="group relative flex-1"
+                  className="group relative flex h-full flex-1 items-end"
                   title={`${d.date}: ${format(d.value)}`}
                 >
                   <div
