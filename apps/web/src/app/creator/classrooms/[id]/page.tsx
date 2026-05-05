@@ -4,6 +4,7 @@ import Link from "next/link";
 import { use } from "react";
 import {
   ArrowLeft,
+  ClipboardList,
   Copy,
   GraduationCap,
   Plus,
@@ -11,6 +12,7 @@ import {
   MessageCircle,
   FileText,
 } from "lucide-react";
+import { TeacherAssignments } from "@/components/classroom/teacher-assignments";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -135,6 +137,10 @@ export default function CreatorClassroomDetailPage(props: {
             <FileText className="mr-1 size-4" />
             Content
           </TabsTrigger>
+          <TabsTrigger value="assignments">
+            <ClipboardList className="mr-1 size-4" />
+            Assignments
+          </TabsTrigger>
           {isTeacher && (
             <TabsTrigger value="members">
               <GraduationCap className="mr-1 size-4" />
@@ -146,6 +152,10 @@ export default function CreatorClassroomDetailPage(props: {
             Doubts
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="assignments">
+          <TeacherAssignments classroomId={id} />
+        </TabsContent>
 
         {/* Content tab */}
         <TabsContent value="content" className="space-y-4">

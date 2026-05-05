@@ -31,6 +31,11 @@ export const assignmentSubmissions = pgTable(
 
     examSessionId: uuid("exam_session_id").references(() => examSessions.id),
 
+    submissionText: text("submission_text"),
+    submissionUrl: text("submission_url"),
+    submissionFileName: varchar("submission_file_name", { length: 500 }),
+    submissionMimeType: varchar("submission_mime_type", { length: 100 }),
+
     feedback: text("feedback"),
     gradedBy: uuid("graded_by").references(() => users.id),
     gradedAt: timestamp("graded_at"),

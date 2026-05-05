@@ -38,6 +38,10 @@ export const classroomAssignments = pgTable(
     assignedAt: timestamp("assigned_at").defaultNow().notNull(),
     dueAt: timestamp("due_at"),
 
+    attachmentUrl: text("attachment_url"),
+    attachmentFileName: varchar("attachment_file_name", { length: 500 }),
+    attachmentMimeType: varchar("attachment_mime_type", { length: 100 }),
+
     totalStudents: integer("total_students").default(0),
     completedCount: integer("completed_count").default(0),
     averageScore: real("average_score"),

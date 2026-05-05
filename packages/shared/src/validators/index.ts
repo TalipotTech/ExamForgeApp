@@ -427,6 +427,23 @@ export type {
   RemoveMemberInput,
 } from "./classroom";
 
+// ─── Creators Ecosystem — Classroom Assignments ─────────
+
+export {
+  createAssignmentSchema,
+  updateAssignmentSchema,
+  assignmentIdInputSchema,
+  submitAssignmentSchema,
+  gradeSubmissionSchema,
+} from "./assignment";
+export type {
+  CreateAssignmentInput,
+  UpdateAssignmentInput,
+  AssignmentIdInput,
+  SubmitAssignmentInput,
+  GradeSubmissionInput,
+} from "./assignment";
+
 // ─── Creators Ecosystem — Doubts ────────────────────────
 
 export {

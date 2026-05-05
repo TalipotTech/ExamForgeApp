@@ -169,6 +169,13 @@
       "when": 1776841830491,
       "tag": "0023_woozy_glorian",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1777400000000,
+      "tag": "0024_assignment_attachments",
+      "breakpoints": true
     }
   ]
 }
