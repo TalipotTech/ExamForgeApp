@@ -16,6 +16,8 @@ import {
   userCredits,
   adminFeatureFlags,
   creatorProfiles,
+  promotions,
+  adminAuditLog,
 } from "../src/db/schema/index";
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -1060,15 +1062,135 @@ async function seed(): Promise<void> {
     ])
     .onConflictDoNothing();
 
+  // ─── Promotions (one row per status for /admin/promotions QA) ──────────
+  console.log("  Seeding promotions...");
+  const PROMO_IDS = {
+    pending: "a1000000-0000-0000-0000-000000000001",
+    active: "a1000000-0000-0000-0000-000000000002",
+    rejected: "a1000000-0000-0000-0000-000000000003",
+    expired: "a1000000-0000-0000-0000-000000000004",
+  };
+  const nowMs = Date.now();
+  const days = (n: number): Date => new Date(nowMs + n * 24 * 60 * 60 * 1000);
+
+  await db
+    .insert(promotions)
+    .values([
+      {
+        id: PROMO_IDS.pending,
+        creatorId: CREATOR_PROFILE_ID,
+        promotionType: "banner",
+        bannerImageUrl: "https://picsum.photos/seed/promo-pending/640/360",
+        headline: "Free GPAT crash course — limited seats",
+        description: "Two-week intensive GPAT prep with daily MCQs and weekly mock tests.",
+        ctaText: "Enroll free",
+        ctaUrl: "https://example.com/gpat-crash",
+        targetExams: ["gpat", "bpharm"],
+        targetSubjects: ["pharmacology"],
+        budgetType: "flat",
+        budgetAmountInr: 5000,
+        spentAmountInr: 0,
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+        startsAt: days(0),
+        endsAt: days(30),
+        status: "pending",
+      },
+      {
+        id: PROMO_IDS.active,
+        creatorId: CREATOR_PROFILE_ID,
+        promotionType: "featured",
+        bannerImageUrl: "https://picsum.photos/seed/promo-active/640/360",
+        headline: "BPharm 2026 batch — early-bird discount",
+        description: "Full-syllabus BPharm Assistant Professor coaching with mentor calls.",
+        ctaText: "Join now",
+        ctaUrl: "https://example.com/bpharm-2026",
+        targetExams: ["bpharm"],
+        targetSubjects: ["pharmaceutics", "pharmacology"],
+        budgetType: "impressions",
+        budgetAmountInr: 100000,
+        spentAmountInr: 27500,
+        impressions: 27500,
+        clicks: 612,
+        conversions: 38,
+        startsAt: days(-5),
+        endsAt: days(25),
+        status: "active",
+        approvedBy: ADMIN_ID,
+      },
+      {
+        id: PROMO_IDS.rejected,
+        creatorId: CREATOR_PROFILE_ID,
+        promotionType: "sponsored",
+        bannerImageUrl: "https://picsum.photos/seed/promo-rejected/640/360",
+        headline: "Spam test promo",
+        description: "Banner failed brand-safety review.",
+        ctaText: "Click here",
+        ctaUrl: "https://example.com/spam",
+        targetExams: ["neet"],
+        targetSubjects: [],
+        budgetType: "flat",
+        budgetAmountInr: 2000,
+        spentAmountInr: 0,
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+        startsAt: days(-2),
+        endsAt: days(28),
+        status: "rejected",
+      },
+      {
+        id: PROMO_IDS.expired,
+        creatorId: CREATOR_PROFILE_ID,
+        promotionType: "banner",
+        bannerImageUrl: "https://picsum.photos/seed/promo-expired/640/360",
+        headline: "Old GATE-Pharma promo (expired)",
+        description: "Promo whose run window has ended.",
+        ctaText: "Learn more",
+        ctaUrl: "https://example.com/gate-pharma",
+        targetExams: ["gate"],
+        targetSubjects: ["pharmaceutics"],
+        budgetType: "clicks",
+        budgetAmountInr: 50000,
+        spentAmountInr: 48750,
+        impressions: 412300,
+        clicks: 9750,
+        conversions: 184,
+        startsAt: days(-30),
+        endsAt: days(-1),
+        status: "active",
+        approvedBy: ADMIN_ID,
+      },
+    ])
+    .onConflictDoNothing();
+
+  // Audit log entry so the "Why rejected?" popover has a reason to show.
+  await db
+    .insert(adminAuditLog)
+    .values({
+      adminId: ADMIN_ID,
+      action: "promotion.reject",
+      targetType: "promotion",
+      targetId: PROMO_IDS.rejected,
+      details: {
+        before: { status: "pending" },
+        after: { status: "rejected" },
+        reason: "Banner image violates policy: includes competitor branding and unverified claims.",
+      },
+    })
+    .onConflictDoNothing();
+
   console.log("\nSeed complete!");
   console.log("──────────────────────────────────────");
-  console.log("  Admin:    admin@examforge.dev / password123");
-  console.log("  Student:  student@examforge.dev / student123");
-  console.log("  Creator:  creator@examforge.dev / creator123");
-  console.log("  Exams:    10 seeded");
-  console.log("  Sources:  3 seeded");
-  console.log("  Plans:    3 seeded (free, pro, premium)");
-  console.log("  Flags:    45 seeded");
+  console.log("  Admin:      admin@examforge.dev / password123");
+  console.log("  Student:    student@examforge.dev / student123");
+  console.log("  Creator:    creator@examforge.dev / creator123");
+  console.log("  Exams:      10 seeded");
+  console.log("  Sources:    3 seeded");
+  console.log("  Plans:      3 seeded (free, pro, premium)");
+  console.log("  Flags:      45 seeded");
+  console.log("  Promotions: 4 seeded (pending, active, rejected, expired)");
   console.log("──────────────────────────────────────");
 
   process.exit(0);
