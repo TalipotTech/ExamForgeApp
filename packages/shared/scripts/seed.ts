@@ -2,7 +2,7 @@ import { config } from "dotenv";
 config({ path: "../../.env.local" });
 
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { createDatabase } from "../src/db/index";
 import {
   organizations,
@@ -1112,14 +1112,15 @@ async function seed(): Promise<void> {
     })
     .onConflictDoNothing();
 
-  // 2) Wallet (one row per creator). All amounts are paisa.
+  // 2) Wallet (one row per creator). Amounts are paisa, recomputed
+  // below from creator_earnings so balance == sum(available earnings).
   await db
     .insert(creatorWallets)
     .values({
       creatorId: CREATOR_PROFILE_ID,
-      balanceInr: 320000, // ₹3,200 available
-      pendingInr: 80000, //  ₹800 pending
-      lifetimeEarnedInr: 950000, // ₹9,500 lifetime
+      balanceInr: 0,
+      pendingInr: 0,
+      lifetimeEarnedInr: 0,
     })
     .onConflictDoNothing();
 
@@ -1303,20 +1304,107 @@ async function seed(): Promise<void> {
     ])
     .onConflictDoNothing();
 
-  // Mirror counters back onto the profile so the Overview tab matches.
+  // 8) Recompute aggregates from the rows we just inserted so every
+  // counter on the profile + wallet + content cross-references against
+  // the underlying tables. This is the test-bench equivalent of the
+  // counter-update jobs that run in production.
+  const [availableSumRow] = await db
+    .select({
+      sum: sql<number>`coalesce(sum(${creatorEarnings.amountInr}), 0)::int`,
+    })
+    .from(creatorEarnings)
+    .where(
+      and(
+        eq(creatorEarnings.creatorId, CREATOR_PROFILE_ID),
+        eq(creatorEarnings.status, "available"),
+      ),
+    );
+  const [pendingSumRow] = await db
+    .select({
+      sum: sql<number>`coalesce(sum(${creatorEarnings.amountInr}), 0)::int`,
+    })
+    .from(creatorEarnings)
+    .where(
+      and(eq(creatorEarnings.creatorId, CREATOR_PROFILE_ID), eq(creatorEarnings.status, "pending")),
+    );
+  const [paidOutSumRow] = await db
+    .select({
+      sum: sql<number>`coalesce(sum(${creatorEarnings.amountInr}), 0)::int`,
+    })
+    .from(creatorEarnings)
+    .where(
+      and(
+        eq(creatorEarnings.creatorId, CREATOR_PROFILE_ID),
+        eq(creatorEarnings.status, "paid_out"),
+      ),
+    );
+  const [salesCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(creatorEarnings)
+    .where(
+      and(
+        eq(creatorEarnings.creatorId, CREATOR_PROFILE_ID),
+        eq(creatorEarnings.earningType, "sale"),
+      ),
+    );
+  const [viewsCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(contentViews)
+    .where(eq(contentViews.creatorId, CREATOR_PROFILE_ID));
+  const [followersCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(creatorFollowers)
+    .where(eq(creatorFollowers.creatorId, CREATOR_PROFILE_ID));
+  const [contentCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(creatorContent)
+    .where(
+      and(eq(creatorContent.creatorId, CREATOR_PROFILE_ID), eq(creatorContent.isPublished, true)),
+    );
+  const [studentsCountRow] = await db
+    .select({
+      sum: sql<number>`coalesce(sum(${classrooms.studentCount}), 0)::int`,
+    })
+    .from(classrooms)
+    .where(eq(classrooms.creatorId, CREATOR_PROFILE_ID));
+
+  const availableSum = Number(availableSumRow?.sum ?? 0);
+  const pendingSum = Number(pendingSumRow?.sum ?? 0);
+  const paidOutSum = Number(paidOutSumRow?.sum ?? 0);
+  const lifetimeSum = availableSum + paidOutSum;
+  const totalViewsCount = Number(viewsCountRow?.count ?? 0);
+
+  await db
+    .update(creatorWallets)
+    .set({
+      balanceInr: availableSum,
+      pendingInr: pendingSum,
+      lifetimeEarnedInr: lifetimeSum,
+    })
+    .where(eq(creatorWallets.creatorId, CREATOR_PROFILE_ID));
+
+  await db
+    .update(creatorContent)
+    .set({ viewCount: totalViewsCount })
+    .where(eq(creatorContent.id, ANALYTICS_IDS.content));
+
   await db
     .update(creatorProfiles)
     .set({
-      followerCount: 5,
-      contentCount: 1,
-      totalViews: 320,
-      totalStudents: 2,
-      totalSales: 6,
-      totalRevenueEarned: 950000,
+      followerCount: Number(followersCountRow?.count ?? 0),
+      contentCount: Number(contentCountRow?.count ?? 0),
+      totalViews: totalViewsCount,
+      totalStudents: Number(studentsCountRow?.sum ?? 0),
+      totalSales: Number(salesCountRow?.count ?? 0),
+      totalRevenueEarned: lifetimeSum,
       averageRating: 4.5,
       totalRatings: 12,
     })
     .where(eq(creatorProfiles.id, CREATOR_PROFILE_ID));
+
+  console.log(
+    `    wallet: ₹${(availableSum / 100).toFixed(0)} balance / ₹${(pendingSum / 100).toFixed(0)} pending / ${totalViewsCount} views`,
+  );
 
   console.log("\nSeed complete!");
   console.log("──────────────────────────────────────");
