@@ -16,6 +16,15 @@ import {
   userCredits,
   adminFeatureFlags,
   creatorProfiles,
+  creatorContent,
+  creatorWallets,
+  creatorEarnings,
+  creatorFollowers,
+  contentViews,
+  classrooms,
+  classroomMembers,
+  doubts,
+  doubtResponses,
 } from "../src/db/schema/index";
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -1060,15 +1069,267 @@ async function seed(): Promise<void> {
     ])
     .onConflictDoNothing();
 
+  // ─── Creator analytics fixtures (Test Creator) ─────────────────────────
+  // Populates content_views, creator_earnings, creator_wallets,
+  // creator_followers, classrooms + members, doubts + responses so
+  // /creator/analytics shows non-empty charts and KPIs.
+  console.log("  Seeding creator analytics fixtures...");
+
+  const nowMs = Date.now();
+  const days = (n: number): Date => new Date(nowMs + n * 24 * 60 * 60 * 1000);
+
+  const ANALYTICS_IDS = {
+    content: "f1000000-0000-0000-0000-000000000001",
+    classroom: "f2000000-0000-0000-0000-000000000001",
+    classroomMember1: "f2000000-0000-0000-0000-000000000011",
+    classroomMember2: "f2000000-0000-0000-0000-000000000012",
+    follower1: "f3000000-0000-0000-0000-000000000001",
+    follower2: "f3000000-0000-0000-0000-000000000002",
+    follower3: "f3000000-0000-0000-0000-000000000003",
+    follower4: "f3000000-0000-0000-0000-000000000004",
+    follower5: "f3000000-0000-0000-0000-000000000005",
+  };
+
+  // 1) One published piece of content for views to hang off.
+  await db
+    .insert(creatorContent)
+    .values({
+      id: ANALYTICS_IDS.content,
+      creatorId: CREATOR_PROFILE_ID,
+      contentType: "article",
+      title: "Pharmacology cheat-sheet — top 50 drug classes",
+      description: "Quick-revision notes for GPAT / BPharm.",
+      body: "Stub body for the seeded analytics fixture.",
+      isPublished: true,
+      publishedAt: days(-25),
+      uploadStatus: "completed",
+      reviewStatus: "approved",
+      viewCount: 320,
+      likeCount: 42,
+      doubtCount: 3,
+      totalWatchMinutes: 480,
+      avgRating: 4.5,
+    })
+    .onConflictDoNothing();
+
+  // 2) Wallet (one row per creator). All amounts are paisa.
+  await db
+    .insert(creatorWallets)
+    .values({
+      creatorId: CREATOR_PROFILE_ID,
+      balanceInr: 320000, // ₹3,200 available
+      pendingInr: 80000, //  ₹800 pending
+      lifetimeEarnedInr: 950000, // ₹9,500 lifetime
+    })
+    .onConflictDoNothing();
+
+  // 3) Earnings spread across last ~30 days. Mix of statuses.
+  const earningRows: (typeof creatorEarnings.$inferInsert)[] = [];
+  const earningSchedule: { offset: number; amount: number; status: string; type: string }[] = [
+    { offset: -28, amount: 49900, status: "available", type: "sale" },
+    { offset: -22, amount: 29900, status: "available", type: "sale" },
+    { offset: -18, amount: 9900, status: "available", type: "tip" },
+    { offset: -14, amount: 49900, status: "available", type: "sale" },
+    { offset: -10, amount: 99900, status: "available", type: "sale" },
+    { offset: -7, amount: 19900, status: "available", type: "tip" },
+    { offset: -5, amount: 49900, status: "pending", type: "sale" },
+    { offset: -3, amount: 14900, status: "pending", type: "tip" },
+    { offset: -1, amount: 19900, status: "pending", type: "sale" },
+    { offset: 0, amount: 9900, status: "pending", type: "subscription_pool" },
+  ];
+  for (const e of earningSchedule) {
+    earningRows.push({
+      creatorId: CREATOR_PROFILE_ID,
+      earningType: e.type,
+      amountInr: e.amount,
+      status: e.status,
+      availableAt: e.status === "available" ? days(e.offset + 7) : null,
+      createdAt: days(e.offset),
+      description: `Seeded ${e.type} earning`,
+    });
+  }
+  await db.insert(creatorEarnings).values(earningRows).onConflictDoNothing();
+
+  // 4) Daily content_views for the last 30 days (1-12 per day, weighted).
+  const viewRows: (typeof contentViews.$inferInsert)[] = [];
+  for (let dayOffset = -29; dayOffset <= 0; dayOffset += 1) {
+    // Deterministic pseudo-random: gentle weekly oscillation 2-12 views.
+    const base = 4 + ((dayOffset + 30) % 7);
+    const burst = dayOffset % 5 === 0 ? 4 : 0;
+    const count = base + burst;
+    for (let i = 0; i < count; i += 1) {
+      viewRows.push({
+        contentId: ANALYTICS_IDS.content,
+        creatorId: CREATOR_PROFILE_ID,
+        userId: STUDENT_ID,
+        watchedSeconds: 60 + ((i * 17) % 240),
+        completed: i % 4 === 0,
+        creditCost: 0,
+        createdAt: new Date(days(dayOffset).getTime() + i * 60_000),
+      });
+    }
+  }
+  await db.insert(contentViews).values(viewRows).onConflictDoNothing();
+
+  // 5) Five followers across last 30 days (drives follower-delta KPI).
+  await db
+    .insert(creatorFollowers)
+    .values([
+      {
+        id: ANALYTICS_IDS.follower1,
+        creatorId: CREATOR_PROFILE_ID,
+        studentId: STUDENT_ID,
+        followedAt: days(-25),
+      },
+      {
+        id: ANALYTICS_IDS.follower2,
+        creatorId: CREATOR_PROFILE_ID,
+        studentId: ADMIN_ID,
+        followedAt: days(-18),
+      },
+      {
+        id: ANALYTICS_IDS.follower3,
+        creatorId: CREATOR_PROFILE_ID,
+        studentId: STUDENT_ID,
+        followedAt: days(-12),
+      },
+      {
+        id: ANALYTICS_IDS.follower4,
+        creatorId: CREATOR_PROFILE_ID,
+        studentId: ADMIN_ID,
+        followedAt: days(-5),
+      },
+      {
+        id: ANALYTICS_IDS.follower5,
+        creatorId: CREATOR_PROFILE_ID,
+        studentId: STUDENT_ID,
+        followedAt: days(-1),
+      },
+    ])
+    .onConflictDoNothing();
+
+  // 6) One classroom + two members so the Classrooms tab has a row.
+  await db
+    .insert(classrooms)
+    .values({
+      id: ANALYTICS_IDS.classroom,
+      teacherId: CREATOR_ID,
+      creatorId: CREATOR_PROFILE_ID,
+      name: "BPharm 2026 — pilot batch",
+      description: "Seeded classroom for analytics QA.",
+      joinCode: "ANALY1",
+      isActive: true,
+      maxStudents: 50,
+      studentCount: 2,
+      isPaid: false,
+      createdAt: days(-20),
+    })
+    .onConflictDoNothing();
+  await db
+    .insert(classroomMembers)
+    .values([
+      {
+        id: ANALYTICS_IDS.classroomMember1,
+        classroomId: ANALYTICS_IDS.classroom,
+        studentId: STUDENT_ID,
+        joinedAt: days(-15),
+      },
+      {
+        id: ANALYTICS_IDS.classroomMember2,
+        classroomId: ANALYTICS_IDS.classroom,
+        studentId: ADMIN_ID,
+        joinedAt: days(-3),
+      },
+    ])
+    .onConflictDoNothing();
+
+  // 7) Doubts + a response so the Engagement tab populates.
+  const DOUBT_IDS = {
+    open: "f4000000-0000-0000-0000-000000000001",
+    answered: "f4000000-0000-0000-0000-000000000002",
+    closed: "f4000000-0000-0000-0000-000000000003",
+  };
+  await db
+    .insert(doubts)
+    .values([
+      {
+        id: DOUBT_IDS.open,
+        studentId: STUDENT_ID,
+        creatorId: CREATOR_ID,
+        contentId: ANALYTICS_IDS.content,
+        questionText: "What is the mechanism of action of beta-blockers?",
+        status: "open",
+        createdAt: days(-2),
+      },
+      {
+        id: DOUBT_IDS.answered,
+        studentId: STUDENT_ID,
+        creatorId: CREATOR_ID,
+        contentId: ANALYTICS_IDS.content,
+        questionText: "Difference between agonist and antagonist?",
+        status: "answered",
+        createdAt: days(-7),
+      },
+      {
+        id: DOUBT_IDS.closed,
+        studentId: STUDENT_ID,
+        creatorId: CREATOR_ID,
+        contentId: ANALYTICS_IDS.content,
+        questionText: "What's the half-life formula?",
+        status: "closed",
+        createdAt: days(-12),
+      },
+    ])
+    .onConflictDoNothing();
+  await db
+    .insert(doubtResponses)
+    .values([
+      {
+        doubtId: DOUBT_IDS.answered,
+        responderId: CREATOR_ID,
+        responseText: "Agonists activate; antagonists block. Full notes attached.",
+        responseType: "text",
+        isAi: false,
+        createdAt: new Date(days(-7).getTime() + 4 * 60 * 60 * 1000), // +4h
+      },
+      {
+        doubtId: DOUBT_IDS.closed,
+        responderId: CREATOR_ID,
+        responseText: "t½ = 0.693 / k. See chapter 3.",
+        responseType: "text",
+        isAi: false,
+        createdAt: new Date(days(-12).getTime() + 2 * 60 * 60 * 1000), // +2h
+      },
+    ])
+    .onConflictDoNothing();
+
+  // Mirror counters back onto the profile so the Overview tab matches.
+  await db
+    .update(creatorProfiles)
+    .set({
+      followerCount: 5,
+      contentCount: 1,
+      totalViews: 320,
+      totalStudents: 2,
+      totalSales: 6,
+      totalRevenueEarned: 950000,
+      averageRating: 4.5,
+      totalRatings: 12,
+    })
+    .where(eq(creatorProfiles.id, CREATOR_PROFILE_ID));
+
   console.log("\nSeed complete!");
   console.log("──────────────────────────────────────");
-  console.log("  Admin:    admin@examforge.dev / password123");
-  console.log("  Student:  student@examforge.dev / student123");
-  console.log("  Creator:  creator@examforge.dev / creator123");
-  console.log("  Exams:    10 seeded");
-  console.log("  Sources:  3 seeded");
-  console.log("  Plans:    3 seeded (free, pro, premium)");
-  console.log("  Flags:    45 seeded");
+  console.log("  Admin:     admin@examforge.dev / password123");
+  console.log("  Student:   student@examforge.dev / student123");
+  console.log("  Creator:   creator@examforge.dev / creator123");
+  console.log("  Exams:     10 seeded");
+  console.log("  Sources:   3 seeded");
+  console.log("  Plans:     3 seeded (free, pro, premium)");
+  console.log("  Flags:     45 seeded");
+  console.log("  Analytics: 1 content, ~200 views, 10 earnings,");
+  console.log("             5 followers, 1 classroom + 2 members,");
+  console.log("             3 doubts + 2 responses");
   console.log("──────────────────────────────────────");
 
   process.exit(0);
