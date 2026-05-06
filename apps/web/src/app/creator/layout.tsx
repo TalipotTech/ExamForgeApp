@@ -26,6 +26,7 @@ import {
   GraduationCap,
   Inbox,
   FileStack,
+  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -46,6 +47,7 @@ const CREATOR_NAV: NavItem[] = [
   { href: "/creator/classrooms", label: "Classrooms", icon: GraduationCap },
   { href: "/creator/doubts", label: "Doubt Inbox", icon: Inbox },
   { href: "/creator/wallet", label: "Wallet", icon: Wallet },
+  { href: "/creator/subscription-pool", label: "Subscription Pool", icon: Coins },
 ];
 
 function isLinkActive(pathname: string, href: string): boolean {

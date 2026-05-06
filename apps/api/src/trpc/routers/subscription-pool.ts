@@ -2,8 +2,9 @@ import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { creatorProfiles, subscriptionPool } from "@examforge/shared/db/schema";
-import { router, adminProcedure } from "../trpc.js";
+import { router, adminProcedure, protectedProcedure } from "../trpc.js";
 import { createAuditEntry } from "../../services/audit-log.js";
+import { assertCreatorsFeature } from "../../services/creators-gate.js";
 import {
   computeMonthlyPool,
   listPoolPeriods,
@@ -108,6 +109,49 @@ export const subscriptionPoolRouter = router({
         subscriptionRevenueInr,
         totalPoolInr,
       };
+    }),
+
+  /**
+   * Creator-scoped: every distributed pool row for the caller, newest
+   * first. Used by /creator/subscription-pool. Returns an empty list
+   * when the caller is not a registered creator (instead of throwing)
+   * so the page degrades gracefully.
+   */
+  myHistory: protectedProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().int().min(1).max(36).default(12),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      await assertCreatorsFeature(ctx.db, "creators.enabled");
+      const [profile] = await ctx.db
+        .select({ id: creatorProfiles.id })
+        .from(creatorProfiles)
+        .where(eq(creatorProfiles.userId, ctx.userId))
+        .limit(1);
+      if (!profile) return { rows: [] };
+      const rows = await ctx.db
+        .select({
+          id: subscriptionPool.id,
+          periodMonth: subscriptionPool.periodMonth,
+          freeViewCount: subscriptionPool.freeViewCount,
+          totalWatchMinutes: subscriptionPool.totalWatchMinutes,
+          weightedScore: subscriptionPool.weightedScore,
+          poolShareInr: subscriptionPool.poolShareInr,
+          totalPoolInr: subscriptionPool.totalPoolInr,
+          status: subscriptionPool.status,
+          distributedAt: subscriptionPool.distributedAt,
+          breakdown: subscriptionPool.breakdown,
+          createdAt: subscriptionPool.createdAt,
+        })
+        .from(subscriptionPool)
+        .where(eq(subscriptionPool.creatorId, profile.id))
+        .orderBy(desc(subscriptionPool.periodMonth))
+        .limit(input?.limit ?? 12);
+      return { rows };
     }),
 
   /** Enqueue a manual one-shot run. The worker is the executor. */

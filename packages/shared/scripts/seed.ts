@@ -2,7 +2,7 @@ import { config } from "dotenv";
 config({ path: "../../.env.local" });
 
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { createDatabase } from "../src/db/index";
 import {
   organizations,
@@ -16,6 +16,9 @@ import {
   userCredits,
   adminFeatureFlags,
   creatorProfiles,
+  creatorContent,
+  contentViews,
+  paymentOrders,
 } from "../src/db/schema/index";
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -1066,6 +1069,95 @@ async function seed(): Promise<void> {
       },
     ])
     .onConflictDoNothing();
+
+  // ─── Subscription-pool fixtures ────────────────────────────────────────
+  // Lets a developer flow the worker end-to-end:
+  //   1) flip creators.subscription_pool_enabled -> true in /admin/settings
+  //   2) visit /admin/subscription-pool
+  //   3) click "Run for [last month]" — pool computed from these rows.
+  console.log("  Seeding subscription-pool fixtures...");
+
+  // Use the previous calendar month so the worker's "previous month" default
+  // matches what we seed. Anchor in the middle of the month to dodge
+  // timezone edge cases at month boundaries.
+  const seedNow = new Date();
+  const lastMonth = new Date(
+    Date.UTC(seedNow.getUTCFullYear(), seedNow.getUTCMonth() - 1, 15, 12, 0, 0),
+  );
+
+  const POOL_FIXTURE_IDS = {
+    content: "f1000000-0000-0000-0000-000000000010",
+    payment: "f5000000-0000-0000-0000-000000000001",
+  };
+
+  // 1) One published piece of content for views to attach to.
+  await db
+    .insert(creatorContent)
+    .values({
+      id: POOL_FIXTURE_IDS.content,
+      creatorId: CREATOR_PROFILE_ID,
+      contentType: "article",
+      title: "Free pharmacology revision (subscription-pool fixture)",
+      description: "Seeded so subscription-pool worker has views to score.",
+      body: "Stub body for subscription-pool fixture content.",
+      isPublished: true,
+      publishedAt: lastMonth,
+      uploadStatus: "completed",
+      reviewStatus: "approved",
+    })
+    .onConflictDoNothing();
+
+  // 2) One completed subscription order from last month → ₹1,000 of revenue
+  // (100,000 paisa). Pool = 70% = 70,000 paisa = ₹700.
+  await db
+    .insert(paymentOrders)
+    .values({
+      id: POOL_FIXTURE_IDS.payment,
+      userId: STUDENT_ID,
+      orderType: "subscription",
+      amountInr: 100_000, // paisa
+      status: "completed",
+      planId: PLAN_IDS.pro,
+      billingCycle: "monthly",
+      createdAt: lastMonth,
+      updatedAt: lastMonth,
+    })
+    .onConflictDoNothing();
+
+  // 3) 20 free views by the student last month so the creator scores.
+  // Skip if any rows already exist for this content+last-month — keeps the
+  // fixture idempotent without needing per-view UUIDs.
+  const [{ existingViews }] = (await db
+    .select({
+      existingViews: sql<number>`count(*)::int`,
+    })
+    .from(contentViews)
+    .where(
+      and(
+        eq(contentViews.contentId, POOL_FIXTURE_IDS.content),
+        gte(
+          contentViews.createdAt,
+          new Date(Date.UTC(lastMonth.getUTCFullYear(), lastMonth.getUTCMonth(), 1)),
+        ),
+      ),
+    )) as { existingViews: number }[];
+
+  if (Number(existingViews ?? 0) === 0) {
+    const viewRows = Array.from({ length: 20 }).map((_, i) => ({
+      contentId: POOL_FIXTURE_IDS.content,
+      creatorId: CREATOR_PROFILE_ID,
+      userId: STUDENT_ID,
+      watchedSeconds: 90 + (i % 5) * 30, // 90-210s of watch time
+      completed: i % 4 === 0,
+      creditCost: 0, // free views drive the pool score
+      createdAt: new Date(lastMonth.getTime() + i * 60_000),
+    }));
+    await db.insert(contentViews).values(viewRows);
+  }
+
+  console.log(
+    `    pool fixture: 1 subscription order (₹1,000), 20 free views attributed to Test Creator`,
+  );
 
   console.log("\nSeed complete!");
   console.log("──────────────────────────────────────");
