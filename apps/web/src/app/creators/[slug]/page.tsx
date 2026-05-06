@@ -9,7 +9,16 @@ type ProfileSummary = {
   bio: string | null;
   coverImageUrl: string | null;
   avatarUrl: string | null;
+  institution: string | null;
+  qualification: string | null;
+  websiteUrl: string | null;
+  followerCount: number | null;
+  averageRating: number | null;
+  totalRatings: number | null;
 };
+
+const SITE_BASE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") ?? "https://ice.ensate.in";
 
 async function loadProfileForMeta(slug: string): Promise<ProfileSummary | null> {
   const databaseUrl = process.env.DATABASE_URL;
@@ -27,6 +36,12 @@ async function loadProfileForMeta(slug: string): Promise<ProfileSummary | null> 
       bio: creatorProfiles.bio,
       coverImageUrl: creatorProfiles.coverImageUrl,
       avatarUrl: creatorProfiles.avatarUrl,
+      institution: creatorProfiles.institution,
+      qualification: creatorProfiles.qualification,
+      websiteUrl: creatorProfiles.websiteUrl,
+      followerCount: creatorProfiles.followerCount,
+      averageRating: creatorProfiles.averageRating,
+      totalRatings: creatorProfiles.totalRatings,
     })
     .from(creatorProfiles)
     .where(and(...conds))
@@ -40,12 +55,14 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  const canonical = `${SITE_BASE_URL}/creators/${slug}`;
   const profile = await loadProfileForMeta(slug);
   if (!profile) {
     return {
       title: "Creator not found",
       description: "This creator profile is not public on ExamForge.",
       robots: { index: false, follow: false },
+      alternates: { canonical },
     };
   }
   const title = `${profile.displayName} — ExamForge creator`;
@@ -56,10 +73,12 @@ export async function generateMetadata({
   return {
     title,
     description,
+    alternates: { canonical },
     openGraph: {
       title,
       description,
       type: "profile",
+      url: canonical,
       images: ogImage ? [{ url: ogImage }] : undefined,
     },
     twitter: {
@@ -71,11 +90,52 @@ export async function generateMetadata({
   };
 }
 
+function buildPersonJsonLd(slug: string, profile: ProfileSummary): Record<string, unknown> {
+  const url = `${SITE_BASE_URL}/creators/${slug}`;
+  const aggregateRating =
+    (profile.totalRatings ?? 0) > 0
+      ? {
+          "@type": "AggregateRating",
+          ratingValue: (profile.averageRating ?? 0).toFixed(2),
+          ratingCount: profile.totalRatings ?? 0,
+          bestRating: 5,
+          worstRating: 0,
+        }
+      : undefined;
+  return {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: profile.displayName,
+    url,
+    image: profile.avatarUrl ?? profile.coverImageUrl ?? undefined,
+    description: profile.bio ?? undefined,
+    sameAs: profile.websiteUrl ? [profile.websiteUrl] : undefined,
+    jobTitle: profile.qualification ?? undefined,
+    worksFor: profile.institution
+      ? { "@type": "Organization", name: profile.institution }
+      : undefined,
+    aggregateRating,
+  };
+}
+
 export default async function CreatorDetailPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<React.ReactElement> {
   const { slug } = await params;
-  return <CreatorDetailClient slug={slug} />;
+  const profile = await loadProfileForMeta(slug);
+  return (
+    <>
+      {profile && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(buildPersonJsonLd(slug, profile)),
+          }}
+        />
+      )}
+      <CreatorDetailClient slug={slug} />
+    </>
+  );
 }
