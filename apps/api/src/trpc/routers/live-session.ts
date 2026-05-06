@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   classroomMembers,
@@ -138,6 +138,61 @@ async function reapElapsed(
   return reaped;
 }
 
+/**
+ * Build the WHERE predicate that scopes a session list to what the caller
+ * can legitimately see:
+ *   - standalone sessions (classroom_id IS NULL) — public to all signed-in users
+ *   - sessions in classrooms where caller is an active member
+ *   - sessions hosted by caller (creator)
+ *
+ * If `requireClassroomId` is set, the caller must additionally be a member
+ * (or host) of THAT classroom — prevents querying a classroom you don't
+ * belong to by guessing its UUID.
+ */
+async function buildAccessScope(
+  db: Database,
+  userId: string,
+  requireClassroomId?: string,
+): Promise<ReturnType<typeof or> | null> {
+  // Caller's active classroom memberships
+  const memberships = await db
+    .select({ classroomId: classroomMembers.classroomId })
+    .from(classroomMembers)
+    .where(and(eq(classroomMembers.studentId, userId), eq(classroomMembers.status, "active")));
+  const memberClassroomIds = memberships.map((m) => m.classroomId);
+
+  // Caller's creator profile (if any) — host can see their own sessions.
+  const [profile] = await db
+    .select({ id: creatorProfiles.id })
+    .from(creatorProfiles)
+    .where(eq(creatorProfiles.userId, userId))
+    .limit(1);
+
+  if (requireClassroomId) {
+    // Locked to one classroom — must be host of session OR member of that classroom.
+    const isMember = memberClassroomIds.includes(requireClassroomId);
+    const isHostOfClassroom = profile
+      ? or(eq(liveSessions.creatorId, profile.id), eq(liveSessions.classroomId, requireClassroomId))
+      : eq(liveSessions.classroomId, requireClassroomId);
+    if (!isMember && !profile) {
+      // Neither member nor a creator — explicitly empty result. Build a
+      // contradiction so drizzle returns 0 rows without throwing.
+      return sql`false`;
+    }
+    return isMember ? eq(liveSessions.classroomId, requireClassroomId) : isHostOfClassroom;
+  }
+
+  // Open scope — public + member-of + own
+  const branches: ReturnType<typeof or>[] = [isNull(liveSessions.classroomId)];
+  if (memberClassroomIds.length > 0) {
+    branches.push(inArray(liveSessions.classroomId, memberClassroomIds));
+  }
+  if (profile) {
+    branches.push(eq(liveSessions.creatorId, profile.id));
+  }
+  return or(...branches);
+}
+
 export const liveSessionRouter = router({
   // ─── Creator ───────────────────────────────────────────
 
@@ -227,14 +282,16 @@ export const liveSessionRouter = router({
 
   // ─── Both roles ────────────────────────────────────────
 
-  /** Upcoming = scheduled, end-time still in the future. Optionally scoped
-   *  to a classroom. Joined to creator displayName so the UI can render
-   *  "by …" without a second query. */
+  /** Upcoming = scheduled, end-time still in the future. Without a
+   *  classroomId filter the result is scoped to: standalone (public) +
+   *  member-of + caller-hosted, so we don't leak titles of other classrooms.
+   *  With a classroomId, membership is enforced. */
   listUpcoming: protectedProcedure
     .input(listLiveSessionsInputSchema.optional())
     .query(async ({ ctx, input }) => {
       await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");
       const limit = input?.limit ?? 50;
+      const scope = await buildAccessScope(ctx.db, ctx.userId, input?.classroomId);
       const conds = [
         or(eq(liveSessions.status, "scheduled"), eq(liveSessions.status, "live"))!,
         // end-time = scheduled + duration + grace; we want sessions whose end
@@ -244,6 +301,7 @@ export const liveSessionRouter = router({
           new Date(),
         ),
       ];
+      if (scope) conds.push(scope);
       if (input?.classroomId) {
         conds.push(eq(liveSessions.classroomId, input.classroomId));
       }
@@ -268,14 +326,16 @@ export const liveSessionRouter = router({
         .filter((r) => r.status === "scheduled" || r.status === "live");
     }),
 
-  /** Past sessions for the caller — ended OR cancelled. Recording link
-   *  surfaces here for replays. */
+  /** Past sessions for the caller — ended OR cancelled. Same access scope
+   *  rules as listUpcoming. Recording link surfaces here for replays. */
   listPast: protectedProcedure
     .input(listLiveSessionsInputSchema.optional())
     .query(async ({ ctx, input }) => {
       await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");
       const limit = input?.limit ?? 50;
+      const scope = await buildAccessScope(ctx.db, ctx.userId, input?.classroomId);
       const conds = [or(eq(liveSessions.status, "ended"), eq(liveSessions.status, "cancelled"))!];
+      if (scope) conds.push(scope);
       if (input?.classroomId) {
         conds.push(eq(liveSessions.classroomId, input.classroomId));
       }
@@ -300,6 +360,7 @@ export const liveSessionRouter = router({
           new Date(),
         ),
       ];
+      if (scope) elapsedConds.push(scope);
       if (input?.classroomId) {
         elapsedConds.push(eq(liveSessions.classroomId, input.classroomId));
       }

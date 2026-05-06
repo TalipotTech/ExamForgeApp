@@ -209,11 +209,16 @@ function PastSessionCard({
 
 export function ClassroomLiveSessions({
   classroomId,
+  emptyMessage,
 }: {
-  classroomId: string;
+  classroomId?: string;
+  emptyMessage?: { title: string; subtitle: string };
 }): React.ReactElement {
-  const upcomingQuery = trpc.liveSession.listUpcoming.useQuery({ classroomId });
-  const pastQuery = trpc.liveSession.listPast.useQuery({ classroomId });
+  // Passing `undefined` to useQuery is fine — the router treats no classroomId
+  // as "all sessions I can access" (standalone + member-of + caller-hosted).
+  const queryInput = classroomId ? { classroomId } : undefined;
+  const upcomingQuery = trpc.liveSession.listUpcoming.useQuery(queryInput);
+  const pastQuery = trpc.liveSession.listPast.useQuery(queryInput);
 
   const upcoming = upcomingQuery.data ?? [];
   const past = pastQuery.data ?? [];
@@ -237,9 +242,12 @@ export function ClassroomLiveSessions({
       <Card>
         <CardContent className="py-8 text-center text-sm">
           <Radio className="text-muted-foreground mx-auto mb-2 size-6" />
-          <p className="font-medium">No live sessions yet.</p>
+          <p className="font-medium">{emptyMessage?.title ?? "No live sessions yet."}</p>
           <p className="text-muted-foreground mt-1 text-xs">
-            Your teacher will schedule live sessions here.
+            {emptyMessage?.subtitle ??
+              (classroomId
+                ? "Your teacher will schedule live sessions here."
+                : "Sessions you're invited to or that creators schedule will show up here.")}
           </p>
         </CardContent>
       </Card>
