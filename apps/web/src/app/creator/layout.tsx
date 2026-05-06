@@ -26,6 +26,7 @@ import {
   GraduationCap,
   Inbox,
   FileStack,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -44,6 +45,7 @@ const CREATOR_NAV: NavItem[] = [
   { href: "/creator/content", label: "Content", icon: FileStack },
   { href: "/creator/listings", label: "Listings", icon: LayoutGrid },
   { href: "/creator/classrooms", label: "Classrooms", icon: GraduationCap },
+  { href: "/creator/live-sessions", label: "Live Sessions", icon: Radio },
   { href: "/creator/doubts", label: "Doubt Inbox", icon: Inbox },
   { href: "/creator/wallet", label: "Wallet", icon: Wallet },
 ];
