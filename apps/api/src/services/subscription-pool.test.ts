@@ -155,6 +155,41 @@ describe("subscription-pool / allocateShares — rounding remainder", () => {
   });
 });
 
+describe("subscription-pool / allocateShares — determinism", () => {
+  it("same inputs produce identical outputs across calls", () => {
+    // Mixed cap-binding and uncapped creators so every code path runs.
+    const scores = [
+      score(A, 900, 0),
+      score(B, 50, 100),
+      score(C, 25, 30),
+      score(D, 25, 20),
+      score(E, 25, 20),
+    ];
+    const totalPool = 100_000;
+
+    const r1 = allocateShares(scores, totalPool);
+    const r2 = allocateShares(scores, totalPool);
+    const r3 = allocateShares(scores, totalPool);
+
+    expect(r1).toEqual(r2);
+    expect(r2).toEqual(r3);
+  });
+
+  it("ordering of input scores does not affect output (sorted by creatorId)", () => {
+    const scoresA = [score(A, 100, 0), score(B, 100, 0), score(C, 100, 0)];
+    const scoresB = [score(C, 100, 0), score(A, 100, 0), score(B, 100, 0)];
+    const totalPool = 100_000;
+
+    const r1 = allocateShares(scoresA, totalPool);
+    const r2 = allocateShares(scoresB, totalPool);
+
+    // Compare keyed-by-creatorId since the post-sort order is stable.
+    const keyed = (rs: typeof r1.shares) =>
+      Object.fromEntries(rs.map((s) => [s.creatorId, s.poolShareInr]));
+    expect(keyed(r1.shares)).toEqual(keyed(r2.shares));
+  });
+});
+
 describe("subscription-pool / allocateShares — degenerate cases", () => {
   it("returns zero shares but preserves rows when pool is zero", () => {
     const scores = [score(A, 100, 0), score(B, 50, 0)];
