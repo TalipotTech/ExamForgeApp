@@ -43,6 +43,7 @@ export const creatorProfiles = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
 
     displayName: varchar("display_name", { length: 255 }).notNull(),
+    slug: varchar("slug", { length: 280 }).unique(),
     bio: text("bio"),
     avatarUrl: varchar("avatar_url", { length: 1000 }),
     coverImageUrl: varchar("cover_image_url", { length: 1000 }),

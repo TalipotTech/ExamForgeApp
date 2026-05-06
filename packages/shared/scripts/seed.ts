@@ -244,13 +244,30 @@ async function seed(): Promise<void> {
       id: CREATOR_PROFILE_ID,
       userId: CREATOR_ID,
       displayName: "Test Creator",
+      slug: "test-creator",
       bio: "Seeded demo creator for end-to-end testing of the marketplace flow.",
       institutionType: "independent",
       qualification: "M.Pharm, GPAT topper",
-      verificationStatus: "unverified",
+      verificationStatus: "verified",
+      isFeatured: true,
       creatorTier: "free",
+      specializations: ["pharmacology", "pharmaceutics"],
+      examsCovered: [EXAM_IDS.bpharm, EXAM_IDS.gpat],
     })
     .onConflictDoNothing();
+  // Backfill the slug + visibility on re-seed (onConflictDoNothing leaves
+  // existing rows untouched, so this update is the escape hatch).
+  await db
+    .update(creatorProfiles)
+    .set({
+      slug: "test-creator",
+      verificationStatus: "verified",
+      isFeatured: true,
+      isActive: true,
+      specializations: ["pharmacology", "pharmaceutics"],
+      examsCovered: [EXAM_IDS.bpharm, EXAM_IDS.gpat],
+    })
+    .where(eq(creatorProfiles.id, CREATOR_PROFILE_ID));
 
   // Create subscriptions for admin and student
   const now = new Date();
