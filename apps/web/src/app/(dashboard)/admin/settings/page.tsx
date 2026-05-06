@@ -379,7 +379,81 @@ export default function AdminSettingsPage(): React.ReactElement {
           <VoiceTestButton />
         </CardContent>
       </Card>
+
+      {/* Creators — every flag in the `creators` category, auto-rendered. */}
+      <CreatorsCard flagGroups={flagGroups} getValue={getValue} setValue={setValue} />
     </div>
+  );
+}
+
+type FlagRow = {
+  key: string;
+  value?: unknown;
+  description: string | null;
+};
+
+function CreatorsCard({
+  flagGroups,
+  getValue,
+  setValue,
+}: {
+  flagGroups: Record<string, FlagRow[]> | undefined;
+  getValue: (key: string) => unknown;
+  setValue: (key: string, value: unknown) => void;
+}): React.ReactElement | null {
+  const creatorsFlags = flagGroups?.["creators"] ?? [];
+  if (creatorsFlags.length === 0) return null;
+
+  // Show boolean flags as toggles, numeric/string flags as text inputs.
+  const booleanFlags = creatorsFlags.filter((f) => typeof f.value === "boolean");
+  const otherFlags = creatorsFlags.filter((f) => typeof f.value !== "boolean");
+
+  function humanLabel(key: string): string {
+    return key
+      .replace(/^creators\./, "")
+      .split("_")
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+      .join(" ");
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Creators</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1">
+        {booleanFlags.map((flag) => (
+          <ToggleSwitch
+            key={flag.key}
+            checked={Boolean(getValue(flag.key))}
+            onChange={(v) => setValue(flag.key, v)}
+            label={humanLabel(flag.key)}
+            description={flag.description ?? undefined}
+          />
+        ))}
+        {otherFlags.length > 0 && (
+          <div className="mt-4 space-y-3 border-t pt-4">
+            {otherFlags.map((flag) => (
+              <div key={flag.key}>
+                <Label>{humanLabel(flag.key)}</Label>
+                <Input
+                  value={String((getValue(flag.key) as string | number | null) ?? "")}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const numeric = Number(raw);
+                    setValue(flag.key, raw !== "" && !Number.isNaN(numeric) ? numeric : raw);
+                  }}
+                  placeholder={flag.description ?? flag.key}
+                />
+                {flag.description && (
+                  <p className="text-muted-foreground mt-1 text-xs">{flag.description}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
