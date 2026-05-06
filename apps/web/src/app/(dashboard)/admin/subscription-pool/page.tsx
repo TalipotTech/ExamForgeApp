@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ChevronDown, ChevronRight, PlayCircle, RefreshCw, Wallet } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { BreakdownView } from "@/components/subscription-pool/breakdown-view";
 
 const STALE_TIME = 60_000;
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -257,19 +258,10 @@ function CreatorBreakdownRow({ row }: { row: BreakdownRow }): React.ReactElement
           <div className="text-muted-foreground text-xs">{sharePct}% of pool</div>
         </div>
       </CollapsibleTrigger>
-      <CollapsibleContent className="border-t">
-        <BreakdownJsonViewer value={row.breakdown ?? {}} />
+      <CollapsibleContent className="border-t p-3">
+        <BreakdownView value={row.breakdown ?? {}} />
       </CollapsibleContent>
     </Collapsible>
-  );
-}
-
-function BreakdownJsonViewer({ value }: { value: Record<string, unknown> }): React.ReactElement {
-  const formatted = useMemo(() => JSON.stringify(value, null, 2), [value]);
-  return (
-    <pre className="bg-muted/40 max-h-80 overflow-auto p-3 font-mono text-xs leading-snug">
-      {formatted}
-    </pre>
   );
 }
 

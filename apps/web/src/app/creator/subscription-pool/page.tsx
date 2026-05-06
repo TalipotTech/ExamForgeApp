@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+import { BreakdownView } from "@/components/subscription-pool/breakdown-view";
 
 const STALE_TIME = 60_000;
 
@@ -163,18 +164,9 @@ function PoolRow({ row }: { row: PoolHistoryRow }): React.ReactElement {
           <div className="text-muted-foreground text-xs">{sharePct}% of pool</div>
         </div>
       </CollapsibleTrigger>
-      <CollapsibleContent className="border-t">
-        <BreakdownJsonViewer value={row.breakdown ?? {}} />
+      <CollapsibleContent className="border-t p-3">
+        <BreakdownView value={row.breakdown ?? {}} />
       </CollapsibleContent>
     </Collapsible>
-  );
-}
-
-function BreakdownJsonViewer({ value }: { value: Record<string, unknown> }): React.ReactElement {
-  const formatted = useMemo(() => JSON.stringify(value, null, 2), [value]);
-  return (
-    <pre className="bg-muted/40 max-h-72 overflow-auto p-3 font-mono text-xs leading-snug">
-      {formatted}
-    </pre>
   );
 }
