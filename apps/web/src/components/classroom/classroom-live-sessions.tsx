@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Calendar, Clock, ExternalLink, Lock, Radio, Video } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  ExternalLink,
+  Lock,
+  Radio,
+  Video,
+  XCircle,
+  CheckCircle2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +19,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 
 const JOIN_WINDOW_MS = 5 * 60 * 1000;
+
+type SessionStatus = "scheduled" | "live" | "ended" | "cancelled";
+
+type Session = {
+  id: string;
+  title: string;
+  description: string | null;
+  scheduledAt: Date | string;
+  durationMinutes: number | null;
+  status: string;
+  isFree: boolean | null;
+  priceInr: number | null;
+  creatorName: string;
+  meetingUrl: string | null;
+  recordingUrl: string | null;
+};
 
 function formatScheduledAt(d: Date | string): string {
   return new Date(d).toLocaleString("en-IN", {
@@ -40,33 +65,75 @@ function useCountdown(target: Date): string {
   return `in ${minutes}m ${seconds}s`;
 }
 
-function UpcomingSessionCard({
+/**
+ * Status-driven visual treatment. Border-left accent + matching badge so
+ * the four states are instantly distinguishable in a mixed list:
+ *   live      → red, pulsing dot
+ *   scheduled → blue, countdown text
+ *   ended     → muted gray
+ *   cancelled → red-muted, strikethrough title
+ */
+function statusStyles(status: SessionStatus): {
+  border: string;
+  badge: React.ReactElement;
+  titleClass: string;
+} {
+  switch (status) {
+    case "live":
+      return {
+        border: "border-l-4 border-l-red-500",
+        badge: <Badge className="animate-pulse bg-red-500 text-[10px] text-white">● LIVE</Badge>,
+        titleClass: "",
+      };
+    case "scheduled":
+      return {
+        border: "border-l-4 border-l-blue-500",
+        badge: <></>, // countdown rendered separately
+        titleClass: "",
+      };
+    case "ended":
+      return {
+        border: "border-l-4 border-l-muted-foreground/30",
+        badge: (
+          <Badge variant="outline" className="text-[10px]">
+            <CheckCircle2 className="mr-1 size-2.5" />
+            Ended
+          </Badge>
+        ),
+        titleClass: "text-muted-foreground",
+      };
+    case "cancelled":
+      return {
+        border: "border-l-4 border-l-destructive/50",
+        badge: (
+          <Badge variant="destructive" className="text-[10px]">
+            <XCircle className="mr-1 size-2.5" />
+            Cancelled
+          </Badge>
+        ),
+        titleClass: "text-muted-foreground line-through",
+      };
+  }
+}
+
+function SessionCard({
   session,
   onJoined,
 }: {
-  session: {
-    id: string;
-    title: string;
-    description: string | null;
-    scheduledAt: Date | string;
-    durationMinutes: number | null;
-    status: string;
-    isFree: boolean | null;
-    priceInr: number | null;
-    creatorName: string;
-    meetingUrl: string | null;
-  };
+  session: Session;
   onJoined: () => void;
 }): React.ReactElement {
-  const countdown = useCountdown(new Date(session.scheduledAt));
+  const status = (session.status as SessionStatus) ?? "scheduled";
+  const styles = statusStyles(status);
   const startMs = new Date(session.scheduledAt).getTime();
-  const isLive = session.status === "live";
-  const joinable = isLive || Date.now() >= startMs - JOIN_WINDOW_MS;
-  // Track when the student opens the meeting so we can roughly estimate watch
-  // time on tab close. Real watch tracking lives inside the meeting provider —
-  // this is a best-effort outer-bound number.
-  const openedAtRef = useRef<number | null>(null);
+  const isLive = status === "live";
+  const isScheduled = status === "scheduled";
+  const isEnded = status === "ended";
+  const isCancelled = status === "cancelled";
+  const joinable = isLive || (isScheduled && Date.now() >= startMs - JOIN_WINDOW_MS);
+  const countdown = useCountdown(new Date(session.scheduledAt));
 
+  const openedAtRef = useRef<number | null>(null);
   const markJoinedMutation = trpc.liveSession.markJoined.useMutation({
     onSuccess: (res) => {
       onJoined();
@@ -78,37 +145,34 @@ function UpcomingSessionCard({
     onError: (err) => toast.error(err.message),
   });
 
-  // Best-effort: when the student closes the tab, tell the server how long
-  // they had the meeting open. Not perfectly accurate (no inside-meeting
-  // signal) but lets us populate `watch_seconds` for the attendance row.
+  // Best-effort outer-bound watch tracking — fires when student closes the
+  // tab. Real watch time would come from inside the meeting provider.
   const markLeftMutation = trpc.liveSession.markLeft.useMutation();
   useEffect(() => {
+    if (!isLive && !isScheduled) return;
     function onUnload(): void {
       const openedAt = openedAtRef.current;
       if (openedAt === null) return;
       const seconds = Math.min(Math.floor((Date.now() - openedAt) / 1000), 24 * 60 * 60);
-      // navigator.sendBeacon would be nicer but tRPC mutations don't support
-      // it directly; this fires-and-forgets, which is good enough for
-      // attendance.
       markLeftMutation.mutate({ sessionId: session.id, watchSeconds: seconds });
     }
     window.addEventListener("beforeunload", onUnload);
     return () => window.removeEventListener("beforeunload", onUnload);
-  }, [session.id, markLeftMutation]);
+  }, [session.id, isLive, isScheduled, markLeftMutation]);
 
   return (
-    <Card>
+    <Card className={styles.border}>
       <CardContent className="space-y-2 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="truncate font-semibold">{session.title}</h3>
-              {isLive ? (
-                <Badge className="animate-pulse bg-red-500 text-[10px] text-white">● LIVE</Badge>
-              ) : (
+              <h3 className={`truncate font-semibold ${styles.titleClass}`}>{session.title}</h3>
+              {isScheduled ? (
                 <Badge variant="secondary" className="text-[10px]">
                   {countdown}
                 </Badge>
+              ) : (
+                styles.badge
               )}
               {!session.isFree && (
                 <Badge variant="outline" className="text-[10px]">
@@ -134,73 +198,37 @@ function UpcomingSessionCard({
             </div>
           </div>
           <div className="flex flex-col items-end gap-1">
-            {!session.isFree ? (
-              <Button size="sm" variant="outline" disabled>
-                <Lock className="mr-1 size-3" />
-                Paid (coming soon)
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                disabled={!joinable || markJoinedMutation.isPending}
-                onClick={() => markJoinedMutation.mutate({ sessionId: session.id })}
-              >
-                <ExternalLink className="mr-1 size-3" />
-                {isLive ? "Join now" : joinable ? "Join" : "Opens 5 min before"}
-              </Button>
+            {(isLive || isScheduled) &&
+              (!session.isFree ? (
+                <Button size="sm" variant="outline" disabled>
+                  <Lock className="mr-1 size-3" />
+                  Paid (coming soon)
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  disabled={!joinable || markJoinedMutation.isPending}
+                  onClick={() => markJoinedMutation.mutate({ sessionId: session.id })}
+                >
+                  <ExternalLink className="mr-1 size-3" />
+                  {isLive ? "Join now" : joinable ? "Join" : "Opens 5 min before"}
+                </Button>
+              ))}
+            {isEnded &&
+              (session.recordingUrl ? (
+                <Button asChild size="sm" variant="outline">
+                  <a href={session.recordingUrl} target="_blank" rel="noopener noreferrer">
+                    <Video className="mr-1 size-3" />
+                    Watch recording
+                  </a>
+                </Button>
+              ) : (
+                <span className="text-muted-foreground text-xs">No recording</span>
+              ))}
+            {isCancelled && (
+              <span className="text-muted-foreground text-xs">Session cancelled</span>
             )}
           </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function PastSessionCard({
-  session,
-}: {
-  session: {
-    id: string;
-    title: string;
-    scheduledAt: Date | string;
-    status: string;
-    creatorName: string;
-    recordingUrl: string | null;
-  };
-}): React.ReactElement {
-  return (
-    <Card>
-      <CardContent className="space-y-1 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="truncate font-semibold">{session.title}</h3>
-              {session.status === "cancelled" ? (
-                <Badge variant="destructive" className="text-[10px]">
-                  Cancelled
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-[10px]">
-                  Ended
-                </Badge>
-              )}
-            </div>
-            <p className="text-muted-foreground text-xs">
-              {formatScheduledAt(session.scheduledAt)} · by {session.creatorName}
-            </p>
-          </div>
-          {session.recordingUrl && session.status === "ended" ? (
-            <Button asChild size="sm" variant="outline">
-              <a href={session.recordingUrl} target="_blank" rel="noopener noreferrer">
-                <Video className="mr-1 size-3" />
-                Watch recording
-              </a>
-            </Button>
-          ) : (
-            session.status === "ended" && (
-              <span className="text-muted-foreground text-xs">No recording</span>
-            )
-          )}
         </div>
       </CardContent>
     </Card>
@@ -237,6 +265,34 @@ export function ClassroomLiveSessions({
     );
   }
 
+  function toCardSession(s: {
+    id: string;
+    title: string;
+    description: string | null;
+    scheduledAt: Date | string;
+    durationMinutes: number | null;
+    status: string;
+    isFree: boolean | null;
+    priceInr: number | null;
+    creatorName: string;
+    meetingUrl: string | null;
+    recordingUrl: string | null;
+  }): Session {
+    return {
+      id: s.id,
+      title: s.title,
+      description: s.description ?? null,
+      scheduledAt: s.scheduledAt,
+      durationMinutes: s.durationMinutes ?? 60,
+      status: s.status,
+      isFree: s.isFree ?? true,
+      priceInr: s.priceInr ?? null,
+      creatorName: s.creatorName,
+      meetingUrl: s.meetingUrl ?? null,
+      recordingUrl: s.recordingUrl ?? null,
+    };
+  }
+
   if (upcoming.length === 0 && past.length === 0) {
     return (
       <Card>
@@ -254,48 +310,36 @@ export function ClassroomLiveSessions({
     );
   }
 
+  function refetchAll(): void {
+    void upcomingQuery.refetch();
+    void pastQuery.refetch();
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {upcoming.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold">Upcoming</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">Upcoming</h3>
+            <Badge variant="outline" className="text-[10px]">
+              {upcoming.length}
+            </Badge>
+          </div>
           {upcoming.map((s) => (
-            <UpcomingSessionCard
-              key={s.id}
-              session={{
-                id: s.id,
-                title: s.title,
-                description: s.description ?? null,
-                scheduledAt: s.scheduledAt,
-                durationMinutes: s.durationMinutes ?? 60,
-                status: s.status,
-                isFree: s.isFree ?? true,
-                priceInr: s.priceInr ?? null,
-                creatorName: s.creatorName,
-                meetingUrl: s.meetingUrl ?? null,
-              }}
-              onJoined={() => {
-                void upcomingQuery.refetch();
-              }}
-            />
+            <SessionCard key={s.id} session={toCardSession(s)} onJoined={refetchAll} />
           ))}
         </div>
       )}
       {past.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold">Past</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">History</h3>
+            <Badge variant="outline" className="text-[10px]">
+              {past.length}
+            </Badge>
+          </div>
           {past.map((s) => (
-            <PastSessionCard
-              key={s.id}
-              session={{
-                id: s.id,
-                title: s.title,
-                scheduledAt: s.scheduledAt,
-                status: s.status,
-                creatorName: s.creatorName,
-                recordingUrl: s.recordingUrl ?? null,
-              }}
-            />
+            <SessionCard key={s.id} session={toCardSession(s)} onJoined={refetchAll} />
           ))}
         </div>
       )}
