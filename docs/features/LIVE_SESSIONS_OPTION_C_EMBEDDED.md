@@ -310,7 +310,20 @@ NPM
 
 ## Implementation prompt (paste into a new session when ready)
 
-> Build Live Sessions Option C (embedded video via 100ms) per `docs/features/LIVE_SESSIONS_OPTION_C_EMBEDDED.md`. Branch: `creators-feature` (or current trunk) → `feat/live-sessions-embedded`. Honor the migration snapshot warning in `.claude/plans/next-session-prompts.md`. Do not start the dev server — the user runs it from Cursor IDE. When done, commit and open a PR.
+> Build Live Sessions Option C (embedded video via 100ms) per `docs/features/LIVE_SESSIONS_OPTION_C_EMBEDDED.md`. Branch off the current trunk → `feat/live-sessions-embedded`.
+>
+> **This is additive — Options A (paste URL) and B (Zoom, if shipped) MUST keep working.** The schedule form at `apps/web/src/app/creator/live-sessions/new/page.tsx` should show a "Meeting source" selector with up to three radio options that appear conditionally:
+>
+> 1. **Paste my own URL** (Option A) — always visible, default for any creator without setup.
+> 2. **Auto-create via Zoom** (Option B) — visible only when the creator has connected Zoom in `/creator/integrations`. (May or may not be implemented yet — feature-detect by querying `zoomIntegration.status`.)
+> 3. **Embedded HD video** (Option C) — visible only when `HMS_APP_ACCESS_KEY` is configured platform-wide. Default when present and creator hasn't connected Zoom.
+>
+> The student-side `Join` button must route correctly per provider:
+>
+> - `meeting_provider='manual'` or `'zoom'` → open `meeting_url` in a new tab (existing behavior).
+> - `meeting_provider='100ms'` → in-app navigate to `/dashboard/live/[id]/room`.
+>
+> Honor the migration snapshot warning in `.claude/plans/next-session-prompts.md`. Do not start the dev server — the user runs it from Cursor IDE. When done, commit and open a PR.
 
 ## A vs B vs C — final recommendation matrix
 

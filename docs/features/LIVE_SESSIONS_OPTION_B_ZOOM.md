@@ -278,4 +278,12 @@ MODIFY
 
 ## Implementation prompt (paste into a new session when ready)
 
-> Build Live Sessions Option B (Zoom OAuth + API) per `docs/features/LIVE_SESSIONS_OPTION_B_ZOOM.md`. Branch: `creators-feature` (or current trunk after consolidation) → `feat/live-sessions-zoom`. Honor the migration warning in `.claude/plans/next-session-prompts.md`. Do not start the dev server — the user runs it from Cursor IDE. When done, commit and open a PR.
+> Build Live Sessions Option B (Zoom OAuth + API) per `docs/features/LIVE_SESSIONS_OPTION_B_ZOOM.md`. Branch off the current trunk → `feat/live-sessions-zoom`.
+>
+> **This is additive — Option A (paste URL) MUST keep working.** The schedule form at `apps/web/src/app/creator/live-sessions/new/page.tsx` should show a "Meeting source" selector with up to three radio options that appear conditionally:
+>
+> 1. **Paste my own URL** (Option A) — always visible, default for any creator without a Zoom connection.
+> 2. **Auto-create via Zoom** (Option B) — visible only when the creator has connected Zoom in `/creator/integrations`. Default when present.
+> 3. **Embedded video** (Option C) — visible only when `HMS_APP_ACCESS_KEY` is configured platform-wide. Implemented in a separate slice (Option C); leave the radio absent here.
+>
+> Honor the migration warning in `.claude/plans/next-session-prompts.md`. Do not start the dev server — the user runs it from Cursor IDE. When done, commit and open a PR.
