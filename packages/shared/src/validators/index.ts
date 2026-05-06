@@ -463,6 +463,27 @@ export type {
   MyDoubtsInput,
 } from "./doubt";
 
+// ─── Creators Ecosystem — Live Sessions ─────────────────
+
+export {
+  liveSessionStatusSchema,
+  meetingTypeSchema,
+  scheduleLiveSessionSchema,
+  liveSessionIdInputSchema,
+  listLiveSessionsInputSchema,
+  markLeftSchema,
+  setRecordingUrlSchema,
+} from "./live-session";
+export type {
+  LiveSessionStatus,
+  MeetingType,
+  ScheduleLiveSessionInput,
+  LiveSessionIdInput,
+  ListLiveSessionsInput,
+  MarkLeftInput,
+  SetRecordingUrlInput,
+} from "./live-session";
+
 // ─── Creators Ecosystem — Marketplace ───────────────────
 
 export {

@@ -11,8 +11,10 @@ import {
   UserMinus,
   MessageCircle,
   FileText,
+  Radio,
 } from "lucide-react";
 import { TeacherAssignments } from "@/components/classroom/teacher-assignments";
+import { ClassroomLiveSessions } from "@/components/classroom/classroom-live-sessions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -141,6 +143,10 @@ export default function CreatorClassroomDetailPage(props: {
             <ClipboardList className="mr-1 size-4" />
             Assignments
           </TabsTrigger>
+          <TabsTrigger value="live">
+            <Radio className="mr-1 size-4" />
+            Live
+          </TabsTrigger>
           {isTeacher && (
             <TabsTrigger value="members">
               <GraduationCap className="mr-1 size-4" />
@@ -155,6 +161,10 @@ export default function CreatorClassroomDetailPage(props: {
 
         <TabsContent value="assignments">
           <TeacherAssignments classroomId={id} />
+        </TabsContent>
+
+        <TabsContent value="live">
+          <ClassroomLiveSessions classroomId={id} />
         </TabsContent>
 
         {/* Content tab */}

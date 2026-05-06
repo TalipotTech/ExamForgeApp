@@ -11,8 +11,10 @@ import {
   Plus,
   LogOut,
   ExternalLink,
+  Radio,
 } from "lucide-react";
 import { StudentAssignments } from "@/components/classroom/student-assignments";
+import { ClassroomLiveSessions } from "@/components/classroom/classroom-live-sessions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -128,6 +130,10 @@ export default function StudentClassroomDetailPage(props: {
             <ClipboardList className="mr-1 size-4" />
             Assignments
           </TabsTrigger>
+          <TabsTrigger value="live">
+            <Radio className="mr-1 size-4" />
+            Live
+          </TabsTrigger>
           <TabsTrigger value="doubts">
             <MessageCircle className="mr-1 size-4" />
             Doubts
@@ -136,6 +142,10 @@ export default function StudentClassroomDetailPage(props: {
 
         <TabsContent value="assignments">
           <StudentAssignments classroomId={id} />
+        </TabsContent>
+
+        <TabsContent value="live">
+          <ClassroomLiveSessions classroomId={id} />
         </TabsContent>
 
         <TabsContent value="content">
