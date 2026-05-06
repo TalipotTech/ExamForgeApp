@@ -544,6 +544,13 @@ async function seed(): Promise<void> {
           "Percent of subscription revenue that flows into the free-content creator pool",
       },
       {
+        key: "creators.subscription_pool_enabled",
+        value: false,
+        category: "creators",
+        description:
+          "Master gate for the monthly subscription-pool worker (off by default until real subscription revenue lands)",
+      },
+      {
         key: "creators.classroom_platform_fee_percent",
         value: 15,
         category: "creators",

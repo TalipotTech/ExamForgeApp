@@ -30,6 +30,11 @@ import {
 } from "../queues/earnings-settlement-queue.js";
 import { createOcrWorker } from "./ocr-worker.js";
 import { closeOcrQueue } from "../queues/ocr-queue.js";
+import { createSubscriptionPoolWorker } from "./subscription-pool-worker.js";
+import {
+  closeSubscriptionPoolQueue,
+  scheduleSubscriptionPoolJob,
+} from "../queues/subscription-pool-queue.js";
 
 async function main(): Promise<void> {
   console.log("[workers] Starting ExamForge workers...");
@@ -47,11 +52,14 @@ async function main(): Promise<void> {
   const patternExamGenerationWorker = createPatternExamGenerationWorker();
   const earningsSettlementWorker = createEarningsSettlementWorker();
   const ocrWorker = createOcrWorker();
+  const subscriptionPoolWorker = createSubscriptionPoolWorker();
 
   // Schedule daily note summary generation
   await scheduleNoteSummaryJob();
   // Schedule daily marketplace-earnings settlement
   await scheduleEarningsSettlementJob();
+  // Schedule monthly subscription-pool distribution (1st of month, 02:00 IST)
+  await scheduleSubscriptionPoolJob();
 
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[workers] Received ${signal}, shutting down...`);
@@ -68,6 +76,7 @@ async function main(): Promise<void> {
     await patternExamGenerationWorker.close();
     await earningsSettlementWorker.close();
     await ocrWorker.close();
+    await subscriptionPoolWorker.close();
     await closeScraperQueue();
     await closePortalIngestionQueue();
     await closePortalProcessingQueue();
@@ -81,6 +90,7 @@ async function main(): Promise<void> {
     await closePatternExamGenerationQueue();
     await closeEarningsSettlementQueue();
     await closeOcrQueue();
+    await closeSubscriptionPoolQueue();
     console.log("[workers] Shutdown complete.");
     process.exit(0);
   };
@@ -89,7 +99,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   console.log(
-    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery + Verification + Topic Generation + Pattern Exam Generation + Earnings Settlement + OCR workers started. Waiting for jobs...",
+    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery + Verification + Topic Generation + Pattern Exam Generation + Earnings Settlement + OCR + Subscription Pool workers started. Waiting for jobs...",
   );
 }
 
