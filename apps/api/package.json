@@ -7,7 +7,9 @@
     "./trpc": "./src/trpc/index.ts"
   },
   "scripts": {
+    "predev": "pnpm --filter @examforge/shared run build",
     "dev": "tsx watch src/index.ts",
+    "prebuild": "pnpm --filter @examforge/shared run build",
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint src/",

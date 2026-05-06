@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "pnpm --filter @examforge/shared run build",
     "dev": "next dev --turbopack -p 3100",
+    "predev:clean": "pnpm --filter @examforge/shared run build",
     "dev:clean": "node -e \"const fs=require('fs');for(const d of ['.next','.turbo']){fs.rmSync(d,{recursive:true,force:true})}\" && next dev --turbopack -p 3100",
+    "predev:stable": "pnpm --filter @examforge/shared run build",
     "dev:stable": "next dev -p 3100",
+    "prebuild": "pnpm --filter @examforge/shared run build",
     "build": "next build",
     "start": "next start",
     "lint": "next lint && eslint src/",
