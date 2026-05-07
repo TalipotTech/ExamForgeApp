@@ -90,6 +90,15 @@ export default function CreatorLiveSessionDetailPage(props: {
           {session.status === "scheduled" && <Badge variant="secondary">Scheduled</Badge>}
           {session.status === "ended" && <Badge variant="outline">Ended</Badge>}
           {session.status === "cancelled" && <Badge variant="destructive">Cancelled</Badge>}
+          {session.meetingProvider === "zoom" && (
+            <Badge
+              variant="outline"
+              className="border-blue-500/40 text-blue-700 dark:text-blue-400"
+            >
+              <Video className="mr-1 size-3" />
+              Zoom
+            </Badge>
+          )}
         </div>
         {session.description && (
           <p className="text-muted-foreground mt-1 text-sm">{session.description}</p>
@@ -144,6 +153,11 @@ export default function CreatorLiveSessionDetailPage(props: {
                   {session.recordingUrl}
                 </a>
               </div>
+            ) : session.meetingProvider === "zoom" ? (
+              <p className="text-muted-foreground text-sm">
+                No recording yet. Zoom auto-uploads cloud recordings after the meeting ends — this
+                usually takes 5–60 minutes. The link will appear here automatically.
+              </p>
             ) : (
               <p className="text-muted-foreground text-sm">No recording uploaded yet.</p>
             )}
