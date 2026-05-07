@@ -26,6 +26,7 @@ import {
   GraduationCap,
   Inbox,
   FileStack,
+  Plug,
   Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ const CREATOR_NAV: NavItem[] = [
   { href: "/creator/classrooms", label: "Classrooms", icon: GraduationCap },
   { href: "/creator/live-sessions", label: "Live Sessions", icon: Radio },
   { href: "/creator/doubts", label: "Doubt Inbox", icon: Inbox },
+  { href: "/creator/integrations", label: "Integrations", icon: Plug },
   { href: "/creator/wallet", label: "Wallet", icon: Wallet },
 ];
 

@@ -11,6 +11,7 @@ import {
 import type { Database } from "@examforge/shared/db";
 import {
   scheduleLiveSessionSchema,
+  scheduleZoomLiveSessionSchema,
   liveSessionIdInputSchema,
   listLiveSessionsInputSchema,
   markLeftSchema,
@@ -18,6 +19,7 @@ import {
 } from "@examforge/shared/validators";
 import { router, protectedProcedure } from "../trpc.js";
 import { assertCreatorsFeature } from "../../services/creators-gate.js";
+import { createZoomMeeting } from "../../services/zoom-client.js";
 
 // 30-minute grace window after scheduled end before we auto-flip a session
 // to `ended`. Long enough to absorb sessions that run a little over without
@@ -228,6 +230,7 @@ export const liveSessionRouter = router({
         scheduledAt: input.scheduledAt,
         durationMinutes: input.durationMinutes,
         meetingType: "external",
+        meetingProvider: "manual",
         meetingUrl: input.meetingUrl,
         subject: input.subject,
         topic: input.topic,
@@ -239,6 +242,85 @@ export const liveSessionRouter = router({
     if (!row) throw new Error("Failed to create live session");
     return { id: row.id };
   }),
+
+  /**
+   * Same as `schedule` but auto-creates the meeting in the creator's
+   * connected Zoom account. We persist the resulting `join_url` and
+   * Zoom meeting `id` (latter lets the webhook attach the recording back
+   * to the right row when Zoom processes it later).
+   */
+  scheduleViaZoom: protectedProcedure
+    .input(scheduleZoomLiveSessionSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");
+      const profile = await requireCreatorProfile(ctx.db, ctx.userId);
+
+      if (input.classroomId) {
+        const [classroom] = await ctx.db
+          .select({ teacherId: classrooms.teacherId })
+          .from(classrooms)
+          .where(eq(classrooms.id, input.classroomId))
+          .limit(1);
+        if (!classroom) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Classroom not found" });
+        }
+        if (classroom.teacherId !== ctx.userId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Not the teacher of this classroom",
+          });
+        }
+      }
+
+      let meeting: Awaited<ReturnType<typeof createZoomMeeting>>;
+      try {
+        meeting = await createZoomMeeting(ctx.db, profile.id, {
+          title: input.title,
+          description: input.description,
+          scheduledAt: input.scheduledAt,
+          durationMinutes: input.durationMinutes,
+          autoRecord: input.autoRecord,
+          muteOnEntry: input.muteOnEntry,
+          waitingRoom: input.waitingRoom,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("ZOOM_NOT_CONNECTED")) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Connect Zoom in /creator/integrations before scheduling via Zoom.",
+          });
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to create Zoom meeting: ${msg}`,
+        });
+      }
+
+      const [row] = await ctx.db
+        .insert(liveSessions)
+        .values({
+          creatorId: profile.id,
+          classroomId: input.classroomId,
+          title: input.title,
+          description: input.description,
+          scheduledAt: input.scheduledAt,
+          durationMinutes: input.durationMinutes,
+          meetingType: "external",
+          meetingProvider: "zoom",
+          meetingUrl: meeting.join_url,
+          meetingId: meeting.id,
+          isRecorded: input.autoRecord,
+          subject: input.subject,
+          topic: input.topic,
+          isFree: input.isFree,
+          priceInr: input.priceInr,
+          status: "scheduled",
+        })
+        .returning({ id: liveSessions.id });
+      if (!row) throw new Error("Failed to create live session");
+      return { id: row.id, meetingUrl: meeting.join_url };
+    }),
 
   cancel: protectedProcedure.input(liveSessionIdInputSchema).mutation(async ({ ctx, input }) => {
     await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");

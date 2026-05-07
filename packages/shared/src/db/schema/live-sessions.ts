@@ -32,6 +32,9 @@ export const liveSessions = pgTable(
     meetingType: varchar("meeting_type", { length: 20 }).notNull().default("embedded"),
     meetingUrl: text("meeting_url"),
     meetingId: varchar("meeting_id", { length: 100 }),
+    // 'manual' = creator-pasted URL (Option A); 'zoom' = auto-created via
+    // Zoom OAuth (Option B); 'embedded' = platform-hosted (future Option C).
+    meetingProvider: varchar("meeting_provider", { length: 20 }).default("manual"),
 
     isRecorded: boolean("is_recorded").default(false),
     recordingUrl: text("recording_url"),

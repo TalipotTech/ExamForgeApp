@@ -484,6 +484,23 @@ export type {
   SetRecordingUrlInput,
 } from "./live-session";
 
+export {
+  zoomAccountTypeSchema,
+  zoomUserMeSchema,
+  zoomTokenResponseSchema,
+  zoomCreateMeetingResponseSchema,
+  scheduleZoomLiveSessionSchema,
+  zoomIntegrationStatusSchema,
+} from "./zoom-integration";
+export type {
+  ZoomAccountType,
+  ZoomUserMe,
+  ZoomTokenResponse,
+  ZoomCreateMeetingResponse,
+  ScheduleZoomLiveSessionInput,
+  ZoomIntegrationStatus,
+} from "./zoom-integration";
+
 // ─── Creators Ecosystem — Marketplace ───────────────────
 
 export {
