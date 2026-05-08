@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Calendar,
   Clock,
   ExternalLink,
   Lock,
+  MonitorPlay,
   Radio,
   Video,
   XCircle,
@@ -124,6 +126,7 @@ function SessionCard({
   session: Session;
   onJoined: () => void;
 }): React.ReactElement {
+  const router = useRouter();
   const status = (session.status as SessionStatus) ?? "scheduled";
   const styles = statusStyles(status);
   const startMs = new Date(session.scheduledAt).getTime();
@@ -133,11 +136,19 @@ function SessionCard({
   const isCancelled = status === "cancelled";
   const joinable = isLive || (isScheduled && Date.now() >= startMs - JOIN_WINDOW_MS);
   const countdown = useCountdown(new Date(session.scheduledAt));
+  const isEmbedded = session.meetingProvider === "100ms";
 
   const openedAtRef = useRef<number | null>(null);
   const markJoinedMutation = trpc.liveSession.markJoined.useMutation({
     onSuccess: (res) => {
       onJoined();
+      // Embedded (100ms) sessions stay in-app — route to the room page.
+      // Manual / Zoom sessions open the external meeting URL in a new tab.
+      if (isEmbedded) {
+        openedAtRef.current = Date.now();
+        router.push(`/dashboard/live/${session.id}/room` as "/");
+        return;
+      }
       if (res.meetingUrl && typeof window !== "undefined") {
         openedAtRef.current = Date.now();
         window.open(res.meetingUrl, "_blank", "noopener,noreferrer");
@@ -182,6 +193,15 @@ function SessionCard({
                 >
                   <Video className="mr-0.5 size-3" />
                   Zoom
+                </Badge>
+              )}
+              {session.meetingProvider === "100ms" && (
+                <Badge
+                  variant="outline"
+                  className="border-purple-500/40 text-[10px] text-purple-700 dark:text-purple-400"
+                >
+                  <MonitorPlay className="mr-0.5 size-3" />
+                  Embedded
                 </Badge>
               )}
               {!session.isFree && (

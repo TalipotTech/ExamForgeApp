@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { use, useState } from "react";
-import { ArrowLeft, Calendar, Clock, ExternalLink, Radio, Users, Video } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  ExternalLink,
+  MonitorPlay,
+  Radio,
+  Users,
+  Video,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -99,6 +108,15 @@ export default function CreatorLiveSessionDetailPage(props: {
               Zoom
             </Badge>
           )}
+          {session.meetingProvider === "100ms" && (
+            <Badge
+              variant="outline"
+              className="border-purple-500/40 text-purple-700 dark:text-purple-400"
+            >
+              <MonitorPlay className="mr-1 size-3" />
+              Embedded
+            </Badge>
+          )}
         </div>
         {session.description && (
           <p className="text-muted-foreground mt-1 text-sm">{session.description}</p>
@@ -157,6 +175,11 @@ export default function CreatorLiveSessionDetailPage(props: {
               <p className="text-muted-foreground text-sm">
                 No recording yet. Zoom auto-uploads cloud recordings after the meeting ends — this
                 usually takes 5–60 minutes. The link will appear here automatically.
+              </p>
+            ) : session.meetingProvider === "100ms" ? (
+              <p className="text-muted-foreground text-sm">
+                No recording yet. 100ms finalizes the cloud recording a few minutes after the last
+                participant leaves. The link will appear here automatically once the webhook fires.
               </p>
             ) : (
               <p className="text-muted-foreground text-sm">No recording uploaded yet.</p>

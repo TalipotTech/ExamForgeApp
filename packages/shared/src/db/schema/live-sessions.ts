@@ -33,8 +33,13 @@ export const liveSessions = pgTable(
     meetingUrl: text("meeting_url"),
     meetingId: varchar("meeting_id", { length: 100 }),
     // 'manual' = creator-pasted URL (Option A); 'zoom' = auto-created via
-    // Zoom OAuth (Option B); 'embedded' = platform-hosted (future Option C).
+    // Zoom OAuth (Option B); '100ms' = platform-hosted via 100ms (Option C).
     meetingProvider: varchar("meeting_provider", { length: 20 }).default("manual"),
+    // Provider-specific room id for 100ms / Daily / LiveKit. Used by the
+    // join-token mutation to scope tokens to the right room and by the
+    // recording webhook to map back to a session.
+    providerRoomId: varchar("provider_room_id", { length: 100 }),
+    providerTemplateId: varchar("provider_template_id", { length: 100 }),
 
     isRecorded: boolean("is_recorded").default(false),
     recordingUrl: text("recording_url"),

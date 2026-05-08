@@ -12,6 +12,7 @@ import type { Database } from "@examforge/shared/db";
 import {
   scheduleLiveSessionSchema,
   scheduleZoomLiveSessionSchema,
+  scheduleEmbeddedLiveSessionSchema,
   liveSessionIdInputSchema,
   listLiveSessionsInputSchema,
   markLeftSchema,
@@ -20,6 +21,8 @@ import {
 import { router, protectedProcedure } from "../trpc.js";
 import { assertCreatorsFeature } from "../../services/creators-gate.js";
 import { createZoomMeeting } from "../../services/zoom-client.js";
+import { createHmsRoom, isHmsConfigured } from "../../services/hms-client.js";
+import { issueHmsAuthToken } from "../../services/hms-token.js";
 
 // 30-minute grace window after scheduled end before we auto-flip a session
 // to `ended`. Long enough to absorb sessions that run a little over without
@@ -321,6 +324,156 @@ export const liveSessionRouter = router({
       if (!row) throw new Error("Failed to create live session");
       return { id: row.id, meetingUrl: meeting.join_url };
     }),
+
+  /**
+   * Option C — embedded video via 100ms. Creates a 100ms room scoped to
+   * this session, persists the room id so getJoinToken / the recording
+   * webhook can find it. The "meeting url" we store is our internal
+   * /dashboard/live/[id]/room route — students never leave ExamForge.
+   */
+  scheduleEmbedded: protectedProcedure
+    .input(scheduleEmbeddedLiveSessionSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");
+      if (!isHmsConfigured()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Embedded video is not configured on this server",
+        });
+      }
+      const profile = await requireCreatorProfile(ctx.db, ctx.userId);
+
+      if (input.classroomId) {
+        const [classroom] = await ctx.db
+          .select({ teacherId: classrooms.teacherId })
+          .from(classrooms)
+          .where(eq(classrooms.id, input.classroomId))
+          .limit(1);
+        if (!classroom) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Classroom not found" });
+        }
+        if (classroom.teacherId !== ctx.userId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Not the teacher of this classroom",
+          });
+        }
+      }
+
+      // Use the recording template if the creator opted in AND it's set;
+      // otherwise stick with the default template.
+      const recordingTemplate = process.env.HMS_RECORDING_TEMPLATE_ID;
+      const templateOverride =
+        input.enableRecording && recordingTemplate ? recordingTemplate : undefined;
+
+      let room: Awaited<ReturnType<typeof createHmsRoom>>;
+      try {
+        room = await createHmsRoom({
+          name: `${input.title}-${Date.now()}`,
+          description: input.description,
+          templateId: templateOverride,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to create 100ms room: ${msg}`,
+        });
+      }
+
+      const [row] = await ctx.db
+        .insert(liveSessions)
+        .values({
+          creatorId: profile.id,
+          classroomId: input.classroomId,
+          title: input.title,
+          description: input.description,
+          scheduledAt: input.scheduledAt,
+          durationMinutes: input.durationMinutes,
+          meetingType: "embedded",
+          meetingProvider: "100ms",
+          // meetingUrl is the in-app room path — students stay on ExamForge.
+          // We don't know `id` until after insert, so we patch it after.
+          meetingUrl: null,
+          meetingId: room.id,
+          providerRoomId: room.id,
+          providerTemplateId: room.template_id,
+          isRecorded: input.enableRecording,
+          maxAttendees: input.maxAttendees,
+          subject: input.subject,
+          topic: input.topic,
+          isFree: input.isFree,
+          priceInr: input.priceInr,
+          status: "scheduled",
+        })
+        .returning({ id: liveSessions.id });
+      if (!row) throw new Error("Failed to create live session");
+      const inAppUrl = `/dashboard/live/${row.id}/room`;
+      await ctx.db
+        .update(liveSessions)
+        .set({ meetingUrl: inAppUrl })
+        .where(eq(liveSessions.id, row.id));
+      return { id: row.id, meetingUrl: inAppUrl };
+    }),
+
+  /**
+   * Issues a 100ms auth token scoped to the calling user + this session's
+   * room. Mutation (not query) because handing out a credential should
+   * never be cached. Caller must pass auth + classroom-membership checks.
+   */
+  getJoinToken: protectedProcedure
+    .input(liveSessionIdInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");
+      if (!isHmsConfigured()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Embedded video is not configured on this server",
+        });
+      }
+      const { session, isHost } = await requireSessionAccess(ctx.db, input.sessionId, ctx.userId);
+      if (session.meetingProvider !== "100ms") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This session does not use embedded video",
+        });
+      }
+      if (!session.providerRoomId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Session has no provider_room_id — re-schedule needed",
+        });
+      }
+      if (session.status === "ended" || session.status === "cancelled") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This session is no longer joinable",
+        });
+      }
+      // 5-min pre-start window matches the markJoined gate.
+      const fiveMinBefore = new Date(session.scheduledAt.getTime() - 5 * 60_000);
+      if (!isHost && Date.now() < fiveMinBefore.getTime()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Session is not open for joining yet (opens 5 min before start)",
+        });
+      }
+      const role = isHost ? "creator" : "student";
+      const token = issueHmsAuthToken({
+        roomId: session.providerRoomId,
+        userId: ctx.userId,
+        role,
+      });
+      return { token, role };
+    }),
+
+  /** Lightweight feature-detect query — UI uses this to decide whether to
+   *  show the "Embedded HD video" radio. Returns just a boolean; never
+   *  leaks env values. */
+  embeddedConfigured: protectedProcedure.query(async ({ ctx }) => {
+    await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");
+    return { configured: isHmsConfigured() };
+  }),
 
   cancel: protectedProcedure.input(liveSessionIdInputSchema).mutation(async ({ ctx, input }) => {
     await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");
