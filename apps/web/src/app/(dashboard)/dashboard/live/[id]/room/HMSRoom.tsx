@@ -11,7 +11,24 @@
  * descendants. We auto-join once we have a token; the join itself is the
  * only thing that needs the user-name, role gates, and recording opt-in
  * carry over from the server-issued token.
+ *
+ * Students join muted (audio + video off) so the SDK doesn't try to
+ * acquire devices they may not have / haven't granted access to.
+ * Clicking the mic / camera toggles re-enables, which triggers the
+ * browser permission prompt at the moment they're actually trying to
+ * publish — matching the standard "raise hand to speak" UX.
  */
+
+/**
+ * HMS SDK error codes we know to be benign noise. We swallow these from
+ * console.error while the room is mounted so Next.js's dev overlay
+ * doesn't hijack the page for things the user can't (and shouldn't have
+ * to) act on. Real errors still surface — extend this list very narrowly.
+ *
+ *   3002 — TRACK / DeviceNotAvailable: no camera or mic, or permission
+ *          denied. Expected for the majority of students.
+ */
+const BENIGN_HMS_ERROR_CODES = new Set([3002]);
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -72,6 +89,28 @@ function HMSRoomInner({ sessionId }: { sessionId: string }): React.ReactElement 
   const [joinError, setJoinError] = useState<string | null>(null);
   const joinedAtRef = useRef<number | null>(null);
 
+  // Suppress known-benign HMS SDK errors from console.error so Next.js's
+  // dev overlay doesn't hijack the room. Restored on unmount so unrelated
+  // pages keep their normal logging.
+  useEffect(() => {
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      const first = args[0];
+      const second = args[1] as { code?: number } | undefined;
+      const isHmsErr = typeof first === "string" && first.startsWith("HMS-Store:");
+      if (isHmsErr && second?.code && BENIGN_HMS_ERROR_CODES.has(second.code)) {
+        // Downgrade to warn so the message stays in DevTools but Next.js's
+        // overlay (which only tracks console.error) doesn't fire.
+        console.warn("[hms suppressed]", ...args);
+        return;
+      }
+      original(...args);
+    };
+    return () => {
+      console.error = original;
+    };
+  }, []);
+
   // Single-shot join. Strict-Mode-safe via the ref guard so we don't
   // double-subscribe on the dev-server's intentional double mount.
   const joinKickedOff = useRef(false);
@@ -83,13 +122,19 @@ function HMSRoomInner({ sessionId }: { sessionId: string }): React.ReactElement 
       return;
     }
     joinKickedOff.current = true;
+    const callerIsHost = sessionQuery.data.isHost;
     (async () => {
       try {
         const { token } = await getJoinToken.mutateAsync({ sessionId });
         joinedAtRef.current = Date.now();
+        // Students join muted — they unmute on demand via the controls,
+        // which is also when we want the browser permission prompt to
+        // appear. Hosts join with their devices on so they can start
+        // talking immediately.
         await hmsActions.join({
           userName: session.user?.name ?? "Guest",
           authToken: token,
+          settings: callerIsHost ? undefined : { isAudioMuted: true, isVideoMuted: true },
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unable to join";
