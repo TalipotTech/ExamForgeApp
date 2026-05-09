@@ -88,20 +88,41 @@ function HMSRoomInner({ sessionId }: { sessionId: string }): React.ReactElement 
 
   const [joinError, setJoinError] = useState<string | null>(null);
   const joinedAtRef = useRef<number | null>(null);
+  // Tracks whether we've already shown the "listen-only mode" toast so we
+  // only nudge once per room mount. (Plain ref — not state — to avoid
+  // re-running the suppression effect on toggle.)
+  const suppressedToastShownRef = useRef(false);
 
   // Suppress known-benign HMS SDK errors from console.error so Next.js's
   // dev overlay doesn't hijack the room. Restored on unmount so unrelated
   // pages keep their normal logging.
+  //
+  // The SDK passes (message, errorObject) — sometimes as multiple string
+  // args + an object — so we scan ALL args for the HMS marker and any
+  // object whose `code` is in the benign set, instead of guessing
+  // positions. Belt-and-braces.
   useEffect(() => {
     const original = console.error;
     console.error = (...args: unknown[]) => {
-      const first = args[0];
-      const second = args[1] as { code?: number } | undefined;
-      const isHmsErr = typeof first === "string" && first.startsWith("HMS-Store:");
-      if (isHmsErr && second?.code && BENIGN_HMS_ERROR_CODES.has(second.code)) {
+      const hasHmsMarker = args.some((a) => typeof a === "string" && a.includes("HMS-Store"));
+      const benignErrorObj = args.find(
+        (a): a is { code: number } =>
+          typeof a === "object" &&
+          a !== null &&
+          "code" in a &&
+          typeof (a as { code: unknown }).code === "number" &&
+          BENIGN_HMS_ERROR_CODES.has((a as { code: number }).code),
+      );
+      if (hasHmsMarker && benignErrorObj) {
         // Downgrade to warn so the message stays in DevTools but Next.js's
         // overlay (which only tracks console.error) doesn't fire.
         console.warn("[hms suppressed]", ...args);
+        // First time: show the user a friendly heads-up that they're in
+        // listen-only mode. Avoid spamming on subsequent fires.
+        if (!suppressedToastShownRef.current) {
+          suppressedToastShownRef.current = true;
+          toast.info("No camera or mic detected — you'll be in listen-only mode.");
+        }
         return;
       }
       original(...args);
