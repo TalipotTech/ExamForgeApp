@@ -53,6 +53,7 @@ import {
   Sparkles,
   Package,
   MessageCircle,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -158,6 +159,13 @@ const STUDENT_NAV: NavItem[] = [
     href: "/dashboard/classrooms",
     label: "Classrooms",
     icon: GraduationCap,
+    requiresCreators: true,
+    group: "creators",
+  },
+  {
+    href: "/dashboard/live",
+    label: "Live Sessions",
+    icon: Radio,
     requiresCreators: true,
     group: "creators",
   },

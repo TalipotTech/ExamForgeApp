@@ -326,6 +326,57 @@ export default function AdminSettingsPage(): React.ReactElement {
         </CardContent>
       </Card>
 
+      {/* Creators ecosystem
+       * Renders directly from `flagGroups.creators` so newly-added creator
+       * sub-features (live sessions, AI tutor, etc.) appear automatically
+       * once seeded — no UI change needed per slice. Master switch
+       * `creators.enabled` is highlighted; all sub-flags are gated by it
+       * server-side via assertCreatorsFeature.
+       */}
+      {flagGroups?.creators && flagGroups.creators.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Creators Ecosystem</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {flagGroups.creators.map((flag) => {
+              const value = getValue(flag.key);
+              const label = flag.key
+                .replace(/^creators\./, "")
+                .replace(/_/g, " ")
+                .replace(/\b\w/g, (c) => c.toUpperCase());
+              if (typeof flag.value === "boolean") {
+                return (
+                  <ToggleSwitch
+                    key={flag.key}
+                    checked={value as boolean}
+                    onChange={(v) => setValue(flag.key, v)}
+                    label={label}
+                    description={flag.description ?? undefined}
+                  />
+                );
+              }
+              if (typeof flag.value === "number") {
+                return (
+                  <div key={flag.key} className="space-y-1 py-2">
+                    <Label className="text-sm font-medium">{label}</Label>
+                    {flag.description && (
+                      <p className="text-muted-foreground text-xs">{flag.description}</p>
+                    )}
+                    <Input
+                      type="number"
+                      value={(value as number) ?? 0}
+                      onChange={(e) => setValue(flag.key, parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Voice / TTS */}
       <Card>
         <CardHeader>

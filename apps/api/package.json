@@ -7,7 +7,7 @@
     "./trpc": "./src/trpc/index.ts"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --include ../../packages/shared/dist/**/*.js src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint src/",
@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "worker": "tsx src/workers/index.ts",
-    "worker:dev": "tsx watch src/workers/index.ts"
+    "worker:dev": "tsx watch --include ../../packages/shared/dist/**/*.js src/workers/index.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.700.0",
