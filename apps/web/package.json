@@ -16,6 +16,8 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@100mslive/hms-video-store": "^0.14.0",
+    "@100mslive/react-sdk": "^0.12.0",
     "@ai-sdk/anthropic": "^3.0.58",
     "@ai-sdk/google": "^3.0.43",
     "@ai-sdk/mistral": "^3.0.24",

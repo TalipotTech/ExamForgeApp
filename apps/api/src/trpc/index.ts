@@ -27,6 +27,7 @@ import { classroomRouter } from "./routers/classroom.js";
 import { assignmentRouter } from "./routers/assignment.js";
 import { doubtRouter } from "./routers/doubt.js";
 import { liveSessionRouter } from "./routers/live-session.js";
+import { zoomIntegrationRouter } from "./routers/zoom-integration.js";
 import { marketplaceRouter } from "./routers/marketplace.js";
 import { creatorEarningsRouter } from "./routers/creator-earnings.js";
 import { promotionRouter } from "./routers/promotion.js";
@@ -61,6 +62,7 @@ export const appRouter = router({
   assignment: assignmentRouter,
   doubt: doubtRouter,
   liveSession: liveSessionRouter,
+  zoomIntegration: zoomIntegrationRouter,
   marketplace: marketplaceRouter,
   creatorEarnings: creatorEarningsRouter,
   promotion: promotionRouter,
