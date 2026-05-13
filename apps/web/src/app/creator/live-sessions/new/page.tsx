@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ExternalLink, Radio, Video } from "lucide-react";
+import { ArrowLeft, ExternalLink, MonitorPlay, Radio, Video } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,12 +36,13 @@ function defaultScheduledAt(): string {
   return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
 }
 
-type MeetingSource = "manual" | "zoom";
+type MeetingSource = "manual" | "zoom" | "embedded";
 
 export default function NewLiveSessionPage(): React.ReactElement {
   const router = useRouter();
   const classroomsQuery = trpc.classroom.myTaught.useQuery();
   const zoomStatusQuery = trpc.zoomIntegration.status.useQuery();
+  const embeddedConfiguredQuery = trpc.liveSession.embeddedConfigured.useQuery();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -52,6 +53,10 @@ export default function NewLiveSessionPage(): React.ReactElement {
   const [autoRecord, setAutoRecord] = useState(true);
   const [muteOnEntry, setMuteOnEntry] = useState(true);
   const [waitingRoom, setWaitingRoom] = useState(true);
+  // Embedded-specific knobs
+  const [embeddedRecord, setEmbeddedRecord] = useState(true);
+  const [embeddedChat, setEmbeddedChat] = useState(true);
+  const [maxAttendees, setMaxAttendees] = useState("100");
   const [classroomId, setClassroomId] = useState<string>("none");
   const [subject, setSubject] = useState("");
   const [topic, setTopic] = useState("");
@@ -59,17 +64,27 @@ export default function NewLiveSessionPage(): React.ReactElement {
   const [priceInr, setPriceInr] = useState("");
 
   const zoomConnected = zoomStatusQuery.data?.connected ?? false;
+  const embeddedConfigured = embeddedConfiguredQuery.data?.configured ?? false;
 
-  // Default to Zoom when the creator has connected it; fall back to manual
-  // otherwise. Track that we've applied the default so we don't fight the
-  // user if they switch away on purpose.
+  // Default-pick precedence per spec:
+  //   embedded (if configured AND zoom not connected)
+  //   > zoom (if connected)
+  //   > manual (always available)
+  // Apply once both feature-detection queries have resolved.
   const [defaultApplied, setDefaultApplied] = useState(false);
   useEffect(() => {
     if (defaultApplied) return;
-    if (!zoomStatusQuery.isSuccess) return;
-    if (zoomConnected) setMeetingSource("zoom");
+    if (!zoomStatusQuery.isSuccess || !embeddedConfiguredQuery.isSuccess) return;
+    if (embeddedConfigured && !zoomConnected) setMeetingSource("embedded");
+    else if (zoomConnected) setMeetingSource("zoom");
     setDefaultApplied(true);
-  }, [defaultApplied, zoomStatusQuery.isSuccess, zoomConnected]);
+  }, [
+    defaultApplied,
+    zoomStatusQuery.isSuccess,
+    embeddedConfiguredQuery.isSuccess,
+    zoomConnected,
+    embeddedConfigured,
+  ]);
 
   const scheduleManual = trpc.liveSession.schedule.useMutation({
     onSuccess: () => {
@@ -87,7 +102,16 @@ export default function NewLiveSessionPage(): React.ReactElement {
     onError: (err) => toast.error(err.message),
   });
 
-  const isPending = scheduleManual.isPending || scheduleZoom.isPending;
+  const scheduleEmbedded = trpc.liveSession.scheduleEmbedded.useMutation({
+    onSuccess: () => {
+      toast.success("Embedded session scheduled");
+      router.push("/creator/live-sessions");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const isPending =
+    scheduleManual.isPending || scheduleZoom.isPending || scheduleEmbedded.isPending;
 
   const baseValid =
     title.trim().length >= 3 &&
@@ -96,7 +120,12 @@ export default function NewLiveSessionPage(): React.ReactElement {
     (isFree || (priceInr !== "" && Number(priceInr) > 0));
 
   const canSubmit =
-    baseValid && (meetingSource === "zoom" ? zoomConnected : meetingUrl.startsWith("https://"));
+    baseValid &&
+    (meetingSource === "manual"
+      ? meetingUrl.startsWith("https://")
+      : meetingSource === "zoom"
+        ? zoomConnected
+        : /* embedded */ embeddedConfigured && Number(maxAttendees) >= 2);
 
   function submit(e: React.FormEvent): void {
     e.preventDefault();
@@ -110,6 +139,23 @@ export default function NewLiveSessionPage(): React.ReactElement {
         autoRecord,
         muteOnEntry,
         waitingRoom,
+        subject: subject.trim() || undefined,
+        topic: topic.trim() || undefined,
+        isFree,
+        priceInr: isFree ? undefined : Number(priceInr),
+      });
+      return;
+    }
+    if (meetingSource === "embedded") {
+      scheduleEmbedded.mutate({
+        classroomId: classroomId === "none" ? undefined : classroomId,
+        title: title.trim(),
+        description: description.trim() || undefined,
+        scheduledAt: localStringToDate(scheduledAt),
+        durationMinutes: Number(durationMinutes),
+        enableRecording: embeddedRecord,
+        enableChat: embeddedChat,
+        maxAttendees: Number(maxAttendees),
         subject: subject.trim() || undefined,
         topic: topic.trim() || undefined,
         isFree,
@@ -202,7 +248,9 @@ export default function NewLiveSessionPage(): React.ReactElement {
             {/* Meeting source selector — radios appear conditionally:
                   - "Paste my own URL" is always shown.
                   - "Auto-create with Zoom" only when the creator has
-                    connected their Zoom account. */}
+                    connected their Zoom account.
+                  - "Embedded HD video" only when HMS_APP_ACCESS_KEY is
+                    configured platform-wide (server feature-detects). */}
             <div className="space-y-3 rounded-md border p-3">
               <Label className="text-sm font-semibold">Meeting source</Label>
               <RadioGroup
@@ -210,6 +258,29 @@ export default function NewLiveSessionPage(): React.ReactElement {
                 onValueChange={(v) => setMeetingSource(v as MeetingSource)}
                 className="gap-3"
               >
+                {embeddedConfigured && (
+                  <label
+                    htmlFor="src-embedded"
+                    className="has-[input:checked]:border-primary has-[input:checked]:bg-accent/30 flex cursor-pointer items-start gap-2 rounded-md border p-3"
+                  >
+                    <RadioGroupItem id="src-embedded" value="embedded" className="mt-1" />
+                    <div className="flex-1 text-sm">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <MonitorPlay className="size-3.5" />
+                        Embedded HD video
+                        <span className="text-muted-foreground ml-1 text-xs font-normal">
+                          (recommended)
+                        </span>
+                      </div>
+                      <ul className="text-muted-foreground mt-1 space-y-0.5 text-xs">
+                        <li>✓ Students never leave ExamForge</li>
+                        <li>✓ Auto-recording, attendance, host controls built-in</li>
+                        <li>ⓘ ~1.5 Mbps bandwidth per student</li>
+                      </ul>
+                    </div>
+                  </label>
+                )}
+
                 {zoomConnected && (
                   <label
                     htmlFor="src-zoom"
@@ -220,9 +291,11 @@ export default function NewLiveSessionPage(): React.ReactElement {
                       <div className="flex items-center gap-1.5 font-medium">
                         <Video className="size-3.5" />
                         Auto-create with Zoom
-                        <span className="text-muted-foreground ml-1 text-xs font-normal">
-                          (recommended)
-                        </span>
+                        {!embeddedConfigured && (
+                          <span className="text-muted-foreground ml-1 text-xs font-normal">
+                            (recommended)
+                          </span>
+                        )}
                       </div>
                       <ul className="text-muted-foreground mt-1 space-y-0.5 text-xs">
                         <li>✓ Recording auto-uploaded to your Zoom</li>
@@ -246,7 +319,7 @@ export default function NewLiveSessionPage(): React.ReactElement {
                 </label>
               </RadioGroup>
 
-              {!zoomConnected && (
+              {!zoomConnected && !embeddedConfigured && (
                 <p className="text-muted-foreground pt-1 text-xs">
                   <Link href="/creator/integrations" className="underline-offset-2 hover:underline">
                     Connect Zoom <ExternalLink className="ml-0.5 inline size-3" />
@@ -287,6 +360,45 @@ export default function NewLiveSessionPage(): React.ReactElement {
                     />
                     Waiting room
                   </Label>
+                </div>
+              </div>
+            )}
+
+            {meetingSource === "embedded" && (
+              <div className="space-y-3 rounded-md border p-3">
+                <Label className="text-sm font-medium">Embedded room settings</Label>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm font-normal">
+                    <input
+                      type="checkbox"
+                      checked={embeddedRecord}
+                      onChange={(e) => setEmbeddedRecord(e.target.checked)}
+                      className="size-4"
+                    />
+                    Enable recording
+                  </Label>
+                  <Label className="flex items-center gap-2 text-sm font-normal">
+                    <input
+                      type="checkbox"
+                      checked={embeddedChat}
+                      onChange={(e) => setEmbeddedChat(e.target.checked)}
+                      className="size-4"
+                    />
+                    Enable chat
+                  </Label>
+                  <div className="space-y-1 pt-1">
+                    <Label htmlFor="maxAttendees" className="text-xs">
+                      Max attendees
+                    </Label>
+                    <Input
+                      id="maxAttendees"
+                      type="number"
+                      min={2}
+                      max={1000}
+                      value={maxAttendees}
+                      onChange={(e) => setMaxAttendees(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -399,7 +511,9 @@ export default function NewLiveSessionPage(): React.ReactElement {
                 {isPending
                   ? meetingSource === "zoom"
                     ? "Creating Zoom meeting…"
-                    : "Scheduling…"
+                    : meetingSource === "embedded"
+                      ? "Creating embedded room…"
+                      : "Scheduling…"
                   : "Schedule session"}
               </Button>
             </div>

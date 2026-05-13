@@ -63,3 +63,33 @@ export const setRecordingUrlSchema = z.object({
   recordingUrl: z.string().url().startsWith("https://").max(2000),
 });
 export type SetRecordingUrlInput = z.infer<typeof setRecordingUrlSchema>;
+
+/** Option C — embedded video via 100ms. Same shape as the manual schedule
+ *  minus meetingUrl (we generate a room) plus a few embed-specific knobs. */
+export const scheduleEmbeddedLiveSessionSchema = z
+  .object({
+    classroomId: z.string().uuid().optional(),
+    title: z.string().min(3).max(500),
+    description: z.string().max(5000).optional(),
+    scheduledAt: z.coerce.date().refine((d) => d.getTime() > Date.now() - 60_000, {
+      message: "Scheduled time must be in the future",
+    }),
+    durationMinutes: z
+      .number()
+      .int()
+      .min(5)
+      .max(8 * 60)
+      .default(60),
+    enableRecording: z.boolean().default(true),
+    enableChat: z.boolean().default(true),
+    maxAttendees: z.number().int().min(2).max(1000).default(100),
+    isFree: z.boolean().default(true),
+    priceInr: z.number().int().min(0).optional(),
+    subject: z.string().max(255).optional(),
+    topic: z.string().max(255).optional(),
+  })
+  .refine((v) => v.isFree || (typeof v.priceInr === "number" && v.priceInr > 0), {
+    message: "Paid sessions need a priceInr > 0",
+    path: ["priceInr"],
+  });
+export type ScheduleEmbeddedLiveSessionInput = z.infer<typeof scheduleEmbeddedLiveSessionSchema>;

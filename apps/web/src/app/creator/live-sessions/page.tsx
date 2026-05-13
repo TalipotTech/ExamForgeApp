@@ -9,6 +9,7 @@ import {
   Calendar,
   Clock,
   ExternalLink,
+  MonitorPlay,
   Users,
   Video,
   XCircle,
@@ -58,16 +59,29 @@ function statusBadge(status: string): React.ReactElement {
 }
 
 function providerBadge(provider: string | null): React.ReactElement | null {
-  if (provider !== "zoom") return null;
-  return (
-    <Badge
-      variant="outline"
-      className="border-blue-500/40 text-[10px] text-blue-700 dark:text-blue-400"
-    >
-      <Video className="mr-0.5 size-3" />
-      Zoom
-    </Badge>
-  );
+  if (provider === "zoom") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-blue-500/40 text-[10px] text-blue-700 dark:text-blue-400"
+      >
+        <Video className="mr-0.5 size-3" />
+        Zoom
+      </Badge>
+    );
+  }
+  if (provider === "100ms") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-purple-500/40 text-[10px] text-purple-700 dark:text-purple-400"
+      >
+        <MonitorPlay className="mr-0.5 size-3" />
+        Embedded
+      </Badge>
+    );
+  }
+  return null;
 }
 
 export default function CreatorLiveSessionsPage(): React.ReactElement {

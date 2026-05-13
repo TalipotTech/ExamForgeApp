@@ -12,6 +12,7 @@ import type { Database } from "@examforge/shared/db";
 import {
   scheduleLiveSessionSchema,
   scheduleZoomLiveSessionSchema,
+  scheduleEmbeddedLiveSessionSchema,
   liveSessionIdInputSchema,
   listLiveSessionsInputSchema,
   markLeftSchema,
@@ -20,11 +21,31 @@ import {
 import { router, protectedProcedure } from "../trpc.js";
 import { assertCreatorsFeature } from "../../services/creators-gate.js";
 import { createZoomMeeting } from "../../services/zoom-client.js";
+import { createHmsRoom, isHmsConfigured } from "../../services/hms-client.js";
+import { issueHmsAuthToken } from "../../services/hms-token.js";
 
 // 30-minute grace window after scheduled end before we auto-flip a session
 // to `ended`. Long enough to absorb sessions that run a little over without
 // requiring creators to manually close them.
 const ENDED_GRACE_MINUTES = 30;
+
+/**
+ * Postgres "current time" expressed as a `timestamp WITHOUT time zone` in
+ * UTC wall-clock. Use THIS — not `new Date()` — anywhere we compare against
+ * a `scheduled_at` column.
+ *
+ * Why: drizzle stores Date values in `timestamp without time zone` columns
+ * by serializing the JS Date as UTC ISO. But pg-node serializes a *bound*
+ * Date parameter using the Node process's local timezone, which means
+ * `new Date()` arrives at PG as e.g. "2026-05-08 21:42 IST" stripped to
+ * a TZ-less wall-clock — while stored values arrive as the UTC wall-clock
+ * "2026-05-08 16:30". Comparing the two mixes timezones and silently
+ * misclassifies sessions as past-when-they're-future (or vice versa).
+ *
+ * `now() AT TIME ZONE 'UTC'` returns the current moment as a TZ-less
+ * UTC wall-clock, matching how the column was populated.
+ */
+const NOW_UTC = sql`(now() AT TIME ZONE 'UTC')`;
 
 async function requireCreatorProfile(db: Database, userId: string): Promise<{ id: string }> {
   const [profile] = await db
@@ -322,6 +343,176 @@ export const liveSessionRouter = router({
       return { id: row.id, meetingUrl: meeting.join_url };
     }),
 
+  /**
+   * Option C — embedded video via 100ms. Creates a 100ms room scoped to
+   * this session, persists the room id so getJoinToken / the recording
+   * webhook can find it. The "meeting url" we store is our internal
+   * /dashboard/live/[id]/room route — students never leave ExamForge.
+   */
+  scheduleEmbedded: protectedProcedure
+    .input(scheduleEmbeddedLiveSessionSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");
+      if (!isHmsConfigured()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Embedded video is not configured on this server",
+        });
+      }
+      const profile = await requireCreatorProfile(ctx.db, ctx.userId);
+
+      if (input.classroomId) {
+        const [classroom] = await ctx.db
+          .select({ teacherId: classrooms.teacherId })
+          .from(classrooms)
+          .where(eq(classrooms.id, input.classroomId))
+          .limit(1);
+        if (!classroom) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Classroom not found" });
+        }
+        if (classroom.teacherId !== ctx.userId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Not the teacher of this classroom",
+          });
+        }
+      }
+
+      // Use the recording template if the creator opted in AND it's set;
+      // otherwise stick with the default template.
+      const recordingTemplate = process.env.HMS_RECORDING_TEMPLATE_ID;
+      const templateOverride =
+        input.enableRecording && recordingTemplate ? recordingTemplate : undefined;
+
+      let room: Awaited<ReturnType<typeof createHmsRoom>>;
+      try {
+        room = await createHmsRoom({
+          name: `${input.title}-${Date.now()}`,
+          description: input.description,
+          templateId: templateOverride,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to create 100ms room: ${msg}`,
+        });
+      }
+
+      const [row] = await ctx.db
+        .insert(liveSessions)
+        .values({
+          creatorId: profile.id,
+          classroomId: input.classroomId,
+          title: input.title,
+          description: input.description,
+          scheduledAt: input.scheduledAt,
+          durationMinutes: input.durationMinutes,
+          meetingType: "embedded",
+          meetingProvider: "100ms",
+          // meetingUrl is the in-app room path — students stay on ExamForge.
+          // We don't know `id` until after insert, so we patch it after.
+          meetingUrl: null,
+          meetingId: room.id,
+          providerRoomId: room.id,
+          providerTemplateId: room.template_id,
+          isRecorded: input.enableRecording,
+          maxAttendees: input.maxAttendees,
+          subject: input.subject,
+          topic: input.topic,
+          isFree: input.isFree,
+          priceInr: input.priceInr,
+          status: "scheduled",
+        })
+        .returning({ id: liveSessions.id });
+      if (!row) throw new Error("Failed to create live session");
+      const inAppUrl = `/dashboard/live/${row.id}/room`;
+      await ctx.db
+        .update(liveSessions)
+        .set({ meetingUrl: inAppUrl })
+        .where(eq(liveSessions.id, row.id));
+      return { id: row.id, meetingUrl: inAppUrl };
+    }),
+
+  /**
+   * Issues a 100ms auth token scoped to the calling user + this session's
+   * room. Mutation (not query) because handing out a credential should
+   * never be cached. Caller must pass auth + classroom-membership checks.
+   */
+  getJoinToken: protectedProcedure
+    .input(liveSessionIdInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");
+      if (!isHmsConfigured()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Embedded video is not configured on this server",
+        });
+      }
+      const { session, isHost } = await requireSessionAccess(ctx.db, input.sessionId, ctx.userId);
+      if (session.meetingProvider !== "100ms") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This session does not use embedded video",
+        });
+      }
+      if (!session.providerRoomId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Session has no provider_room_id — re-schedule needed",
+        });
+      }
+      if (session.status === "ended" || session.status === "cancelled") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This session is no longer joinable",
+        });
+      }
+      // 5-min pre-start window matches the markJoined gate.
+      const fiveMinBefore = new Date(session.scheduledAt.getTime() - 5 * 60_000);
+      if (!isHost && Date.now() < fiveMinBefore.getTime()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Session is not open for joining yet (opens 5 min before start)",
+        });
+      }
+      const role = isHost ? "creator" : "student";
+      const token = issueHmsAuthToken({
+        roomId: session.providerRoomId,
+        userId: ctx.userId,
+        role,
+      });
+
+      // Auto-attendance: insert (or refresh) the attendee row and flip
+      // status `scheduled` → `live` on first peer through the door. Matches
+      // the manual / Zoom path's `markJoined` so embedded sessions don't
+      // get stuck on the "Scheduled" badge while a meeting is in progress.
+      const now = new Date();
+      await ctx.db
+        .insert(liveSessionAttendees)
+        .values({ sessionId: session.id, userId: ctx.userId, joinedAt: now })
+        .onConflictDoUpdate({
+          target: [liveSessionAttendees.sessionId, liveSessionAttendees.userId],
+          set: { joinedAt: now, leftAt: null },
+        });
+      if (session.status === "scheduled") {
+        await ctx.db
+          .update(liveSessions)
+          .set({ status: "live", startedAt: session.startedAt ?? now })
+          .where(eq(liveSessions.id, session.id));
+      }
+
+      return { token, role };
+    }),
+
+  /** Lightweight feature-detect query — UI uses this to decide whether to
+   *  show the "Embedded HD video" radio. Returns just a boolean; never
+   *  leaks env values. */
+  embeddedConfigured: protectedProcedure.query(async ({ ctx }) => {
+    await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");
+    return { configured: isHmsConfigured() };
+  }),
+
   cancel: protectedProcedure.input(liveSessionIdInputSchema).mutation(async ({ ctx, input }) => {
     await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");
     const { session } = await requireSessionOwner(ctx.db, input.sessionId, ctx.userId);
@@ -380,13 +571,16 @@ export const liveSessionRouter = router({
         // hasn't passed yet so a session that started 10 min ago still shows.
         gte(
           sql`${liveSessions.scheduledAt} + (coalesce(${liveSessions.durationMinutes}, 60) + ${ENDED_GRACE_MINUTES}) * interval '1 minute'`,
-          new Date(),
+          NOW_UTC,
         ),
       ];
       if (scope) conds.push(scope);
       if (input?.classroomId) {
         conds.push(eq(liveSessions.classroomId, input.classroomId));
       }
+      // LEFT JOIN (not INNER) so a session whose creator_profile was deleted
+      // / mis-FK'd still surfaces — defensive: a missing display name renders
+      // as "(unknown creator)" rather than the row vanishing entirely.
       const rows = await ctx.db
         .select({
           session: liveSessions,
@@ -394,7 +588,7 @@ export const liveSessionRouter = router({
           creatorId: creatorProfiles.id,
         })
         .from(liveSessions)
-        .innerJoin(creatorProfiles, eq(creatorProfiles.id, liveSessions.creatorId))
+        .leftJoin(creatorProfiles, eq(creatorProfiles.id, liveSessions.creatorId))
         .where(and(...conds))
         .orderBy(asc(liveSessions.scheduledAt))
         .limit(limit);
@@ -404,7 +598,11 @@ export const liveSessionRouter = router({
         rows.map((r) => r.session),
       );
       return rows
-        .map((r, i) => ({ ...r.session, ...reaped[i], creatorName: r.creatorName }))
+        .map((r, i) => ({
+          ...r.session,
+          ...reaped[i],
+          creatorName: r.creatorName ?? "(unknown creator)",
+        }))
         .filter((r) => r.status === "scheduled" || r.status === "live");
     }),
 
@@ -428,7 +626,7 @@ export const liveSessionRouter = router({
           creatorId: creatorProfiles.id,
         })
         .from(liveSessions)
-        .innerJoin(creatorProfiles, eq(creatorProfiles.id, liveSessions.creatorId))
+        .leftJoin(creatorProfiles, eq(creatorProfiles.id, liveSessions.creatorId))
         .where(and(...conds))
         .orderBy(desc(liveSessions.scheduledAt))
         .limit(limit);
@@ -439,7 +637,7 @@ export const liveSessionRouter = router({
         or(eq(liveSessions.status, "scheduled"), eq(liveSessions.status, "live"))!,
         lt(
           sql`${liveSessions.scheduledAt} + (coalesce(${liveSessions.durationMinutes}, 60) + ${ENDED_GRACE_MINUTES}) * interval '1 minute'`,
-          new Date(),
+          NOW_UTC,
         ),
       ];
       if (scope) elapsedConds.push(scope);
@@ -459,13 +657,19 @@ export const liveSessionRouter = router({
             creatorName: creatorProfiles.displayName,
           })
           .from(liveSessions)
-          .innerJoin(creatorProfiles, eq(creatorProfiles.id, liveSessions.creatorId))
+          .leftJoin(creatorProfiles, eq(creatorProfiles.id, liveSessions.creatorId))
           .where(and(...conds))
           .orderBy(desc(liveSessions.scheduledAt))
           .limit(limit);
-        return refreshed.map((r) => ({ ...r.session, creatorName: r.creatorName }));
+        return refreshed.map((r) => ({
+          ...r.session,
+          creatorName: r.creatorName ?? "(unknown creator)",
+        }));
       }
-      return rows.map((r) => ({ ...r.session, creatorName: r.creatorName }));
+      return rows.map((r) => ({
+        ...r.session,
+        creatorName: r.creatorName ?? "(unknown creator)",
+      }));
     }),
 
   byId: protectedProcedure.input(liveSessionIdInputSchema).query(async ({ ctx, input }) => {
@@ -625,10 +829,7 @@ export const liveSessionRouter = router({
     .input(listLiveSessionsInputSchema.optional())
     .query(async ({ ctx, input }) => {
       await assertCreatorsFeature(ctx.db, "creators.live_sessions_enabled");
-      const conds = [
-        eq(liveSessions.status, "scheduled"),
-        gte(liveSessions.scheduledAt, new Date()),
-      ];
+      const conds = [eq(liveSessions.status, "scheduled"), gte(liveSessions.scheduledAt, NOW_UTC)];
       if (input?.classroomId) {
         conds.push(eq(liveSessions.classroomId, input.classroomId));
       }
