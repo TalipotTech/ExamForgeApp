@@ -86,6 +86,7 @@ export type { DoubtImage } from "./doubts";
 export { doubtResponses } from "./doubt-responses";
 export { liveSessions } from "./live-sessions";
 export { liveSessionAttendees } from "./live-session-attendees";
+export { creatorZoomIntegrations } from "./creator-zoom-integrations";
 export { creatorFollowers } from "./creator-followers";
 export { contentViews } from "./content-views";
 export { marketplaceListings } from "./marketplace-listings";

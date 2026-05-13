@@ -57,6 +57,19 @@ function statusBadge(status: string): React.ReactElement {
   );
 }
 
+function providerBadge(provider: string | null): React.ReactElement | null {
+  if (provider !== "zoom") return null;
+  return (
+    <Badge
+      variant="outline"
+      className="border-blue-500/40 text-[10px] text-blue-700 dark:text-blue-400"
+    >
+      <Video className="mr-0.5 size-3" />
+      Zoom
+    </Badge>
+  );
+}
+
 export default function CreatorLiveSessionsPage(): React.ReactElement {
   const sessionsQuery = trpc.liveSession.myHosted.useQuery();
   const cancelMutation = trpc.liveSession.cancel.useMutation({
@@ -89,7 +102,11 @@ export default function CreatorLiveSessionsPage(): React.ReactElement {
             Live sessions
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Schedule a live class with a Google Meet, Zoom, or any HTTPS meeting link.
+            Schedule a live class with a Google Meet / Teams link, or{" "}
+            <Link href="/creator/integrations" className="underline-offset-2 hover:underline">
+              connect Zoom
+            </Link>{" "}
+            to auto-create meetings + auto-record.
           </p>
         </div>
         <Button asChild>
@@ -151,6 +168,7 @@ export default function CreatorLiveSessionsPage(): React.ReactElement {
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="truncate font-semibold">{s.title}</h3>
                           {statusBadge(s.status)}
+                          {providerBadge(s.meetingProvider)}
                           {!s.isFree && (
                             <Badge variant="outline" className="text-[10px]">
                               ₹{s.priceInr ?? 0}
@@ -225,6 +243,7 @@ export default function CreatorLiveSessionsPage(): React.ReactElement {
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="truncate font-semibold">{s.title}</h3>
                           {statusBadge(s.status)}
+                          {providerBadge(s.meetingProvider)}
                         </div>
                         <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-3 text-xs">
                           <span className="flex items-center gap-1">

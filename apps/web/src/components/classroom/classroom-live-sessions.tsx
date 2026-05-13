@@ -34,6 +34,7 @@ type Session = {
   creatorName: string;
   meetingUrl: string | null;
   recordingUrl: string | null;
+  meetingProvider: string | null;
 };
 
 function formatScheduledAt(d: Date | string): string {
@@ -174,6 +175,15 @@ function SessionCard({
               ) : (
                 styles.badge
               )}
+              {session.meetingProvider === "zoom" && (
+                <Badge
+                  variant="outline"
+                  className="border-blue-500/40 text-[10px] text-blue-700 dark:text-blue-400"
+                >
+                  <Video className="mr-0.5 size-3" />
+                  Zoom
+                </Badge>
+              )}
               {!session.isFree && (
                 <Badge variant="outline" className="text-[10px]">
                   ₹{session.priceInr ?? 0}
@@ -277,6 +287,7 @@ export function ClassroomLiveSessions({
     creatorName: string;
     meetingUrl: string | null;
     recordingUrl: string | null;
+    meetingProvider?: string | null;
   }): Session {
     return {
       id: s.id,
@@ -290,6 +301,7 @@ export function ClassroomLiveSessions({
       creatorName: s.creatorName,
       meetingUrl: s.meetingUrl ?? null,
       recordingUrl: s.recordingUrl ?? null,
+      meetingProvider: s.meetingProvider ?? null,
     };
   }
 

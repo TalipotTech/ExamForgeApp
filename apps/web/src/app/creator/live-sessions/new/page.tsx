@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Radio } from "lucide-react";
+import { ArrowLeft, ExternalLink, Radio, Video } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -35,22 +36,42 @@ function defaultScheduledAt(): string {
   return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
 }
 
+type MeetingSource = "manual" | "zoom";
+
 export default function NewLiveSessionPage(): React.ReactElement {
   const router = useRouter();
   const classroomsQuery = trpc.classroom.myTaught.useQuery();
+  const zoomStatusQuery = trpc.zoomIntegration.status.useQuery();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [scheduledAt, setScheduledAt] = useState(defaultScheduledAt());
   const [durationMinutes, setDurationMinutes] = useState("60");
+  const [meetingSource, setMeetingSource] = useState<MeetingSource>("manual");
   const [meetingUrl, setMeetingUrl] = useState("");
+  const [autoRecord, setAutoRecord] = useState(true);
+  const [muteOnEntry, setMuteOnEntry] = useState(true);
+  const [waitingRoom, setWaitingRoom] = useState(true);
   const [classroomId, setClassroomId] = useState<string>("none");
   const [subject, setSubject] = useState("");
   const [topic, setTopic] = useState("");
   const [isFree, setIsFree] = useState(true);
   const [priceInr, setPriceInr] = useState("");
 
-  const scheduleMutation = trpc.liveSession.schedule.useMutation({
+  const zoomConnected = zoomStatusQuery.data?.connected ?? false;
+
+  // Default to Zoom when the creator has connected it; fall back to manual
+  // otherwise. Track that we've applied the default so we don't fight the
+  // user if they switch away on purpose.
+  const [defaultApplied, setDefaultApplied] = useState(false);
+  useEffect(() => {
+    if (defaultApplied) return;
+    if (!zoomStatusQuery.isSuccess) return;
+    if (zoomConnected) setMeetingSource("zoom");
+    setDefaultApplied(true);
+  }, [defaultApplied, zoomStatusQuery.isSuccess, zoomConnected]);
+
+  const scheduleManual = trpc.liveSession.schedule.useMutation({
     onSuccess: () => {
       toast.success("Live session scheduled");
       router.push("/creator/live-sessions");
@@ -58,16 +79,45 @@ export default function NewLiveSessionPage(): React.ReactElement {
     onError: (err) => toast.error(err.message),
   });
 
-  const canSubmit =
+  const scheduleZoom = trpc.liveSession.scheduleViaZoom.useMutation({
+    onSuccess: () => {
+      toast.success("Zoom meeting created and session scheduled");
+      router.push("/creator/live-sessions");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const isPending = scheduleManual.isPending || scheduleZoom.isPending;
+
+  const baseValid =
     title.trim().length >= 3 &&
-    meetingUrl.startsWith("https://") &&
     scheduledAt.length > 0 &&
-    !scheduleMutation.isPending &&
+    !isPending &&
     (isFree || (priceInr !== "" && Number(priceInr) > 0));
+
+  const canSubmit =
+    baseValid && (meetingSource === "zoom" ? zoomConnected : meetingUrl.startsWith("https://"));
 
   function submit(e: React.FormEvent): void {
     e.preventDefault();
-    scheduleMutation.mutate({
+    if (meetingSource === "zoom") {
+      scheduleZoom.mutate({
+        classroomId: classroomId === "none" ? undefined : classroomId,
+        title: title.trim(),
+        description: description.trim() || undefined,
+        scheduledAt: localStringToDate(scheduledAt),
+        durationMinutes: Number(durationMinutes),
+        autoRecord,
+        muteOnEntry,
+        waitingRoom,
+        subject: subject.trim() || undefined,
+        topic: topic.trim() || undefined,
+        isFree,
+        priceInr: isFree ? undefined : Number(priceInr),
+      });
+      return;
+    }
+    scheduleManual.mutate({
       classroomId: classroomId === "none" ? undefined : classroomId,
       title: title.trim(),
       description: description.trim() || undefined,
@@ -149,30 +199,124 @@ export default function NewLiveSessionPage(): React.ReactElement {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="meetingUrl">Meeting URL *</Label>
-              <Input
-                id="meetingUrl"
-                type="url"
-                value={meetingUrl}
-                onChange={(e) => setMeetingUrl(e.target.value)}
-                placeholder="https://meet.google.com/abc-defg-hij"
-                required
-                pattern="https://.*"
-              />
-              <p className="text-muted-foreground text-xs">
-                Create a meeting in{" "}
-                <a
-                  href="https://meet.google.com/new"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
+            {/* Meeting source selector — radios appear conditionally:
+                  - "Paste my own URL" is always shown.
+                  - "Auto-create with Zoom" only when the creator has
+                    connected their Zoom account. */}
+            <div className="space-y-3 rounded-md border p-3">
+              <Label className="text-sm font-semibold">Meeting source</Label>
+              <RadioGroup
+                value={meetingSource}
+                onValueChange={(v) => setMeetingSource(v as MeetingSource)}
+                className="gap-3"
+              >
+                {zoomConnected && (
+                  <label
+                    htmlFor="src-zoom"
+                    className="has-[input:checked]:border-primary has-[input:checked]:bg-accent/30 flex cursor-pointer items-start gap-2 rounded-md border p-3"
+                  >
+                    <RadioGroupItem id="src-zoom" value="zoom" className="mt-1" />
+                    <div className="flex-1 text-sm">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <Video className="size-3.5" />
+                        Auto-create with Zoom
+                        <span className="text-muted-foreground ml-1 text-xs font-normal">
+                          (recommended)
+                        </span>
+                      </div>
+                      <ul className="text-muted-foreground mt-1 space-y-0.5 text-xs">
+                        <li>✓ Recording auto-uploaded to your Zoom</li>
+                        <li>✓ Passcode auto-generated; URL works for everyone you share it with</li>
+                      </ul>
+                    </div>
+                  </label>
+                )}
+
+                <label
+                  htmlFor="src-manual"
+                  className="has-[input:checked]:border-primary has-[input:checked]:bg-accent/30 flex cursor-pointer items-start gap-2 rounded-md border p-3"
                 >
-                  Google Meet
-                </a>
-                , Zoom, or Teams and paste the link here.
-              </p>
+                  <RadioGroupItem id="src-manual" value="manual" className="mt-1" />
+                  <div className="flex-1 text-sm">
+                    <div className="font-medium">Paste my own URL</div>
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      Bring your own Meet, Teams, or Zoom personal-room link.
+                    </p>
+                  </div>
+                </label>
+              </RadioGroup>
+
+              {!zoomConnected && (
+                <p className="text-muted-foreground pt-1 text-xs">
+                  <Link href="/creator/integrations" className="underline-offset-2 hover:underline">
+                    Connect Zoom <ExternalLink className="ml-0.5 inline size-3" />
+                  </Link>{" "}
+                  to enable auto-create + auto-recording.
+                </p>
+              )}
             </div>
+
+            {meetingSource === "zoom" && (
+              <div className="space-y-3 rounded-md border p-3">
+                <Label className="text-sm font-medium">Zoom meeting settings</Label>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm font-normal">
+                    <input
+                      type="checkbox"
+                      checked={autoRecord}
+                      onChange={(e) => setAutoRecord(e.target.checked)}
+                      className="size-4"
+                    />
+                    Auto-record to cloud
+                  </Label>
+                  <Label className="flex items-center gap-2 text-sm font-normal">
+                    <input
+                      type="checkbox"
+                      checked={muteOnEntry}
+                      onChange={(e) => setMuteOnEntry(e.target.checked)}
+                      className="size-4"
+                    />
+                    Mute participants on entry
+                  </Label>
+                  <Label className="flex items-center gap-2 text-sm font-normal">
+                    <input
+                      type="checkbox"
+                      checked={waitingRoom}
+                      onChange={(e) => setWaitingRoom(e.target.checked)}
+                      className="size-4"
+                    />
+                    Waiting room
+                  </Label>
+                </div>
+              </div>
+            )}
+
+            {meetingSource === "manual" && (
+              <div className="space-y-2">
+                <Label htmlFor="meetingUrl">Meeting URL *</Label>
+                <Input
+                  id="meetingUrl"
+                  type="url"
+                  value={meetingUrl}
+                  onChange={(e) => setMeetingUrl(e.target.value)}
+                  placeholder="https://meet.google.com/abc-defg-hij"
+                  required
+                  pattern="https://.*"
+                />
+                <p className="text-muted-foreground text-xs">
+                  Create a meeting in{" "}
+                  <a
+                    href="https://meet.google.com/new"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    Google Meet
+                  </a>
+                  , Zoom, or Teams and paste the link here.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="classroom">Classroom (optional)</Label>
@@ -252,7 +396,11 @@ export default function NewLiveSessionPage(): React.ReactElement {
                 <Link href="/creator/live-sessions">Cancel</Link>
               </Button>
               <Button type="submit" disabled={!canSubmit}>
-                {scheduleMutation.isPending ? "Scheduling…" : "Schedule session"}
+                {isPending
+                  ? meetingSource === "zoom"
+                    ? "Creating Zoom meeting…"
+                    : "Scheduling…"
+                  : "Schedule session"}
               </Button>
             </div>
           </CardContent>
