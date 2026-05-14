@@ -484,7 +484,7 @@ export async function routeTextRequest(
   const logId = await logAICall(db, {
     provider,
     model,
-    feature: taskToFeature(params.task),
+    feature: params.feature ?? taskToFeature(params.task),
     inputTokens,
     outputTokens,
     latencyMs,
@@ -546,7 +546,7 @@ export async function routeStreamingRequest(
       await logAICall(db, {
         provider,
         model,
-        feature: taskToFeature(params.task),
+        feature: params.feature ?? taskToFeature(params.task),
         inputTokens: usage.inputTokens ?? 0,
         outputTokens: usage.outputTokens ?? 0,
         latencyMs,
@@ -588,7 +588,7 @@ export async function routeEmbedRequest(
   await logAICall(db, {
     provider: "openai",
     model: "text-embedding-3-small",
-    feature: "embed",
+    feature: params.feature ?? "embed",
     inputTokens: totalTokens,
     outputTokens: 0,
     latencyMs,

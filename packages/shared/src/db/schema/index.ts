@@ -96,3 +96,9 @@ export { creatorEarnings } from "./creator-earnings";
 export { contentRatings } from "./content-ratings";
 export { subscriptionPool } from "./subscription-pool";
 export { promotions } from "./promotions";
+
+// AI Tutor (RAG-backed, classroom-scoped)
+export { contentEmbeddings } from "./content-embeddings";
+export { aiTutorConversations } from "./ai-tutor-conversations";
+export { aiTutorMessages } from "./ai-tutor-messages";
+export type { AiTutorCitation } from "./ai-tutor-messages";
