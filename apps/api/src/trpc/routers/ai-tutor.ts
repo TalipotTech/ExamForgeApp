@@ -77,6 +77,8 @@ type CachedAnswer = {
   answer: string;
   citations: AiTutorCitation[];
   tokensUsed: number;
+  provider?: string;
+  model?: string;
 };
 
 async function readCache(key: string): Promise<CachedAnswer | null> {
@@ -114,262 +116,264 @@ function buildUserPrompt(
   chunks: { sourceText: string; contentTitle: string }[],
 ): string {
   const excerpts = chunks
-    .map(
-      (c, idx) =>
-        `[${idx + 1}] From "${c.contentTitle}":\n${c.sourceText.trim()}`,
-    )
+    .map((c, idx) => `[${idx + 1}] From "${c.contentTitle}":\n${c.sourceText.trim()}`)
     .join("\n\n---\n\n");
   return `Question: ${query}\n\nClassroom excerpts:\n\n${excerpts}`;
 }
 
 export const aiTutorRouter = router({
-  ask: protectedProcedure
-    .input(aiTutorAskSchema)
-    .mutation(async ({ ctx, input }) => {
-      await assertCreatorsFeature(ctx.db, "creators.ai_tutor_enabled");
-      const { classroom } = await requireMemberOrTeacher(
-        ctx.db,
-        input.classroomId,
-        ctx.userId,
-      );
+  ask: protectedProcedure.input(aiTutorAskSchema).mutation(async ({ ctx, input }) => {
+    await assertCreatorsFeature(ctx.db, "creators.ai_tutor_enabled");
+    const { classroom } = await requireMemberOrTeacher(ctx.db, input.classroomId, ctx.userId);
 
-      // ─── Conversation upsert ───
-      let conversationId = input.conversationId;
-      if (conversationId) {
-        const [existing] = await ctx.db
-          .select({ id: aiTutorConversations.id })
-          .from(aiTutorConversations)
-          .where(
-            and(
-              eq(aiTutorConversations.id, conversationId),
-              eq(aiTutorConversations.userId, ctx.userId),
-              eq(aiTutorConversations.classroomId, classroom.id),
-            ),
-          )
-          .limit(1);
-        if (!existing) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
-        }
-      } else {
-        const title =
-          input.query.length > 80 ? `${input.query.slice(0, 77)}...` : input.query;
-        const [inserted] = await ctx.db
-          .insert(aiTutorConversations)
-          .values({
-            userId: ctx.userId,
-            classroomId: classroom.id,
-            title,
-          })
-          .returning({ id: aiTutorConversations.id });
-        conversationId = inserted!.id;
-      }
-
-      const now = new Date();
-
-      // Persist the user message immediately so it shows in history even if
-      // generation later fails.
-      await ctx.db.insert(aiTutorMessages).values({
-        conversationId,
-        role: "user",
-        content: input.query,
-        citations: [],
-        tokensUsed: 0,
-        cached: false,
-      });
-
-      // ─── Redis cache hit fast-path ───
-      const key = cacheKey(classroom.id, input.query);
-      const cached = await readCache(key);
-      if (cached) {
-        await ctx.db.insert(aiTutorMessages).values({
-          conversationId,
-          role: "assistant",
-          content: cached.answer,
-          citations: cached.citations,
-          tokensUsed: cached.tokensUsed,
-          cached: true,
-        });
-        await ctx.db
-          .update(aiTutorConversations)
-          .set({
-            messageCount: sql`${aiTutorConversations.messageCount} + 2`,
-            updatedAt: now,
-          })
-          .where(eq(aiTutorConversations.id, conversationId));
-        return {
-          conversationId,
-          answer: cached.answer,
-          citations: cached.citations,
-          tokensUsed: cached.tokensUsed,
-          cached: true,
-        };
-      }
-
-      // ─── Candidate set: all content assigned to this classroom ───
-      const candidateContent = await ctx.db
-        .select({ id: creatorContent.id, title: creatorContent.title })
-        .from(creatorContent)
+    // ─── Conversation upsert ───
+    let conversationId = input.conversationId;
+    if (conversationId) {
+      const [existing] = await ctx.db
+        .select({ id: aiTutorConversations.id })
+        .from(aiTutorConversations)
         .where(
           and(
-            sql`${creatorContent.assignedClassrooms} @> ${JSON.stringify([classroom.id])}::jsonb`,
-            eq(creatorContent.isPublished, true),
+            eq(aiTutorConversations.id, conversationId),
+            eq(aiTutorConversations.userId, ctx.userId),
+            eq(aiTutorConversations.classroomId, classroom.id),
           ),
-        );
-
-      if (candidateContent.length === 0) {
-        await ctx.db.insert(aiTutorMessages).values({
-          conversationId,
-          role: "assistant",
-          content: NOT_FOUND_REPLY,
-          citations: [],
-          tokensUsed: 0,
-          cached: false,
-        });
-        await ctx.db
-          .update(aiTutorConversations)
-          .set({
-            messageCount: sql`${aiTutorConversations.messageCount} + 2`,
-            updatedAt: now,
-          })
-          .where(eq(aiTutorConversations.id, conversationId));
-        return {
-          conversationId,
-          answer: NOT_FOUND_REPLY,
-          citations: [] as AiTutorCitation[],
-          tokensUsed: 0,
-          cached: false,
-        };
+        )
+        .limit(1);
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
       }
-
-      const candidateIds = candidateContent.map((c) => c.id);
-      const titleById = new Map(candidateContent.map((c) => [c.id, c.title]));
-
-      // ─── Embed query, retrieve top-K chunks ───
-      const embedResult = await routeEmbedRequest(
-        {
-          task: "embed_text",
-          texts: [input.query],
+    } else {
+      const title = input.query.length > 80 ? `${input.query.slice(0, 77)}...` : input.query;
+      const [inserted] = await ctx.db
+        .insert(aiTutorConversations)
+        .values({
           userId: ctx.userId,
-          feature: "rag-embed",
-        },
-        ctx.db,
-      );
-      const queryVector = embedResult.embeddings[0];
-      if (!queryVector) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to embed query",
-        });
-      }
-
-      const queryLiteral = `[${queryVector.join(",")}]`;
-      const topChunks = await ctx.db
-        .select({
-          id: contentEmbeddings.id,
-          contentId: contentEmbeddings.contentId,
-          chunkIndex: contentEmbeddings.chunkIndex,
-          sourceText: contentEmbeddings.sourceText,
-          distance: sql<number>`${contentEmbeddings.embedding} <=> ${queryLiteral}::vector`,
+          classroomId: classroom.id,
+          title,
         })
-        .from(contentEmbeddings)
-        .where(inArray(contentEmbeddings.contentId, candidateIds))
-        .orderBy(sql`${contentEmbeddings.embedding} <=> ${queryLiteral}::vector`)
-        .limit(TOP_K);
+        .returning({ id: aiTutorConversations.id });
+      conversationId = inserted!.id;
+    }
 
-      if (topChunks.length === 0) {
-        await ctx.db.insert(aiTutorMessages).values({
-          conversationId,
-          role: "assistant",
-          content: NOT_FOUND_REPLY,
-          citations: [],
-          tokensUsed: 0,
-          cached: false,
-        });
-        await ctx.db
-          .update(aiTutorConversations)
-          .set({
-            messageCount: sql`${aiTutorConversations.messageCount} + 2`,
-            updatedAt: now,
-          })
-          .where(eq(aiTutorConversations.id, conversationId));
-        return {
-          conversationId,
-          answer: NOT_FOUND_REPLY,
-          citations: [] as AiTutorCitation[],
-          tokensUsed: 0,
-          cached: false,
-        };
-      }
+    const now = new Date();
 
-      const chunksWithTitles = topChunks.map((c) => ({
-        sourceText: c.sourceText,
-        contentTitle: titleById.get(c.contentId) ?? "Untitled",
-        contentId: c.contentId,
-        chunkIndex: c.chunkIndex,
-        similarity: 1 - c.distance,
-      }));
+    // Persist the user message immediately so it shows in history even if
+    // generation later fails.
+    await ctx.db.insert(aiTutorMessages).values({
+      conversationId,
+      role: "user",
+      content: input.query,
+      citations: [],
+      tokensUsed: 0,
+      cached: false,
+    });
 
-      const citations: AiTutorCitation[] = chunksWithTitles.map((c) => ({
-        contentId: c.contentId,
-        contentTitle: c.contentTitle,
-        chunkIndex: c.chunkIndex,
-        snippet: c.sourceText.slice(0, 240),
-        similarity: c.similarity,
-      }));
-
-      // ─── Generate answer ───
-      const ai = await routeTextRequest(
-        {
-          task: "general_chat",
-          prompt: buildUserPrompt(input.query, chunksWithTitles),
-          systemPrompt: buildSystemPrompt(),
-          userId: ctx.userId,
-          temperature: 0.3,
-          maxTokens: 1500,
-          feature: "rag-answer",
-        },
-        ctx.db,
-      );
-
-      const answer = ai.data;
-      const tokensUsed = ai.usage.totalTokens;
-      const isNotFoundReply = answer.trim() === NOT_FOUND_REPLY;
-      const finalCitations = isNotFoundReply ? [] : citations;
-
+    // ─── Redis cache hit fast-path ───
+    const key = cacheKey(classroom.id, input.query);
+    const cached = await readCache(key);
+    if (cached) {
       await ctx.db.insert(aiTutorMessages).values({
         conversationId,
         role: "assistant",
-        content: answer,
-        citations: finalCitations,
-        tokensUsed,
+        content: cached.answer,
+        citations: cached.citations,
+        tokensUsed: cached.tokensUsed,
+        cached: true,
+      });
+      await ctx.db
+        .update(aiTutorConversations)
+        .set({
+          messageCount: sql`${aiTutorConversations.messageCount} + 2`,
+          updatedAt: now,
+        })
+        .where(eq(aiTutorConversations.id, conversationId));
+      return {
+        conversationId,
+        answer: cached.answer,
+        citations: cached.citations,
+        tokensUsed: cached.tokensUsed,
+        cached: true,
+        provider: cached.provider ?? "anthropic",
+        model: cached.model ?? "claude-sonnet-4-20250514",
+        latencyMs: 0,
+      };
+    }
+
+    // ─── Candidate set: all content assigned to this classroom ───
+    const candidateContent = await ctx.db
+      .select({ id: creatorContent.id, title: creatorContent.title })
+      .from(creatorContent)
+      .where(
+        and(
+          sql`${creatorContent.assignedClassrooms} @> ${JSON.stringify([classroom.id])}::jsonb`,
+          eq(creatorContent.isPublished, true),
+        ),
+      );
+
+    if (candidateContent.length === 0) {
+      await ctx.db.insert(aiTutorMessages).values({
+        conversationId,
+        role: "assistant",
+        content: NOT_FOUND_REPLY,
+        citations: [],
+        tokensUsed: 0,
         cached: false,
       });
       await ctx.db
         .update(aiTutorConversations)
         .set({
           messageCount: sql`${aiTutorConversations.messageCount} + 2`,
-          totalInputTokens: sql`${aiTutorConversations.totalInputTokens} + ${ai.usage.promptTokens ?? 0}`,
-          totalOutputTokens: sql`${aiTutorConversations.totalOutputTokens} + ${ai.usage.completionTokens ?? 0}`,
-          totalTokens: sql`${aiTutorConversations.totalTokens} + ${tokensUsed}`,
-          estimatedCostUsd: sql`${aiTutorConversations.estimatedCostUsd} + ${ai.estimatedCostUsd}`,
           updatedAt: now,
         })
         .where(eq(aiTutorConversations.id, conversationId));
-
-      // Cache real answers only — not the "couldn't find" fallback, so adding
-      // content later doesn't keep returning the stale negative response.
-      if (!isNotFoundReply) {
-        await writeCache(key, { answer, citations: finalCitations, tokensUsed });
-      }
-
       return {
         conversationId,
+        answer: NOT_FOUND_REPLY,
+        citations: [] as AiTutorCitation[],
+        tokensUsed: 0,
+        cached: false,
+      };
+    }
+
+    const candidateIds = candidateContent.map((c) => c.id);
+    const titleById = new Map(candidateContent.map((c) => [c.id, c.title]));
+
+    // ─── Embed query, retrieve top-K chunks ───
+    const embedResult = await routeEmbedRequest(
+      {
+        task: "embed_text",
+        texts: [input.query],
+        userId: ctx.userId,
+        feature: "rag-embed",
+      },
+      ctx.db,
+    );
+    const queryVector = embedResult.embeddings[0];
+    if (!queryVector) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to embed query",
+      });
+    }
+
+    const queryLiteral = `[${queryVector.join(",")}]`;
+    const topChunks = await ctx.db
+      .select({
+        id: contentEmbeddings.id,
+        contentId: contentEmbeddings.contentId,
+        chunkIndex: contentEmbeddings.chunkIndex,
+        sourceText: contentEmbeddings.sourceText,
+        distance: sql<number>`${contentEmbeddings.embedding} <=> ${queryLiteral}::vector`,
+      })
+      .from(contentEmbeddings)
+      .where(inArray(contentEmbeddings.contentId, candidateIds))
+      .orderBy(sql`${contentEmbeddings.embedding} <=> ${queryLiteral}::vector`)
+      .limit(TOP_K);
+
+    if (topChunks.length === 0) {
+      await ctx.db.insert(aiTutorMessages).values({
+        conversationId,
+        role: "assistant",
+        content: NOT_FOUND_REPLY,
+        citations: [],
+        tokensUsed: 0,
+        cached: false,
+      });
+      await ctx.db
+        .update(aiTutorConversations)
+        .set({
+          messageCount: sql`${aiTutorConversations.messageCount} + 2`,
+          updatedAt: now,
+        })
+        .where(eq(aiTutorConversations.id, conversationId));
+      return {
+        conversationId,
+        answer: NOT_FOUND_REPLY,
+        citations: [] as AiTutorCitation[],
+        tokensUsed: 0,
+        cached: false,
+      };
+    }
+
+    const chunksWithTitles = topChunks.map((c) => ({
+      sourceText: c.sourceText,
+      contentTitle: titleById.get(c.contentId) ?? "Untitled",
+      contentId: c.contentId,
+      chunkIndex: c.chunkIndex,
+      similarity: 1 - c.distance,
+    }));
+
+    const citations: AiTutorCitation[] = chunksWithTitles.map((c) => ({
+      contentId: c.contentId,
+      contentTitle: c.contentTitle,
+      chunkIndex: c.chunkIndex,
+      snippet: c.sourceText.slice(0, 240),
+      similarity: c.similarity,
+    }));
+
+    // ─── Generate answer ───
+    const ai = await routeTextRequest(
+      {
+        task: "general_chat",
+        prompt: buildUserPrompt(input.query, chunksWithTitles),
+        systemPrompt: buildSystemPrompt(),
+        userId: ctx.userId,
+        temperature: 0.3,
+        maxTokens: 1500,
+        feature: "rag-answer",
+      },
+      ctx.db,
+    );
+
+    const answer = ai.data;
+    const tokensUsed = ai.usage.totalTokens;
+    const isNotFoundReply = answer.trim() === NOT_FOUND_REPLY;
+    const finalCitations = isNotFoundReply ? [] : citations;
+
+    await ctx.db.insert(aiTutorMessages).values({
+      conversationId,
+      role: "assistant",
+      content: answer,
+      citations: finalCitations,
+      tokensUsed,
+      cached: false,
+    });
+    await ctx.db
+      .update(aiTutorConversations)
+      .set({
+        messageCount: sql`${aiTutorConversations.messageCount} + 2`,
+        totalInputTokens: sql`${aiTutorConversations.totalInputTokens} + ${ai.usage.promptTokens ?? 0}`,
+        totalOutputTokens: sql`${aiTutorConversations.totalOutputTokens} + ${ai.usage.completionTokens ?? 0}`,
+        totalTokens: sql`${aiTutorConversations.totalTokens} + ${tokensUsed}`,
+        estimatedCostUsd: sql`${aiTutorConversations.estimatedCostUsd} + ${ai.estimatedCostUsd}`,
+        updatedAt: now,
+      })
+      .where(eq(aiTutorConversations.id, conversationId));
+
+    // Cache real answers only — not the "couldn't find" fallback, so adding
+    // content later doesn't keep returning the stale negative response.
+    if (!isNotFoundReply) {
+      await writeCache(key, {
         answer,
         citations: finalCitations,
         tokensUsed,
-        cached: false,
-      };
-    }),
+        provider: ai.provider,
+        model: ai.model,
+      });
+    }
+
+    return {
+      conversationId,
+      answer,
+      citations: finalCitations,
+      tokensUsed,
+      cached: false,
+      provider: ai.provider,
+      model: ai.model,
+      latencyMs: ai.latencyMs,
+    };
+  }),
 
   listConversations: protectedProcedure
     .input(aiTutorListConversationsSchema)
@@ -425,21 +429,33 @@ export const aiTutorRouter = router({
       return { conversation: conv, messages };
     }),
 
-  /** Per-classroom embedding coverage. Teacher-only so students don't
-   *  burn the count query on every page open. Used by the AI Tutor tab
-   *  banner to show "X of Y pieces embedded — [Backfill]" status. */
+  /** Static info about which providers/models power the tutor. Reads from
+   *  the same task→provider map as the AI router, so any change there is
+   *  reflected here automatically. No DB query; safe to call on every
+   *  page load. */
+  providerInfo: protectedProcedure.query(async ({ ctx }) => {
+    await assertCreatorsFeature(ctx.db, "creators.ai_tutor_enabled");
+    // The router uses these tasks; the model fields mirror TASK_PROVIDER_MAP
+    // in apps/api/src/ai/ai-router.ts. We keep them as plain strings here
+    // rather than importing the map so this endpoint stays cheap.
+    return {
+      answer: { provider: "anthropic", model: "claude-sonnet-4-20250514" },
+      embedding: { provider: "openai", model: "text-embedding-3-small" },
+      transcription: {
+        primary: { provider: "google", model: "gemini-2.0-flash" },
+        fallback: { provider: "openai", model: "whisper-1" },
+      },
+    };
+  }),
+
+  /** Per-classroom embedding coverage. Open to members so they can see a
+   *  "ready / not ready" pill in the chat header; teachers also use it for
+   *  the backfill banner. Read-only, single grouped query, cheap. */
   embeddingStatus: protectedProcedure
     .input(z.object({ classroomId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await assertCreatorsFeature(ctx.db, "creators.ai_tutor_enabled");
-      const { isTeacher } = await requireMemberOrTeacher(
-        ctx.db,
-        input.classroomId,
-        ctx.userId,
-      );
-      if (!isTeacher) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Teacher only" });
-      }
+      await requireMemberOrTeacher(ctx.db, input.classroomId, ctx.userId);
       const assigned = await ctx.db
         .select({ id: creatorContent.id })
         .from(creatorContent)
@@ -474,11 +490,7 @@ export const aiTutorRouter = router({
     .input(z.object({ classroomId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await assertCreatorsFeature(ctx.db, "creators.ai_tutor_enabled");
-      const { isTeacher } = await requireMemberOrTeacher(
-        ctx.db,
-        input.classroomId,
-        ctx.userId,
-      );
+      const { isTeacher } = await requireMemberOrTeacher(ctx.db, input.classroomId, ctx.userId);
       if (!isTeacher) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Teacher only" });
       }
