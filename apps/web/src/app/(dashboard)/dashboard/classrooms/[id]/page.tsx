@@ -271,7 +271,7 @@ export default function StudentClassroomDetailPage(props: {
         </TabsContent>
 
         <TabsContent value="ai-tutor">
-          <AiTutorChat classroomId={id} />
+          <AiTutorChat classroomId={id} isTeacher={isTeacher} />
         </TabsContent>
       </Tabs>
     </div>

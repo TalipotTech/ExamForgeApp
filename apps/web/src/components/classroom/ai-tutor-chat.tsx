@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Send, Loader2, FileText } from "lucide-react";
+import { Sparkles, Send, Loader2, FileText, RefreshCw, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -29,9 +29,10 @@ type ChatMessage = {
 
 type Props = {
   classroomId: string;
+  isTeacher?: boolean;
 };
 
-export function AiTutorChat({ classroomId }: Props): React.ReactElement {
+export function AiTutorChat({ classroomId, isTeacher = false }: Props): React.ReactElement {
   const utils = trpc.useUtils();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -42,6 +43,23 @@ export function AiTutorChat({ classroomId }: Props): React.ReactElement {
     classroomId,
     limit: 10,
     offset: 0,
+  });
+
+  const statusQuery = trpc.aiTutor.embeddingStatus.useQuery(
+    { classroomId },
+    { enabled: isTeacher },
+  );
+
+  const backfillMutation = trpc.aiTutor.backfillClassroom.useMutation({
+    onSuccess: (data) => {
+      toast.success(
+        data.queued === 0
+          ? "No published content assigned to this classroom yet."
+          : `Queued ${data.queued} content piece${data.queued === 1 ? "" : "s"} for embedding. Refresh in ~1–2 min.`,
+      );
+      void statusQuery.refetch();
+    },
+    onError: (err) => toast.error(err.message.slice(0, 240)),
   });
 
   const loadedConversation = trpc.aiTutor.getConversation.useQuery(
@@ -139,7 +157,58 @@ export function AiTutorChat({ classroomId }: Props): React.ReactElement {
     return allCitations;
   }, [messages]);
 
+  const status = statusQuery.data;
+  const showBackfillBanner =
+    isTeacher && status !== undefined && status.embeddedContent < status.totalContent;
+  const allEmbedded =
+    isTeacher && status !== undefined && status.totalContent > 0 && status.embeddedContent === status.totalContent;
+
   return (
+    <div className="space-y-3">
+      {isTeacher && status !== undefined && (
+        <Card className="border-dashed">
+          <div className="flex flex-col items-start justify-between gap-2 p-3 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-2 text-sm">
+              {allEmbedded ? (
+                <>
+                  <CheckCircle2 className="text-green-600 size-4" />
+                  <span>
+                    <strong>{status.embeddedContent}</strong> of <strong>{status.totalContent}</strong> content pieces embedded · <strong>{status.chunks}</strong> chunks indexed
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="text-muted-foreground size-4" />
+                  <span>
+                    <strong>{status.embeddedContent}</strong> of <strong>{status.totalContent}</strong> content pieces embedded
+                    {status.totalContent === 0
+                      ? " — assign published content to this classroom to enable the AI tutor."
+                      : status.embeddedContent < status.totalContent
+                        ? " — backfill to embed the rest."
+                        : null}
+                  </span>
+                </>
+              )}
+            </div>
+            {status.totalContent > 0 && (
+              <Button
+                variant={showBackfillBanner ? "default" : "outline"}
+                size="sm"
+                disabled={backfillMutation.isPending}
+                onClick={() => backfillMutation.mutate({ classroomId })}
+              >
+                {backfillMutation.isPending ? (
+                  <Loader2 className="mr-1 size-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1 size-3" />
+                )}
+                {showBackfillBanner ? "Backfill embeddings" : "Re-embed all"}
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_240px]">
       <Card className="flex h-[640px] flex-col">
         <div className="flex items-center justify-between border-b px-4 py-2">
@@ -267,6 +336,7 @@ export function AiTutorChat({ classroomId }: Props): React.ReactElement {
           </div>
         )}
       </Card>
+    </div>
     </div>
   );
 }

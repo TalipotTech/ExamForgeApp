@@ -20,6 +20,8 @@ import { router, protectedProcedure } from "../trpc.js";
 import { routeEmbedRequest, routeTextRequest } from "../../ai/ai-router.js";
 import { assertCreatorsFeature } from "../../services/creators-gate.js";
 import { getRedisClient } from "../../lib/redis.js";
+import { enqueueContentEmbedding } from "../../queues/content-embedding-queue.js";
+import { z } from "zod";
 
 const TOP_K = 8;
 const CACHE_TTL_SECONDS = 24 * 60 * 60;
@@ -421,5 +423,77 @@ export const aiTutorRouter = router({
         .where(eq(aiTutorMessages.conversationId, conv.id))
         .orderBy(aiTutorMessages.createdAt);
       return { conversation: conv, messages };
+    }),
+
+  /** Per-classroom embedding coverage. Teacher-only so students don't
+   *  burn the count query on every page open. Used by the AI Tutor tab
+   *  banner to show "X of Y pieces embedded — [Backfill]" status. */
+  embeddingStatus: protectedProcedure
+    .input(z.object({ classroomId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await assertCreatorsFeature(ctx.db, "creators.ai_tutor_enabled");
+      const { isTeacher } = await requireMemberOrTeacher(
+        ctx.db,
+        input.classroomId,
+        ctx.userId,
+      );
+      if (!isTeacher) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Teacher only" });
+      }
+      const assigned = await ctx.db
+        .select({ id: creatorContent.id })
+        .from(creatorContent)
+        .where(
+          and(
+            sql`${creatorContent.assignedClassrooms} @> ${JSON.stringify([input.classroomId])}::jsonb`,
+            eq(creatorContent.isPublished, true),
+          ),
+        );
+      if (assigned.length === 0) {
+        return { totalContent: 0, embeddedContent: 0, chunks: 0 };
+      }
+      const ids = assigned.map((c) => c.id);
+      const rows = await ctx.db
+        .select({
+          contentId: contentEmbeddings.contentId,
+          n: sql<number>`count(*)::int`,
+        })
+        .from(contentEmbeddings)
+        .where(inArray(contentEmbeddings.contentId, ids))
+        .groupBy(contentEmbeddings.contentId);
+      const chunks = rows.reduce((sum, r) => sum + r.n, 0);
+      return { totalContent: assigned.length, embeddedContent: rows.length, chunks };
+    }),
+
+  /** Enqueue embedding jobs for every published piece of content assigned to
+   *  the classroom. Teacher-only. Idempotent — the worker delete-then-inserts
+   *  per content, so a second backfill just regenerates. Useful for the
+   *  smoke test on content published BEFORE this PR landed (no transition,
+   *  so no auto-enqueue happened). */
+  backfillClassroom: protectedProcedure
+    .input(z.object({ classroomId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertCreatorsFeature(ctx.db, "creators.ai_tutor_enabled");
+      const { isTeacher } = await requireMemberOrTeacher(
+        ctx.db,
+        input.classroomId,
+        ctx.userId,
+      );
+      if (!isTeacher) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Teacher only" });
+      }
+      const assigned = await ctx.db
+        .select({ id: creatorContent.id })
+        .from(creatorContent)
+        .where(
+          and(
+            sql`${creatorContent.assignedClassrooms} @> ${JSON.stringify([input.classroomId])}::jsonb`,
+            eq(creatorContent.isPublished, true),
+          ),
+        );
+      for (const c of assigned) {
+        await enqueueContentEmbedding(c.id, "manual");
+      }
+      return { queued: assigned.length };
     }),
 });
