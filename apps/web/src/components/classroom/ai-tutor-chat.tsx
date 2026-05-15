@@ -34,9 +34,21 @@ type ChatMessage = {
 type Props = {
   classroomId: string;
   isTeacher?: boolean;
+  /** When set, retrieval is restricted to this one content piece.
+   *  The chat heading + empty-state copy change to reflect that. */
+  contentId?: string;
+  /** Title to display for the scoped content (when contentId is set).
+   *  Used in the empty-state hint. */
+  contentTitle?: string;
 };
 
-export function AiTutorChat({ classroomId, isTeacher = false }: Props): React.ReactElement {
+export function AiTutorChat({
+  classroomId,
+  isTeacher = false,
+  contentId,
+  contentTitle,
+}: Props): React.ReactElement {
+  const routePrefix = isTeacher ? "/creator/content" : "/dashboard/content";
   const utils = trpc.useUtils();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -144,6 +156,7 @@ export function AiTutorChat({ classroomId, isTeacher = false }: Props): React.Re
       classroomId,
       query: text,
       conversationId: conversationId ?? undefined,
+      contentId,
     });
   }, [draft, askMutation, classroomId, conversationId]);
 
@@ -178,8 +191,10 @@ export function AiTutorChat({ classroomId, isTeacher = false }: Props): React.Re
 
   return (
     <div className="space-y-3">
-      {/* Status pill + provider info — visible to everyone, dense single row */}
-      {status !== undefined && providers !== undefined && (
+      {/* Status pill + provider info — visible to everyone, dense single row.
+          Hidden when scoped to a single content; the embedding-coverage count
+          is a classroom-level signal that doesn't match per-content asking. */}
+      {!contentId && status !== undefined && providers !== undefined && (
         <Card>
           <div className="flex flex-col gap-2 p-3 text-xs sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
             <Badge
@@ -220,8 +235,9 @@ export function AiTutorChat({ classroomId, isTeacher = false }: Props): React.Re
         </Card>
       )}
 
-      {/* Teacher-only backfill banner */}
-      {isTeacher && status !== undefined && (
+      {/* Teacher-only backfill banner — hidden in per-content mode since
+          backfill is inherently classroom-wide. */}
+      {!contentId && isTeacher && status !== undefined && (
         <Card className="border-dashed">
           <div className="flex flex-col items-start justify-between gap-2 p-3 sm:flex-row sm:items-center">
             <div className="flex items-center gap-2 text-sm">
@@ -275,7 +291,9 @@ export function AiTutorChat({ classroomId, isTeacher = false }: Props): React.Re
               <Sparkles className="size-4" />
               AI Tutor
               <span className="text-muted-foreground text-xs font-normal">
-                Grounded in your classroom's content
+                {contentId
+                  ? `Scoped to ${contentTitle ? `"${contentTitle}"` : "this content"}`
+                  : "Grounded in your classroom's content"}
               </span>
             </div>
             <Button
@@ -291,8 +309,9 @@ export function AiTutorChat({ classroomId, isTeacher = false }: Props): React.Re
           <div ref={scrollerRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
             {messages.length === 0 ? (
               <div className="text-muted-foreground py-12 text-center text-sm">
-                Ask anything about the material your teacher has assigned. Answers cite the source
-                content.
+                {contentId
+                  ? `Ask anything about ${contentTitle ? `"${contentTitle}"` : "this content"}. Answers come only from this piece.`
+                  : "Ask anything about the material your teacher has assigned. Answers cite the source content."}
               </div>
             ) : (
               messages.map((m) => (
@@ -300,6 +319,7 @@ export function AiTutorChat({ classroomId, isTeacher = false }: Props): React.Re
                   key={m.id}
                   message={m}
                   isLoading={m.id === "pending" && askMutation.isPending}
+                  routePrefix={routePrefix}
                 />
               ))
             )}
@@ -382,7 +402,7 @@ export function AiTutorChat({ classroomId, isTeacher = false }: Props): React.Re
                   .map((c) => (
                     <Link
                       key={c.contentId}
-                      href={`/dashboard/content/${c.contentId}`}
+                      href={`${routePrefix}/${c.contentId}`}
                       className="hover:bg-muted block rounded px-2 py-1 text-xs"
                     >
                       <FileText className="mr-1 inline size-3" />
@@ -401,9 +421,11 @@ export function AiTutorChat({ classroomId, isTeacher = false }: Props): React.Re
 function MessageBubble({
   message,
   isLoading,
+  routePrefix,
 }: {
   message: ChatMessage;
   isLoading: boolean;
+  routePrefix: string;
 }): React.ReactElement {
   if (message.role === "user") {
     return (
@@ -432,6 +454,7 @@ function MessageBubble({
                     key={`${c.contentId}-${c.chunkIndex}`}
                     index={idx + 1}
                     citation={c}
+                    routePrefix={routePrefix}
                   />
                 ))}
               </div>
@@ -469,13 +492,15 @@ function MessageMeta({ message }: { message: ChatMessage }): React.ReactElement 
 function CitationChip({
   index,
   citation,
+  routePrefix,
 }: {
   index: number;
   citation: Citation;
+  routePrefix: string;
 }): React.ReactElement {
   return (
     <Link
-      href={`/dashboard/content/${citation.contentId}`}
+      href={`${routePrefix}/${citation.contentId}`}
       title={`${citation.contentTitle} — ${citation.snippet}`}
     >
       <Badge variant="outline" className="hover:bg-accent cursor-pointer text-[10px]">
