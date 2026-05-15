@@ -36,11 +36,9 @@ export async function enqueueContentEmbedding(
   trigger: ContentEmbeddingJobData["trigger"] = "publish",
 ): Promise<void> {
   const queue = getContentEmbeddingQueue();
-  await queue.add(
-    "embed-content",
-    { contentId, trigger },
-    { jobId: `embed:${contentId}` },
-  );
+  // jobId dedupes concurrent enqueues for the same content. BullMQ
+  // rejects `:` in custom IDs, so use `-` as the separator.
+  await queue.add("embed-content", { contentId, trigger }, { jobId: `embed-${contentId}` });
 }
 
 export async function closeContentEmbeddingQueue(): Promise<void> {
