@@ -68,9 +68,13 @@ function normalizeQuery(q: string): string {
   return q.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function cacheKey(classroomId: string, query: string): string {
+function cacheKey(classroomId: string, query: string, contentId?: string): string {
   const hash = createHash("sha256").update(normalizeQuery(query)).digest("hex");
-  return `aitutor:answer:${classroomId}:${hash}`;
+  // contentId is part of the key so per-content asks don't collide with
+  // whole-classroom asks for the same query string.
+  return contentId
+    ? `aitutor:answer:${classroomId}:${contentId}:${hash}`
+    : `aitutor:answer:${classroomId}:${hash}`;
 }
 
 type CachedAnswer = {
@@ -170,7 +174,7 @@ export const aiTutorRouter = router({
     });
 
     // ─── Redis cache hit fast-path ───
-    const key = cacheKey(classroom.id, input.query);
+    const key = cacheKey(classroom.id, input.query, input.contentId);
     const cached = await readCache(key);
     if (cached) {
       await ctx.db.insert(aiTutorMessages).values({
@@ -200,16 +204,24 @@ export const aiTutorRouter = router({
       };
     }
 
-    // ─── Candidate set: all content assigned to this classroom ───
+    // ─── Candidate set: all content assigned to this classroom, OR a
+    //     single piece when contentId is provided. The classroom check is
+    //     kept either way so a student can't probe content outside their
+    //     classroom by passing its UUID. ───
+    const candidateWhere = input.contentId
+      ? and(
+          eq(creatorContent.id, input.contentId),
+          sql`${creatorContent.assignedClassrooms} @> ${JSON.stringify([classroom.id])}::jsonb`,
+          eq(creatorContent.isPublished, true),
+        )
+      : and(
+          sql`${creatorContent.assignedClassrooms} @> ${JSON.stringify([classroom.id])}::jsonb`,
+          eq(creatorContent.isPublished, true),
+        );
     const candidateContent = await ctx.db
       .select({ id: creatorContent.id, title: creatorContent.title })
       .from(creatorContent)
-      .where(
-        and(
-          sql`${creatorContent.assignedClassrooms} @> ${JSON.stringify([classroom.id])}::jsonb`,
-          eq(creatorContent.isPublished, true),
-        ),
-      );
+      .where(candidateWhere);
 
     if (candidateContent.length === 0) {
       await ctx.db.insert(aiTutorMessages).values({

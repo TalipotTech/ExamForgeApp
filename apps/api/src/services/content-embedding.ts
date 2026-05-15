@@ -15,20 +15,80 @@ function estimateTokens(text: string): number {
 
 type CreatorContentRow = typeof creatorContent.$inferSelect;
 
-export function extractTextForContent(content: CreatorContentRow): string {
-  // For v1: title + description + body + aiTranscript + aiSummary.
-  // metadata.mediaItems (image OCR text) is out of scope until the
-  // metadata JSONB shape is formally typed in a follow-up.
+/** Per-content extraction provenance — useful for worker logs so we can
+ *  see exactly which sources produced text (or why the content yielded 0
+ *  chunks). */
+export type ExtractionSources = {
+  title: boolean;
+  description: boolean;
+  body: boolean;
+  aiSummary: boolean;
+  aiTranscript: boolean;
+  mediaExtractedText: number; // count of media items contributing text
+};
+
+export function extractTextForContent(content: CreatorContentRow): {
+  text: string;
+  sources: ExtractionSources;
+} {
   const parts: string[] = [];
-  if (content.title) parts.push(content.title);
-  if (content.description) parts.push(content.description);
-  if (content.body) parts.push(content.body);
-  if (content.aiTranscript) parts.push(content.aiTranscript);
-  if (content.aiSummary) parts.push(content.aiSummary);
-  return parts
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0)
-    .join("\n\n");
+  const sources: ExtractionSources = {
+    title: false,
+    description: false,
+    body: false,
+    aiSummary: false,
+    aiTranscript: false,
+    mediaExtractedText: 0,
+  };
+
+  if (content.title) {
+    parts.push(content.title);
+    sources.title = true;
+  }
+  if (content.description) {
+    parts.push(content.description);
+    sources.description = true;
+  }
+  if (content.body) {
+    parts.push(content.body);
+    sources.body = true;
+  }
+  // aiTranscript is populated for video/audio by a transcription worker
+  // (not yet built — see PR notes). When present, prefer it.
+  if (content.aiTranscript) {
+    parts.push(content.aiTranscript);
+    sources.aiTranscript = true;
+  }
+  if (content.aiSummary) {
+    parts.push(content.aiSummary);
+    sources.aiSummary = true;
+  }
+  // OCR worker populates metadata.mediaItems[i].extractedText for documents
+  // and images. Treat each as an additional source so a PDF inside an
+  // otherwise-empty content piece still produces chunks.
+  const meta = content.metadata;
+  if (meta !== null && typeof meta === "object") {
+    const raw = (meta as { mediaItems?: unknown }).mediaItems;
+    if (Array.isArray(raw)) {
+      for (const m of raw) {
+        if (m !== null && typeof m === "object") {
+          const text = (m as { extractedText?: unknown }).extractedText;
+          if (typeof text === "string" && text.trim().length > 0) {
+            parts.push(text);
+            sources.mediaExtractedText++;
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    text: parts
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0)
+      .join("\n\n"),
+    sources,
+  };
 }
 
 export function chunkText(
@@ -109,7 +169,12 @@ export function chunkText(
 export async function upsertContentEmbeddings(
   db: Database,
   contentId: string,
-): Promise<{ chunks: number; skipped: boolean; reason?: string }> {
+): Promise<{
+  chunks: number;
+  skipped: boolean;
+  reason?: string;
+  sources?: ExtractionSources;
+}> {
   const [content] = await db
     .select()
     .from(creatorContent)
@@ -120,16 +185,17 @@ export async function upsertContentEmbeddings(
     return { chunks: 0, skipped: true, reason: "content_not_found" };
   }
 
-  const text = extractTextForContent(content);
+  const { text, sources } = extractTextForContent(content);
   if (!text.trim()) {
-    // Nothing embed-able yet — e.g. video without transcript. Worker will
-    // be re-triggered when the transcription pipeline populates aiTranscript.
-    return { chunks: 0, skipped: true, reason: "no_text" };
+    // Nothing embed-able yet — common for audio/video before any
+    // transcription worker has populated aiTranscript, or a document
+    // before OCR ran.
+    return { chunks: 0, skipped: true, reason: "no_text", sources };
   }
 
   const chunks = chunkText(text);
   if (chunks.length === 0) {
-    return { chunks: 0, skipped: true, reason: "empty_after_chunking" };
+    return { chunks: 0, skipped: true, reason: "empty_after_chunking", sources };
   }
 
   // Idempotent: wipe existing rows for this content first. Cheaper and
@@ -179,5 +245,5 @@ export async function upsertContentEmbeddings(
     })),
   );
 
-  return { chunks: chunks.length, skipped: false };
+  return { chunks: chunks.length, skipped: false, sources };
 }

@@ -14,14 +14,18 @@ export function createContentEmbeddingWorker(): Worker<ContentEmbeddingJobData> 
     CONTENT_EMBEDDING_QUEUE_NAME,
     async (job) => {
       const { contentId, trigger } = job.data;
-      console.log(
-        `[content-embedding] Embedding content ${contentId} (trigger=${trigger})`,
-      );
+      console.log(`[content-embedding] Embedding content ${contentId} (trigger=${trigger})`);
       const started = Date.now();
       const result = await upsertContentEmbeddings(db, contentId);
       const ms = Date.now() - started;
+      const srcSummary = result.sources
+        ? Object.entries(result.sources)
+            .filter(([, v]) => (typeof v === "number" ? v > 0 : v === true))
+            .map(([k, v]) => (typeof v === "number" ? `${k}=${v}` : k))
+            .join(",") || "none"
+        : "n/a";
       console.log(
-        `[content-embedding] ${contentId} done in ${ms}ms — chunks=${result.chunks} skipped=${result.skipped} reason=${result.reason ?? "-"}`,
+        `[content-embedding] ${contentId} done in ${ms}ms — chunks=${result.chunks} skipped=${result.skipped} reason=${result.reason ?? "-"} sources=${srcSummary}`,
       );
       return result;
     },

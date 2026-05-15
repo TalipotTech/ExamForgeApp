@@ -4,6 +4,9 @@ export const aiTutorAskSchema = z.object({
   classroomId: z.string().uuid(),
   query: z.string().min(2).max(2000),
   conversationId: z.string().uuid().optional(),
+  /** Optional. When set, retrieval is restricted to chunks from this one
+   *  content piece. Used by per-content "Ask AI about this" entry points. */
+  contentId: z.string().uuid().optional(),
 });
 export type AiTutorAskInput = z.infer<typeof aiTutorAskSchema>;
 
