@@ -116,20 +116,72 @@ export async function runOcrOnImage(
 }
 
 /**
+ * Run OCR on a PDF / document file. Uses the AI SDK `file` content type
+ * which Gemini and Claude both accept for PDFs natively (no need to
+ * rasterise to image). Same shape as runOcrOnImage so the fallback
+ * runner can dispatch by mimeType.
+ */
+export async function runOcrOnDocument(
+  filePath: string,
+  mimeType: string,
+  model: OcrModel,
+): Promise<OcrResult> {
+  const started = Date.now();
+  const bytes = await readFile(filePath);
+  const fileBytes = new Uint8Array(bytes);
+
+  const result = await generateText({
+    model: resolveModel(model),
+    system: OCR_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Extract all text from this document and format it as Markdown per the system instructions.",
+          },
+          { type: "file", data: fileBytes, mediaType: mimeType },
+        ],
+      },
+    ],
+    temperature: 0,
+    // Documents are typically longer than single images — give the model
+    // more headroom before it gets cut off mid-page.
+    maxOutputTokens: 16384,
+  });
+
+  const markdown = result.text.trim();
+  return {
+    model,
+    markdown,
+    tokensIn: result.usage?.inputTokens,
+    tokensOut: result.usage?.outputTokens,
+    durationMs: Date.now() - started,
+  };
+}
+
+/**
  * Run OCR with automatic fallback to the next model in the default order
  * when the primary fails (auth errors, rate limits, refusals). Returns the
  * first successful result. Throws only if every model fails.
  */
 export async function runOcrWithFallback(
-  imagePath: string,
+  filePath: string,
   mimeType: string,
   preferred: OcrModel,
 ): Promise<OcrResult> {
   const order: OcrModel[] = [preferred, ...OCR_FALLBACK_ORDER.filter((m) => m !== preferred)];
   const errors: Array<{ model: OcrModel; error: string }> = [];
+  // Dispatch by MIME type so PDFs go through the `file` content path and
+  // raster images go through the `image` content path. Audio/video aren't
+  // OCR targets — those need a transcription worker (separate slice).
+  const isPdf = mimeType === "application/pdf";
   for (const model of order) {
     try {
-      return await runOcrOnImage(imagePath, mimeType, model);
+      return isPdf
+        ? await runOcrOnDocument(filePath, mimeType, model)
+        : await runOcrOnImage(filePath, mimeType, model);
     } catch (err) {
       errors.push({
         model,

@@ -93,11 +93,15 @@ function MediaItemEditor({
   onRemove,
   onReplace,
   replacing,
+  onExtractText,
+  extracting,
 }: {
   item: MediaItem;
   onRemove: () => void;
   onReplace: (file: File) => void;
   replacing?: boolean;
+  onExtractText?: () => void;
+  extracting?: boolean;
 }): React.ReactElement {
   const replaceRef = useRef<HTMLInputElement>(null);
   return (
@@ -113,6 +117,13 @@ function MediaItemEditor({
         <p className="truncate text-sm font-medium">{item.fileName}</p>
         <p className="text-muted-foreground text-xs capitalize">
           {item.type} · {formatSize(item.fileSize)}
+          {item.ocrStatus === "completed" && item.extractedText
+            ? ` · ${item.extractedText.length} chars extracted`
+            : item.ocrStatus === "processing"
+              ? " · extracting…"
+              : item.ocrStatus === "failed"
+                ? " · extraction failed"
+                : null}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1">
@@ -124,6 +135,28 @@ function MediaItemEditor({
             if (e.target.files?.[0]) onReplace(e.target.files[0]);
           }}
         />
+        {onExtractText && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1 text-xs"
+            title={
+              item.extractedText
+                ? "Re-extract text from this document"
+                : "Extract text from this document for the AI tutor"
+            }
+            disabled={extracting || item.ocrStatus === "processing"}
+            onClick={onExtractText}
+          >
+            {extracting || item.ocrStatus === "processing" ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <FileText className="size-3.5" />
+            )}
+            {item.extractedText ? "Re-extract" : "Extract text"}
+          </Button>
+        )}
         <Button
           type="button"
           variant="ghost"
@@ -187,7 +220,35 @@ export default function ContentDetailPage(props: {
   const [activeTab, setActiveTab] = useState("preview");
   const [addingFiles, setAddingFiles] = useState(false);
   const [replacingOrder, setReplacingOrder] = useState<number | null>(null);
+  const [extractingOrder, setExtractingOrder] = useState<number | null>(null);
   const addFilesRef = useRef<HTMLInputElement>(null);
+
+  async function handleExtractText(order: number): Promise<void> {
+    setExtractingOrder(order);
+    try {
+      const res = await fetch(`/api/creator-content/${id}/retry-ocr`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ order }),
+      });
+      const data = (await res.json()) as
+        | { success: true; data: { model: string } }
+        | { success: false; error?: { message: string; code?: string } };
+      if (!res.ok || !data.success) {
+        toast.error(
+          !data.success ? (data.error?.message ?? "Extraction failed") : "Extraction failed",
+        );
+      } else {
+        toast.success(
+          `Extraction queued (${data.data.model}). Tutor will refresh after it completes.`,
+        );
+        void contentQuery.refetch();
+      }
+    } finally {
+      setExtractingOrder(null);
+    }
+  }
 
   useEffect(() => {
     if (content) {
@@ -425,6 +486,12 @@ export default function ContentDetailPage(props: {
                     }}
                     onReplace={(file) => void handleReplace(item.order, file)}
                     replacing={replacingOrder === item.order}
+                    onExtractText={
+                      item.type === "document"
+                        ? (): void => void handleExtractText(item.order)
+                        : undefined
+                    }
+                    extracting={extractingOrder === item.order}
                   />
                 ))}
               </CardContent>

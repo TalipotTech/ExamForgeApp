@@ -109,11 +109,14 @@ export async function POST(
       ? ((meta as { mediaItems?: StoredMediaItem[] }).mediaItems as StoredMediaItem[])
       : [];
     const target = items.find((i) => i.order === body.order);
-    if (!target || target.type !== "image") {
+    // Accept images (existing behaviour) and documents (new — PDFs go
+    // through the `file` content path in ocr-service). Audio/video are
+    // not OCR targets.
+    if (!target || (target.type !== "image" && target.type !== "document")) {
       return NextResponse.json(
         {
           success: false,
-          error: { code: "NOT_FOUND", message: "Image media item not found" },
+          error: { code: "NOT_FOUND", message: "Image or document media item not found" },
         },
         { status: 404 },
       );

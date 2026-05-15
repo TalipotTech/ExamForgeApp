@@ -5,6 +5,7 @@ import { creatorContent } from "@examforge/shared/db/schema";
 import { getBullMQConnection } from "../lib/bullmq-connection.js";
 import { OCR_QUEUE_NAME, type OcrJobData } from "../queues/ocr-queue.js";
 import { runOcrWithFallback } from "../ai/ocr-service.js";
+import { enqueueContentEmbedding } from "../queues/content-embedding-queue.js";
 
 type StoredMediaItem = {
   type: "video" | "audio" | "image" | "document";
@@ -68,6 +69,11 @@ export function createOcrWorker(): Worker<OcrJobData> {
           ocrStatus: "completed",
           ocrModel: result.model,
           ocrError: undefined,
+        });
+        // Re-embed so the new extractedText flows into the AI tutor.
+        // Fire-and-forget — the OCR job itself should succeed regardless.
+        enqueueContentEmbedding(contentId, "retry").catch((err) => {
+          console.warn(`[ocr] re-embed enqueue failed for ${contentId}:`, err);
         });
         return {
           model: result.model,

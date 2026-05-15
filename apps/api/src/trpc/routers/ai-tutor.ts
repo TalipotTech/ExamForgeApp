@@ -515,8 +515,17 @@ export const aiTutorRouter = router({
             eq(creatorContent.isPublished, true),
           ),
         );
+      console.log(
+        `[ai-tutor.backfillClassroom] classroom=${input.classroomId} matched ${assigned.length} published content piece(s)`,
+      );
       for (const c of assigned) {
-        await enqueueContentEmbedding(c.id, "manual");
+        try {
+          await enqueueContentEmbedding(c.id, "manual");
+          console.log(`[ai-tutor.backfillClassroom] enqueued embed for ${c.id}`);
+        } catch (err) {
+          console.error(`[ai-tutor.backfillClassroom] enqueue failed for ${c.id}:`, err);
+          throw err;
+        }
       }
       return { queued: assigned.length };
     }),
