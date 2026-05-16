@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Sparkles, Send, Loader2, FileText, RefreshCw, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { MarkdownRenderer } from "@/components/content/markdown-renderer";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -446,7 +447,7 @@ function MessageBubble({
           </span>
         ) : (
           <>
-            <div className="whitespace-pre-wrap">{message.content}</div>
+            <MarkdownRenderer content={message.content} />
             {message.citations.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {message.citations.map((c, idx) => (

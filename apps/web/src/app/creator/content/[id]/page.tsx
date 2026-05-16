@@ -474,38 +474,6 @@ export default function ContentDetailPage(props: {
               <p className="text-sm">No content to preview.</p>
             </div>
           )}
-
-          {/* Surface extracted text from documents so the formatted version
-              (with LaTeX, headings, tables) is visible alongside the embedded
-              PDF — same content the AI tutor reads. */}
-          {(mediaItems as MediaItem[])
-            .filter(
-              (m) =>
-                m.type === "document" &&
-                typeof m.extractedText === "string" &&
-                m.extractedText.trim().length > 0,
-            )
-            .map((m) => (
-              <Card key={`extracted-${m.order}`}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 py-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <FileText className="size-4 text-red-500" />
-                    {m.fileName}
-                    <span className="text-muted-foreground text-xs font-normal">
-                      · extracted text
-                    </span>
-                  </CardTitle>
-                  {m.ocrModel && (
-                    <Badge variant="outline" className="text-[10px]">
-                      {m.ocrModel}
-                    </Badge>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <MarkdownRenderer content={m.extractedText ?? ""} />
-                </CardContent>
-              </Card>
-            ))}
         </TabsContent>
 
         <TabsContent value="edit" className="mt-4 space-y-4">

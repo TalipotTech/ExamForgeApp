@@ -172,6 +172,19 @@ export function MediaPreview({
                   <p className="text-muted-foreground text-xs">{formatSize(item.fileSize)}</p>
                 </div>
               )}
+              {item.extractedText && item.extractedText.trim().length > 0 && (
+                <div className="bg-muted/10 border-t p-4">
+                  <div className="text-muted-foreground mb-2 flex items-center justify-between text-xs font-medium uppercase">
+                    <span>Extracted text</span>
+                    {item.ocrModel && (
+                      <span className="font-normal normal-case">via {item.ocrModel}</span>
+                    )}
+                  </div>
+                  <div className="max-h-[500px] overflow-y-auto">
+                    <MarkdownRenderer content={item.extractedText} />
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
