@@ -6,11 +6,74 @@ import { routeEmbedRequest } from "../ai/ai-router.js";
 const MAX_TOKENS_PER_CHUNK = 500;
 const OVERLAP_TOKENS = 50;
 const EMBED_BATCH_SIZE = 50;
+// text-embedding-3-small accepts up to 8192 tokens per input. Real-world
+// content (especially OCR'd PDFs with HTML-entity whitespace runs) can
+// blow past our rough char/4 estimate, so we also enforce a hard
+// character cap at ~6000 chars — that's ~1500–2000 tokens worst case,
+// well under the 8192 ceiling even for entity-heavy text.
+const HARD_CHAR_CAP_PER_CHUNK = 6000;
 
 // Rough token estimate — 1 token ≈ 4 chars for English. Good enough for
 // chunk sizing; the real token count comes back from OpenAI's response.
+// Repetitive HTML entities (e.g. &nbsp; chains in OCR output) tokenise
+// much denser than this estimate suggests, which is why we also enforce
+// a hard character cap in chunkText.
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
+}
+
+/** Collapse HTML whitespace entities and runs that OCR tooling sometimes
+ *  emits when it sees layout-only whitespace in a PDF. A 200-entity run
+ *  of nbsp is structurally noise but tokenises to ~600 tokens and can
+ *  push a single chunk past OpenAI's 8192-token ceiling. We don't
+ *  unescape every entity, only the whitespace ones, because real content
+ *  might legitimately contain `&amp;` etc. that should stay.
+ *  Also strips raw Unicode non-breaking-space and zero-width chars that
+ *  OCR can emit alongside the entity form. */
+// Built with \u escapes via new RegExp so the source stays ASCII and the
+// no-irregular-whitespace lint rule doesn't trip on the character class.
+// Covers: NBSP (U+00A0), NARROW NBSP (U+202F), ZERO WIDTH SPACE (U+200B),
+// ZWNJ / ZWJ (U+200C / U+200D), ZERO WIDTH NO-BREAK SPACE / BOM (U+FEFF).
+// Alternation rather than a character class so the lint rule
+// no-misleading-character-class (zero-width joiners next to other code
+// points combining into a single grapheme) stays happy.
+const INVISIBLE_WHITESPACE_RE = new RegExp("\\u00a0|\\u202f|\\u200b|\\u200c|\\u200d|\\ufeff", "g");
+function sanitizeForEmbedding(text: string): string {
+  return text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#160;/g, " ")
+    .replace(/&#x?a0;/gi, " ")
+    .replace(/&ensp;|&emsp;|&thinsp;|&zwj;|&zwnj;/gi, " ")
+    .replace(INVISIBLE_WHITESPACE_RE, " ")
+    .replace(/[ \t]{2,}/g, " ");
+}
+
+/** Final safety net: if any chunk is still over the hard char cap (e.g.
+ *  a single "paragraph" with no sentence boundaries — unusual but seen
+ *  with table dumps and entity runs), force-split at char boundaries. */
+function enforceCharCap(chunks: string[]): string[] {
+  const out: string[] = [];
+  for (const chunk of chunks) {
+    if (chunk.length <= HARD_CHAR_CAP_PER_CHUNK) {
+      out.push(chunk);
+      continue;
+    }
+    // Prefer to split on whitespace near the cap so we don't slice a
+    // token mid-word. Fall back to a hard char split if no whitespace
+    // is available in the window.
+    let remaining = chunk;
+    while (remaining.length > HARD_CHAR_CAP_PER_CHUNK) {
+      const window = remaining.slice(0, HARD_CHAR_CAP_PER_CHUNK);
+      const lastSpace = window.lastIndexOf(" ");
+      const cut = lastSpace > HARD_CHAR_CAP_PER_CHUNK / 2 ? lastSpace : HARD_CHAR_CAP_PER_CHUNK;
+      out.push(remaining.slice(0, cut).trim());
+      remaining = remaining.slice(cut).trim();
+    }
+    if (remaining.length > 0) {
+      out.push(remaining);
+    }
+  }
+  return out.filter((c) => c.length > 0);
 }
 
 type CreatorContentRow = typeof creatorContent.$inferSelect;
@@ -185,7 +248,8 @@ export async function upsertContentEmbeddings(
     return { chunks: 0, skipped: true, reason: "content_not_found" };
   }
 
-  const { text, sources } = extractTextForContent(content);
+  const { text: rawText, sources } = extractTextForContent(content);
+  const text = sanitizeForEmbedding(rawText);
   if (!text.trim()) {
     // Nothing embed-able yet — common for audio/video before any
     // transcription worker has populated aiTranscript, or a document
@@ -193,7 +257,7 @@ export async function upsertContentEmbeddings(
     return { chunks: 0, skipped: true, reason: "no_text", sources };
   }
 
-  const chunks = chunkText(text);
+  const chunks = enforceCharCap(chunkText(text));
   if (chunks.length === 0) {
     return { chunks: 0, skipped: true, reason: "empty_after_chunking", sources };
   }
