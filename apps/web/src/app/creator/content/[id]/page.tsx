@@ -104,91 +104,120 @@ function MediaItemEditor({
   extracting?: boolean;
 }): React.ReactElement {
   const replaceRef = useRef<HTMLInputElement>(null);
+  const [showExtracted, setShowExtracted] = useState(false);
+  const canRevealExtracted =
+    item.type === "document" && !!item.extractedText && item.extractedText.length > 0;
   return (
-    <div className="flex items-center gap-3 rounded-lg border p-3">
-      <div className="bg-muted/50 flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border">
-        {item.type === "image" ? (
-          <img src={item.url} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <FileIcon type={item.type} className="size-6" />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{item.fileName}</p>
-        <p className="text-muted-foreground text-xs capitalize">
-          {item.type} · {formatSize(item.fileSize)}
-          {item.ocrStatus === "completed" && item.extractedText
-            ? ` · ${item.extractedText.length} chars extracted`
-            : item.ocrStatus === "processing"
-              ? " · extracting…"
-              : item.ocrStatus === "failed"
-                ? " · extraction failed"
-                : null}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <input
-          ref={replaceRef}
-          type="file"
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files?.[0]) onReplace(e.target.files[0]);
-          }}
-        />
-        {onExtractText && (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3 rounded-lg border p-3">
+        <div className="bg-muted/50 flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border">
+          {item.type === "image" ? (
+            <img src={item.url} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <FileIcon type={item.type} className="size-6" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{item.fileName}</p>
+          <p className="text-muted-foreground text-xs capitalize">
+            {item.type} · {formatSize(item.fileSize)}
+            {item.ocrStatus === "completed" && item.extractedText ? (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  onClick={() => setShowExtracted((v) => !v)}
+                  className="hover:text-foreground underline decoration-dotted"
+                >
+                  {item.extractedText.length} chars extracted — {showExtracted ? "hide" : "view"}
+                </button>
+              </>
+            ) : item.ocrStatus === "processing" ? (
+              " · extracting…"
+            ) : item.ocrStatus === "failed" ? (
+              " · extraction failed"
+            ) : null}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <input
+            ref={replaceRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.[0]) onReplace(e.target.files[0]);
+            }}
+          />
+          {onExtractText && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1 text-xs"
+              title={
+                item.extractedText
+                  ? "Re-extract text from this document"
+                  : "Extract text from this document for the AI tutor"
+              }
+              disabled={extracting || item.ocrStatus === "processing"}
+              onClick={onExtractText}
+            >
+              {extracting || item.ocrStatus === "processing" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <FileText className="size-3.5" />
+              )}
+              {item.extractedText ? "Re-extract" : "Extract text"}
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
-            size="sm"
-            className="h-8 gap-1 text-xs"
-            title={
-              item.extractedText
-                ? "Re-extract text from this document"
-                : "Extract text from this document for the AI tutor"
-            }
-            disabled={extracting || item.ocrStatus === "processing"}
-            onClick={onExtractText}
+            size="icon"
+            className="size-8"
+            title="Replace"
+            disabled={replacing}
+            onClick={() => replaceRef.current?.click()}
           >
-            {extracting || item.ocrStatus === "processing" ? (
+            {replacing ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : (
-              <FileText className="size-3.5" />
+              <RefreshCw className="size-3.5" />
             )}
-            {item.extractedText ? "Re-extract" : "Extract text"}
           </Button>
-        )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          title="Replace"
-          disabled={replacing}
-          onClick={() => replaceRef.current?.click()}
-        >
-          {replacing ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="size-3.5" />
-          )}
-        </Button>
-        <a href={item.url} target="_blank" rel="noopener noreferrer">
-          <Button type="button" variant="ghost" size="icon" className="size-8" title="Open">
-            <Download className="size-3.5" />
+          <a href={item.url} target="_blank" rel="noopener noreferrer">
+            <Button type="button" variant="ghost" size="icon" className="size-8" title="Open">
+              <Download className="size-3.5" />
+            </Button>
+          </a>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-destructive hover:text-destructive size-8"
+            title="Remove"
+            disabled={replacing}
+            onClick={onRemove}
+          >
+            <Trash2 className="size-3.5" />
           </Button>
-        </a>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="text-destructive hover:text-destructive size-8"
-          title="Remove"
-          disabled={replacing}
-          onClick={onRemove}
-        >
-          <Trash2 className="size-3.5" />
-        </Button>
+        </div>
       </div>
+      {showExtracted && canRevealExtracted && (
+        <div className="bg-muted/40 rounded-lg border p-3">
+          <div className="text-muted-foreground mb-1 flex items-center justify-between text-xs">
+            <span>Extracted text — this is what the AI tutor reads from this file</span>
+            {item.ocrModel && (
+              <Badge variant="outline" className="text-[10px]">
+                {item.ocrModel}
+              </Badge>
+            )}
+          </div>
+          <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-xs leading-relaxed">
+            {item.extractedText}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }

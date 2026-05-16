@@ -36,9 +36,18 @@ export async function enqueueContentEmbedding(
   trigger: ContentEmbeddingJobData["trigger"] = "publish",
 ): Promise<void> {
   const queue = getContentEmbeddingQueue();
-  // jobId dedupes concurrent enqueues for the same content. BullMQ
-  // rejects `:` in custom IDs, so use `-` as the separator.
-  await queue.add("embed-content", { contentId, trigger }, { jobId: `embed-${contentId}` });
+  // BullMQ's add() with a fixed jobId is a no-op when a job with that ID
+  // already exists in ANY state — including completed/failed history
+  // retained by removeOnComplete/removeOnFail. That means a stable
+  // `embed-${contentId}` would silently swallow every backfill after
+  // the first run. Use a per-call jobId so each enqueue actually lands.
+  // The contentId + trigger prefix keeps logs readable.
+  const ts = Date.now();
+  await queue.add(
+    "embed-content",
+    { contentId, trigger },
+    { jobId: `embed-${contentId}-${trigger}-${ts}` },
+  );
 }
 
 export async function closeContentEmbeddingQueue(): Promise<void> {
