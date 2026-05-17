@@ -19,6 +19,10 @@ export type TranscriptionJobData = {
   mimeType: string;
   model: TranscriptionModel;
   userId: string;
+  /** Optional ISO-639-1 / BCP-47 language hint, read from
+   *  creator_content.language by the route. Passed through to each
+   *  provider in its preferred form. */
+  language?: string;
 };
 
 const TRANSCRIPTION_QUEUE_NAME = "transcription";

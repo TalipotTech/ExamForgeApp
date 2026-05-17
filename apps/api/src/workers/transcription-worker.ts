@@ -61,9 +61,9 @@ export function createTranscriptionWorker(): Worker<TranscriptionJobData> {
   const worker = new Worker<TranscriptionJobData>(
     TRANSCRIPTION_QUEUE_NAME,
     async (job) => {
-      const { contentId, mediaOrder, diskPath, mimeType, model } = job.data;
+      const { contentId, mediaOrder, diskPath, mimeType, model, language } = job.data;
       console.log(
-        `[transcription] job ${job.id} — content=${contentId} order=${mediaOrder} model=${model}`,
+        `[transcription] job ${job.id} — content=${contentId} order=${mediaOrder} model=${model}${language ? ` lang=${language}` : ""}`,
       );
 
       await patchMediaItem(db, contentId, mediaOrder, {
@@ -72,7 +72,7 @@ export function createTranscriptionWorker(): Worker<TranscriptionJobData> {
       });
 
       try {
-        const result = await runTranscriptionWithFallback(diskPath, mimeType, model);
+        const result = await runTranscriptionWithFallback(diskPath, mimeType, model, language);
         await patchMediaItem(db, contentId, mediaOrder, {
           extractedText: result.markdown,
           transcriptionStatus: "completed",

@@ -112,9 +112,36 @@ export class TranscriptionFailure extends Error {
  * 2.0 Flash. Throws `TranscriptionFailure` on rejection — callers fall
  * back via runTranscriptionWithFallback.
  */
+/** Convert our internal language code (e.g. "ml") into a Sarvam
+ *  language_code value. Sarvam wants the BCP-47 Indian-variant form
+ *  ("ml-IN"). Unknown / unsupported languages fall back to "unknown"
+ *  which makes Sarvam auto-detect. */
+function toSarvamLanguageCode(lang: string | undefined): string {
+  if (!lang) return "unknown";
+  const normalised = lang.trim().toLowerCase();
+  const supported = new Set(["hi", "ta", "ml", "te", "kn", "bn", "mr", "gu", "pa", "or", "en"]);
+  // Already in BCP-47 region form ("ml-IN") — pass through if Indian.
+  if (/^[a-z]{2}-IN$/i.test(lang)) return lang;
+  if (supported.has(normalised)) return `${normalised}-IN`;
+  return "unknown";
+}
+
+/** Convert our internal language code into a Whisper-compatible
+ *  ISO-639-1 code. Whisper accepts the 2-letter form. Empty / unknown
+ *  → undefined so we don't send the param (Whisper auto-detects). */
+function toWhisperLanguageCode(lang: string | undefined): string | undefined {
+  if (!lang) return undefined;
+  const normalised = lang.trim().toLowerCase();
+  // Strip Indian-variant suffix if the caller passed BCP-47.
+  const stripped = normalised.replace(/-in$/, "");
+  if (/^[a-z]{2}$/.test(stripped)) return stripped;
+  return undefined;
+}
+
 async function runGeminiTranscription(
   filePath: string,
   mimeType: string,
+  language?: string,
 ): Promise<TranscriptionResult> {
   const fileStats = await stat(filePath);
   if (fileStats.size > GEMINI_INLINE_FILE_CAP_BYTES) {
@@ -141,7 +168,9 @@ async function runGeminiTranscription(
           content: [
             {
               type: "text",
-              text: "Transcribe this file per the system instructions.",
+              text: language
+                ? `The audio is in ${language}. Transcribe in the original script of that language per the system instructions. Do NOT transliterate into a different script.`
+                : "Transcribe this file per the system instructions.",
             },
             { type: "file", data: fileBytes, mediaType: mimeType },
           ],
@@ -180,6 +209,7 @@ async function runGeminiTranscription(
 async function runSarvamTranscription(
   filePath: string,
   mimeType: string,
+  language?: string,
 ): Promise<TranscriptionResult> {
   const apiKey = process.env.SARVAM_API_KEY;
   if (!apiKey) {
@@ -220,8 +250,9 @@ async function runSarvamTranscription(
   // saarika:v2.5 is Sarvam's current best transcription model. v1 was
   // the prior generation.
   fd.append("model", "saarika:v2.5");
-  // "unknown" tells Sarvam to auto-detect the language from audio.
-  fd.append("language_code", "unknown");
+  // Map our content.language hint into Sarvam's expected BCP-47 form.
+  // Unknown languages fall back to "unknown" → Sarvam auto-detects.
+  fd.append("language_code", toSarvamLanguageCode(language));
 
   let response: Response;
   try {
@@ -276,6 +307,7 @@ async function runSarvamTranscription(
 async function runWhisperTranscription(
   filePath: string,
   mimeType: string,
+  language?: string,
 ): Promise<TranscriptionResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -315,8 +347,14 @@ async function runWhisperTranscription(
   const fd = new FormData();
   fd.append("file", fileBlob, path.basename(filePath));
   fd.append("model", "whisper-1");
-  // No `language` param → Whisper auto-detects, same posture as Sarvam.
-  // No `prompt` either — keep output neutral.
+  // Pass the language hint when we have one. Whisper's auto-detect is
+  // notoriously fuzzy on neighbouring South Indian languages
+  // (Malayalam routinely transliterates as Tamil and vice versa), so
+  // honouring content.language when set is a real accuracy win.
+  const whisperLang = toWhisperLanguageCode(language);
+  if (whisperLang) {
+    fd.append("language", whisperLang);
+  }
   fd.append("response_format", "json");
 
   let response: Response;
@@ -366,14 +404,15 @@ export async function runTranscriptionOnFile(
   filePath: string,
   mimeType: string,
   model: TranscriptionModel,
+  language?: string,
 ): Promise<TranscriptionResult> {
   switch (model) {
     case "gemini-2.0-flash":
-      return runGeminiTranscription(filePath, mimeType);
+      return runGeminiTranscription(filePath, mimeType, language);
     case "sarvam-saarika":
-      return runSarvamTranscription(filePath, mimeType);
+      return runSarvamTranscription(filePath, mimeType, language);
     case "openai-whisper":
-      return runWhisperTranscription(filePath, mimeType);
+      return runWhisperTranscription(filePath, mimeType, language);
   }
 }
 
@@ -396,6 +435,7 @@ export async function runTranscriptionWithFallback(
   filePath: string,
   mimeType: string,
   preferred: TranscriptionModel,
+  language?: string,
 ): Promise<TranscriptionResult> {
   const order: TranscriptionModel[] = [
     preferred,
@@ -404,7 +444,7 @@ export async function runTranscriptionWithFallback(
   const attempts: Array<{ model: TranscriptionModel; error: string }> = [];
   for (const model of order) {
     try {
-      const result = await runTranscriptionOnFile(filePath, mimeType, model);
+      const result = await runTranscriptionOnFile(filePath, mimeType, model, language);
       if (attempts.length > 0) {
         console.warn(
           `[transcription] ${model} succeeded after ${attempts.length} failed attempt(s):`,

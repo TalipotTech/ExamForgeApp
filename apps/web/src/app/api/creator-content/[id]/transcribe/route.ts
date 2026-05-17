@@ -150,6 +150,11 @@ export async function POST(
         mimeType: target.mimeType,
         model,
         userId,
+        // creator_content.language defaults to "en" but creators can set
+        // it to any 2-letter / BCP-47 code at upload. Passing it through
+        // lets the provider skip its (often fuzzy) auto-detect step. The
+        // service module maps it into each provider's expected format.
+        language: content.language ?? undefined,
       },
       { force: true },
     );

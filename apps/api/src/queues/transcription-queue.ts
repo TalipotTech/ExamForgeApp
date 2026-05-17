@@ -13,6 +13,10 @@ export type TranscriptionJobData = {
   mimeType: string;
   model: TranscriptionModel;
   userId: string;
+  /** Hint for the provider when known. Whisper's auto-detect is fuzzy on
+   *  South Indian languages; Sarvam's is good but explicit beats
+   *  implicit. Read from creator_content.language by the route. */
+  language?: string;
 };
 
 type TranscriptionQueue = Queue<TranscriptionJobData>;
