@@ -1,7 +1,6 @@
 /**
  * Transcription service — converts an audio or video file on disk into
- * plain markdown-formatted transcript text using Gemini 2.0 Flash (which
- * accepts audio and video natively via the AI SDK `file` content type).
+ * plain markdown-formatted transcript text.
  *
  * Architecturally a sibling of ocr-service.ts: same shape (file path →
  * markdown), same fallback structure, same sanitize-on-exit treatment.
@@ -10,30 +9,35 @@
  * content with a transcription prompt — different system instructions,
  * different model preferences.
  *
- * v1 scope:
- * - Gemini 2.0 Flash only. No Whisper fallback yet — that's tracked as a
- *   follow-up. When Gemini fails, the worker reports the error to the
- *   media-item row and the UI surfaces it.
- * - Inline file upload. Gemini's inline file budget is ~20MB; files over
- *   that limit will be rejected up-front before we burn provider quota.
- *   Large files (full-length lecture videos) will need a follow-up
- *   slice that uses the Gemini File API or audio extraction.
+ * Provider chain (TRANSCRIPTION_FALLBACK_ORDER):
+ * 1. Gemini 2.0 Flash — primary. Audio + video natively via AI SDK
+ *    file content type. ~20MB inline file cap.
+ * 2. Sarvam Saarika — Indian-language-first ASR via direct HTTP. Strong
+ *    on Hindi, Tamil, Telugu, Malayalam, Kannada, Bengali, Marathi,
+ *    Gujarati, Punjabi, Odia, Indian English. Audio only (no video).
+ *    30MB file cap. Auth via SARVAM_API_KEY env.
+ *
+ * For large files / long videos either provider rejects, a follow-up
+ * slice will need the Gemini File API or local audio extraction.
  */
 
+import path from "node:path";
 import { readFile, stat } from "node:fs/promises";
 import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
 import { sanitizeOcrText } from "./text-sanitize.js";
 
-export type TranscriptionModel = "gemini-2.0-flash";
+export type TranscriptionModel = "gemini-2.0-flash" | "sarvam-saarika";
 
-export const TRANSCRIPTION_FALLBACK_ORDER: TranscriptionModel[] = ["gemini-2.0-flash"];
+export const TRANSCRIPTION_FALLBACK_ORDER: TranscriptionModel[] = [
+  "gemini-2.0-flash",
+  "sarvam-saarika",
+];
 
-// Gemini accepts files up to ~20MB inline through the file content type.
-// Beyond that we'd need the File API (separate upload, then reference by
-// URI) — out of scope for v1. We reject early so the user gets a clear
-// error rather than a confusing provider rejection.
-const INLINE_FILE_CAP_BYTES = 20 * 1024 * 1024;
+// Per-model file size caps. Gemini takes files inline (20MB). Sarvam's
+// saarika endpoint accepts up to 30MB per request.
+const GEMINI_INLINE_FILE_CAP_BYTES = 20 * 1024 * 1024;
+const SARVAM_FILE_CAP_BYTES = 30 * 1024 * 1024;
 
 export type TranscriptionResult = {
   model: TranscriptionModel;
@@ -64,15 +68,14 @@ Output constraints:
 - Respond with Markdown only — no code-fence wrapper around the full response.
 - If the audio contains no intelligible speech, respond with exactly: "(no speech detected)"`;
 
-function resolveModel(model: TranscriptionModel): ReturnType<typeof google> {
-  switch (model) {
-    case "gemini-2.0-flash":
-      return google("gemini-2.0-flash");
-  }
+function resolveGeminiModel(): ReturnType<typeof google> {
+  return google("gemini-2.0-flash");
 }
 
 export type TranscriptionError =
-  | { code: "FILE_TOO_LARGE"; sizeBytes: number; capBytes: number }
+  | { code: "FILE_TOO_LARGE"; provider: TranscriptionModel; sizeBytes: number; capBytes: number }
+  | { code: "UNSUPPORTED_MEDIA"; provider: TranscriptionModel; mimeType: string }
+  | { code: "MISSING_CREDENTIAL"; provider: TranscriptionModel; envVar: string }
   | { code: "PROVIDER_ERROR"; provider: TranscriptionModel; message: string }
   | { code: "ALL_PROVIDERS_FAILED"; attempts: Array<{ model: TranscriptionModel; error: string }> };
 
@@ -81,10 +84,14 @@ export class TranscriptionFailure extends Error {
   constructor(detail: TranscriptionError) {
     super(
       detail.code === "FILE_TOO_LARGE"
-        ? `File is ${(detail.sizeBytes / (1024 * 1024)).toFixed(1)}MB, max inline transcription size is ${(detail.capBytes / (1024 * 1024)).toFixed(0)}MB`
-        : detail.code === "PROVIDER_ERROR"
-          ? `Transcription failed on ${detail.provider}: ${detail.message}`
-          : `Transcription failed on all models: ${detail.attempts.map((a) => `${a.model}: ${a.error}`).join(" | ")}`,
+        ? `File is ${(detail.sizeBytes / (1024 * 1024)).toFixed(1)}MB, max for ${detail.provider} is ${(detail.capBytes / (1024 * 1024)).toFixed(0)}MB`
+        : detail.code === "UNSUPPORTED_MEDIA"
+          ? `${detail.provider} does not support ${detail.mimeType}`
+          : detail.code === "MISSING_CREDENTIAL"
+            ? `${detail.provider} requires ${detail.envVar} (not set)`
+            : detail.code === "PROVIDER_ERROR"
+              ? `Transcription failed on ${detail.provider}: ${detail.message}`
+              : `Transcription failed on all models: ${detail.attempts.map((a) => `${a.model}: ${a.error}`).join(" | ")}`,
     );
     this.name = "TranscriptionFailure";
     this.detail = detail;
@@ -92,21 +99,21 @@ export class TranscriptionFailure extends Error {
 }
 
 /**
- * Run transcription on a single audio/video file on disk. Throws
- * `TranscriptionFailure` on rejection — callers fall back via
- * runTranscriptionWithFallback.
+ * Run transcription on a single audio/video file on disk via Gemini
+ * 2.0 Flash. Throws `TranscriptionFailure` on rejection — callers fall
+ * back via runTranscriptionWithFallback.
  */
-export async function runTranscriptionOnFile(
+async function runGeminiTranscription(
   filePath: string,
   mimeType: string,
-  model: TranscriptionModel,
 ): Promise<TranscriptionResult> {
   const fileStats = await stat(filePath);
-  if (fileStats.size > INLINE_FILE_CAP_BYTES) {
+  if (fileStats.size > GEMINI_INLINE_FILE_CAP_BYTES) {
     throw new TranscriptionFailure({
       code: "FILE_TOO_LARGE",
+      provider: "gemini-2.0-flash",
       sizeBytes: fileStats.size,
-      capBytes: INLINE_FILE_CAP_BYTES,
+      capBytes: GEMINI_INLINE_FILE_CAP_BYTES,
     });
   }
 
@@ -117,7 +124,7 @@ export async function runTranscriptionOnFile(
   let response;
   try {
     response = await generateText({
-      model: resolveModel(model),
+      model: resolveGeminiModel(),
       system: TRANSCRIPTION_SYSTEM_PROMPT,
       messages: [
         {
@@ -139,14 +146,14 @@ export async function runTranscriptionOnFile(
   } catch (err) {
     throw new TranscriptionFailure({
       code: "PROVIDER_ERROR",
-      provider: model,
+      provider: "gemini-2.0-flash",
       message: err instanceof Error ? err.message : String(err),
     });
   }
 
   const markdown = sanitizeOcrText(response.text);
   return {
-    model,
+    model: "gemini-2.0-flash",
     markdown,
     tokensIn: response.usage?.inputTokens,
     tokensOut: response.usage?.outputTokens,
@@ -155,9 +162,131 @@ export async function runTranscriptionOnFile(
 }
 
 /**
+ * Run transcription via Sarvam Saarika (audio-only). Direct HTTP call —
+ * Sarvam isn't in the Vercel AI SDK. Best on Indian languages but
+ * doesn't accept video inputs.
+ *
+ * API ref: https://docs.sarvam.ai/api-reference-docs/speech-to-text/transcribe
+ */
+async function runSarvamTranscription(
+  filePath: string,
+  mimeType: string,
+): Promise<TranscriptionResult> {
+  const apiKey = process.env.SARVAM_API_KEY;
+  if (!apiKey) {
+    throw new TranscriptionFailure({
+      code: "MISSING_CREDENTIAL",
+      provider: "sarvam-saarika",
+      envVar: "SARVAM_API_KEY",
+    });
+  }
+
+  // Sarvam Saarika accepts audio formats only (wav, mp3, flac, ogg,
+  // mpeg). Video files are out of scope for this provider — let the
+  // fallback runner record the rejection and continue (or fail).
+  if (!mimeType.startsWith("audio/")) {
+    throw new TranscriptionFailure({
+      code: "UNSUPPORTED_MEDIA",
+      provider: "sarvam-saarika",
+      mimeType,
+    });
+  }
+
+  const fileStats = await stat(filePath);
+  if (fileStats.size > SARVAM_FILE_CAP_BYTES) {
+    throw new TranscriptionFailure({
+      code: "FILE_TOO_LARGE",
+      provider: "sarvam-saarika",
+      sizeBytes: fileStats.size,
+      capBytes: SARVAM_FILE_CAP_BYTES,
+    });
+  }
+
+  const started = Date.now();
+  const bytes = await readFile(filePath);
+  const fileBlob = new Blob([new Uint8Array(bytes)], { type: mimeType });
+
+  const fd = new FormData();
+  fd.append("file", fileBlob, path.basename(filePath));
+  // saarika:v2.5 is Sarvam's current best transcription model. v1 was
+  // the prior generation.
+  fd.append("model", "saarika:v2.5");
+  // "unknown" tells Sarvam to auto-detect the language from audio.
+  fd.append("language_code", "unknown");
+
+  let response: Response;
+  try {
+    response = await fetch("https://api.sarvam.ai/speech-to-text", {
+      method: "POST",
+      headers: { "api-subscription-key": apiKey },
+      body: fd,
+    });
+  } catch (err) {
+    throw new TranscriptionFailure({
+      code: "PROVIDER_ERROR",
+      provider: "sarvam-saarika",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "(no body)");
+    throw new TranscriptionFailure({
+      code: "PROVIDER_ERROR",
+      provider: "sarvam-saarika",
+      message: `HTTP ${response.status}: ${body.slice(0, 500)}`,
+    });
+  }
+
+  const json = (await response.json().catch(() => null)) as {
+    transcript?: string;
+    language_code?: string;
+  } | null;
+  const transcript = json?.transcript ?? "";
+  const markdown =
+    transcript.trim().length > 0 ? sanitizeOcrText(transcript) : "(no speech detected)";
+
+  return {
+    model: "sarvam-saarika",
+    markdown,
+    // Sarvam doesn't return token counts — we leave them undefined so the
+    // cost-attribution path knows there's nothing meaningful to record.
+    durationMs: Date.now() - started,
+  };
+}
+
+/**
+ * Dispatch to the right provider implementation. Each implementation
+ * is responsible for its own size / media-type checks since the
+ * constraints differ per provider.
+ */
+export async function runTranscriptionOnFile(
+  filePath: string,
+  mimeType: string,
+  model: TranscriptionModel,
+): Promise<TranscriptionResult> {
+  switch (model) {
+    case "gemini-2.0-flash":
+      return runGeminiTranscription(filePath, mimeType);
+    case "sarvam-saarika":
+      return runSarvamTranscription(filePath, mimeType);
+  }
+}
+
+/**
  * Try the preferred model first, then fall through the rest of
  * TRANSCRIPTION_FALLBACK_ORDER. Throws TranscriptionFailure (code
  * `ALL_PROVIDERS_FAILED`) only when every model rejects.
+ *
+ * Per-model failures (FILE_TOO_LARGE, UNSUPPORTED_MEDIA,
+ * MISSING_CREDENTIAL, PROVIDER_ERROR) are all treated as "try the next
+ * model". This is the right call when providers have different
+ * capabilities: e.g. Sarvam can't handle video so it returns
+ * UNSUPPORTED_MEDIA, and we should keep trying. But it means if Sarvam
+ * is the last entry and gets called on a video, the final error
+ * message will be "all providers failed" rather than a clean
+ * "video not supported" — the caller can inspect the attempts array
+ * to surface a friendlier message.
  */
 export async function runTranscriptionWithFallback(
   filePath: string,
@@ -171,13 +300,15 @@ export async function runTranscriptionWithFallback(
   const attempts: Array<{ model: TranscriptionModel; error: string }> = [];
   for (const model of order) {
     try {
-      return await runTranscriptionOnFile(filePath, mimeType, model);
-    } catch (err) {
-      // FILE_TOO_LARGE isn't fixable by trying a different model — stop
-      // and surface it immediately.
-      if (err instanceof TranscriptionFailure && err.detail.code === "FILE_TOO_LARGE") {
-        throw err;
+      const result = await runTranscriptionOnFile(filePath, mimeType, model);
+      if (attempts.length > 0) {
+        console.warn(
+          `[transcription] ${model} succeeded after ${attempts.length} failed attempt(s):`,
+          attempts.map((a) => `${a.model}: ${a.error}`).join(" | "),
+        );
       }
+      return result;
+    } catch (err) {
       attempts.push({
         model,
         error: err instanceof Error ? err.message : String(err),
