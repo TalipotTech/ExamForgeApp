@@ -135,7 +135,21 @@ function MediaItemEditor({
             ) : item.ocrStatus === "processing" ? (
               " · extracting…"
             ) : item.ocrStatus === "failed" ? (
-              " · extraction failed"
+              <>
+                {" · "}
+                <span
+                  className="text-destructive cursor-help"
+                  title={item.ocrError ?? "extraction failed (no detail)"}
+                >
+                  extraction failed
+                </span>
+                {item.ocrError && (
+                  <span className="text-muted-foreground/80 ml-1 normal-case">
+                    — {item.ocrError.slice(0, 120)}
+                    {item.ocrError.length > 120 ? "…" : ""}
+                  </span>
+                )}
+              </>
             ) : null}
           </p>
         </div>
