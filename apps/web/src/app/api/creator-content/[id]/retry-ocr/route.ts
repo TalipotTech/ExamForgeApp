@@ -26,7 +26,12 @@ type StoredMediaItem = {
   order: number;
 };
 
-const VALID_MODELS: OcrModel[] = ["gemini-2.5-pro", "gemini-2.5-flash", "claude-sonnet-4-6"];
+const VALID_MODELS: OcrModel[] = [
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
+  "claude-sonnet-4-6",
+  "gpt-4o",
+];
 
 /** Map a public upload URL back to its on-disk location.
  *  `/api/uploads/creator-content/<id>/<file>` → apps/web/storage/creator-content/<id>/<file>

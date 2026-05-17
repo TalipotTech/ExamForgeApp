@@ -34,7 +34,12 @@ import {
 import { saveUploadedFile, type MediaKind } from "@/lib/content-storage";
 import { enqueueOcrJob, type OcrModel } from "@/lib/ocr-queue-client";
 
-const VALID_OCR_MODELS: OcrModel[] = ["gemini-2.5-pro", "gemini-2.5-flash", "claude-sonnet-4-6"];
+const VALID_OCR_MODELS: OcrModel[] = [
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
+  "claude-sonnet-4-6",
+  "gpt-4o",
+];
 
 // Route handlers run on Node.js runtime by default in Next 15; body
 // size can get large for multi-file uploads.

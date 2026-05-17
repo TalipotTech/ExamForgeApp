@@ -59,7 +59,12 @@ export const updateMediaTextSchema = z.object({
 });
 export type UpdateMediaTextInput = z.infer<typeof updateMediaTextSchema>;
 
-export const ocrModelSchema = z.enum(["gemini-2.5-pro", "gemini-2.5-flash", "claude-sonnet-4-6"]);
+export const ocrModelSchema = z.enum([
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
+  "claude-sonnet-4-6",
+  "gpt-4o",
+]);
 export type OcrModelValue = z.infer<typeof ocrModelSchema>;
 
 export const myContentListSchema = z.object({

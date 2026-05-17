@@ -80,7 +80,7 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-type OcrModel = "gemini-2.5-pro" | "gemini-2.5-flash" | "claude-sonnet-4-6";
+type OcrModel = "gemini-2.5-pro" | "gemini-2.5-flash" | "claude-sonnet-4-6" | "gpt-4o";
 
 type LastUpload = {
   id: string;
@@ -414,6 +414,9 @@ export default function ContentUploadPage(): React.ReactElement {
                           <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (fast)</SelectItem>
                           <SelectItem value="claude-sonnet-4-6">
                             Claude Sonnet 4.6 (Anthropic)
+                          </SelectItem>
+                          <SelectItem value="gpt-4o">
+                            GPT-4o (OpenAI · resilience fallback)
                           </SelectItem>
                         </SelectContent>
                       </Select>

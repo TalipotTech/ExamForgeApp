@@ -14,20 +14,28 @@ import { readFile } from "node:fs/promises";
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
+import { openai } from "@ai-sdk/openai";
 import { sanitizeOcrText } from "./text-sanitize.js";
 
-export type OcrModel = "claude-sonnet-4-6" | "gemini-2.5-pro" | "gemini-2.5-flash";
+export type OcrModel = "claude-sonnet-4-6" | "gemini-2.5-pro" | "gemini-2.5-flash" | "gpt-4o";
 
 export const OCR_MODEL_IDS: OcrModel[] = [
   "gemini-2.5-pro",
   "gemini-2.5-flash",
   "claude-sonnet-4-6",
+  "gpt-4o",
 ];
 
+// gpt-4o is the resilience fallback — different vendor (OpenAI) from
+// Gemini (Google) and Claude (Anthropic), so a single-provider outage
+// or billing exhaustion on Google + Anthropic doesn't take OCR down.
+// Placed last because cost is similar to claude-sonnet but image-input
+// quality on dense / formula-heavy pages is a notch behind Gemini Pro.
 export const OCR_FALLBACK_ORDER: OcrModel[] = [
   "gemini-2.5-pro",
   "gemini-2.5-flash",
   "claude-sonnet-4-6",
+  "gpt-4o",
 ];
 
 export type OcrResult = {
@@ -65,7 +73,9 @@ Whitespace constraints (IMPORTANT — applies to PDFs especially):
 - Use a single space between words; one blank line between paragraphs; nothing more. The output should read like prose / markdown, not like an ASCII-art reproduction of the page.
 - Token budget is finite. Whitespace inflation truncates real content on later pages; treat every byte you spend on visual padding as one byte less of actual extracted text.`;
 
-function resolveModel(model: OcrModel): ReturnType<typeof anthropic> | ReturnType<typeof google> {
+function resolveModel(
+  model: OcrModel,
+): ReturnType<typeof anthropic> | ReturnType<typeof google> | ReturnType<typeof openai> {
   switch (model) {
     case "claude-sonnet-4-6":
       return anthropic("claude-sonnet-4-5-20250929");
@@ -73,6 +83,8 @@ function resolveModel(model: OcrModel): ReturnType<typeof anthropic> | ReturnTyp
       return google("gemini-2.5-pro");
     case "gemini-2.5-flash":
       return google("gemini-2.5-flash");
+    case "gpt-4o":
+      return openai("gpt-4o");
   }
 }
 
