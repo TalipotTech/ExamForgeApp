@@ -16,6 +16,12 @@
  *    on Hindi, Tamil, Telugu, Malayalam, Kannada, Bengali, Marathi,
  *    Gujarati, Punjabi, Odia, Indian English. Audio only (no video).
  *    30MB file cap. Auth via SARVAM_API_KEY env.
+ * 3. OpenAI Whisper — broad multilingual ASR (99 languages) via direct
+ *    HTTP to /v1/audio/transcriptions. Audio only. 25MB file cap.
+ *    Auth via OPENAI_API_KEY env. Last fallback because Sarvam wins on
+ *    Indian-language accuracy for our audience, but Whisper has the
+ *    most extensive vendor diversity story (different cloud, different
+ *    billing pool).
  *
  * For large files / long videos either provider rejects, a follow-up
  * slice will need the Gemini File API or local audio extraction.
@@ -27,17 +33,20 @@ import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
 import { sanitizeOcrText } from "./text-sanitize.js";
 
-export type TranscriptionModel = "gemini-2.0-flash" | "sarvam-saarika";
+export type TranscriptionModel = "gemini-2.0-flash" | "sarvam-saarika" | "openai-whisper";
 
 export const TRANSCRIPTION_FALLBACK_ORDER: TranscriptionModel[] = [
   "gemini-2.0-flash",
   "sarvam-saarika",
+  "openai-whisper",
 ];
 
 // Per-model file size caps. Gemini takes files inline (20MB). Sarvam's
-// saarika endpoint accepts up to 30MB per request.
+// saarika endpoint accepts up to 30MB. OpenAI's /audio/transcriptions
+// endpoint caps at 25MB per request.
 const GEMINI_INLINE_FILE_CAP_BYTES = 20 * 1024 * 1024;
 const SARVAM_FILE_CAP_BYTES = 30 * 1024 * 1024;
+const WHISPER_FILE_CAP_BYTES = 25 * 1024 * 1024;
 
 export type TranscriptionResult = {
   model: TranscriptionModel;
@@ -256,6 +265,99 @@ async function runSarvamTranscription(
 }
 
 /**
+ * Run transcription via OpenAI Whisper (audio-only). Direct HTTP call
+ * to /v1/audio/transcriptions — same provider key we already use for
+ * embeddings, gpt-4o OCR fallback, and the chat fallback.
+ *
+ * Whisper supports 99 languages with auto-detection. Strong baseline
+ * for broad multilingual content but typically loses to Sarvam on
+ * Indian-language accuracy, which is why it sits last in the chain.
+ */
+async function runWhisperTranscription(
+  filePath: string,
+  mimeType: string,
+): Promise<TranscriptionResult> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new TranscriptionFailure({
+      code: "MISSING_CREDENTIAL",
+      provider: "openai-whisper",
+      envVar: "OPENAI_API_KEY",
+    });
+  }
+
+  // Whisper accepts audio formats only: flac, m4a, mp3, mp4, mpeg,
+  // mpga, oga, ogg, wav, webm. (mp4 here means audio-only mp4
+  // container; video mp4 will return an error.) Reject video early so
+  // we don't burn a request on something we know won't work.
+  if (!mimeType.startsWith("audio/")) {
+    throw new TranscriptionFailure({
+      code: "UNSUPPORTED_MEDIA",
+      provider: "openai-whisper",
+      mimeType,
+    });
+  }
+
+  const fileStats = await stat(filePath);
+  if (fileStats.size > WHISPER_FILE_CAP_BYTES) {
+    throw new TranscriptionFailure({
+      code: "FILE_TOO_LARGE",
+      provider: "openai-whisper",
+      sizeBytes: fileStats.size,
+      capBytes: WHISPER_FILE_CAP_BYTES,
+    });
+  }
+
+  const started = Date.now();
+  const bytes = await readFile(filePath);
+  const fileBlob = new Blob([new Uint8Array(bytes)], { type: mimeType });
+
+  const fd = new FormData();
+  fd.append("file", fileBlob, path.basename(filePath));
+  fd.append("model", "whisper-1");
+  // No `language` param → Whisper auto-detects, same posture as Sarvam.
+  // No `prompt` either — keep output neutral.
+  fd.append("response_format", "json");
+
+  let response: Response;
+  try {
+    response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: fd,
+    });
+  } catch (err) {
+    throw new TranscriptionFailure({
+      code: "PROVIDER_ERROR",
+      provider: "openai-whisper",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "(no body)");
+    throw new TranscriptionFailure({
+      code: "PROVIDER_ERROR",
+      provider: "openai-whisper",
+      message: `HTTP ${response.status}: ${body.slice(0, 500)}`,
+    });
+  }
+
+  const json = (await response.json().catch(() => null)) as { text?: string } | null;
+  const transcript = json?.text ?? "";
+  const markdown =
+    transcript.trim().length > 0 ? sanitizeOcrText(transcript) : "(no speech detected)";
+
+  return {
+    model: "openai-whisper",
+    markdown,
+    // Whisper bills per-second of audio, not by tokens, so we leave
+    // token counts undefined. durationMs captures wall-clock latency.
+    durationMs: Date.now() - started,
+  };
+}
+
+/**
  * Dispatch to the right provider implementation. Each implementation
  * is responsible for its own size / media-type checks since the
  * constraints differ per provider.
@@ -270,6 +372,8 @@ export async function runTranscriptionOnFile(
       return runGeminiTranscription(filePath, mimeType);
     case "sarvam-saarika":
       return runSarvamTranscription(filePath, mimeType);
+    case "openai-whisper":
+      return runWhisperTranscription(filePath, mimeType);
   }
 }
 

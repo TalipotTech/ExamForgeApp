@@ -27,7 +27,7 @@ type StoredMediaItem = {
   order: number;
 };
 
-const VALID_MODELS: TranscriptionModel[] = ["gemini-2.0-flash", "sarvam-saarika"];
+const VALID_MODELS: TranscriptionModel[] = ["gemini-2.0-flash", "sarvam-saarika", "openai-whisper"];
 
 /** Map a public upload URL back to its on-disk location. Same logic the
  *  retry-ocr route uses. */
