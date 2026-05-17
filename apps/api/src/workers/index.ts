@@ -32,6 +32,8 @@ import { createOcrWorker } from "./ocr-worker.js";
 import { closeOcrQueue } from "../queues/ocr-queue.js";
 import { createContentEmbeddingWorker } from "./content-embedding-worker.js";
 import { closeContentEmbeddingQueue } from "../queues/content-embedding-queue.js";
+import { createTranscriptionWorker } from "./transcription-worker.js";
+import { closeTranscriptionQueue } from "../queues/transcription-queue.js";
 
 async function main(): Promise<void> {
   console.log("[workers] Starting ExamForge workers...");
@@ -50,6 +52,7 @@ async function main(): Promise<void> {
   const earningsSettlementWorker = createEarningsSettlementWorker();
   const ocrWorker = createOcrWorker();
   const contentEmbeddingWorker = createContentEmbeddingWorker();
+  const transcriptionWorker = createTranscriptionWorker();
 
   // Schedule daily note summary generation
   await scheduleNoteSummaryJob();
@@ -72,6 +75,7 @@ async function main(): Promise<void> {
     await earningsSettlementWorker.close();
     await ocrWorker.close();
     await contentEmbeddingWorker.close();
+    await transcriptionWorker.close();
     await closeScraperQueue();
     await closePortalIngestionQueue();
     await closePortalProcessingQueue();
@@ -86,6 +90,7 @@ async function main(): Promise<void> {
     await closeEarningsSettlementQueue();
     await closeOcrQueue();
     await closeContentEmbeddingQueue();
+    await closeTranscriptionQueue();
     console.log("[workers] Shutdown complete.");
     process.exit(0);
   };
@@ -94,7 +99,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   console.log(
-    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery + Verification + Topic Generation + Pattern Exam Generation + Earnings Settlement + OCR + Content Embedding workers started. Waiting for jobs...",
+    "[workers] Scraper + Portal Ingestion + Portal Processing + Syllabus + Tutorial Agent + Note Summary + Pattern Analysis + Universal Discovery + Verification + Topic Generation + Pattern Exam Generation + Earnings Settlement + OCR + Content Embedding + Transcription workers started. Waiting for jobs...",
   );
 }
 

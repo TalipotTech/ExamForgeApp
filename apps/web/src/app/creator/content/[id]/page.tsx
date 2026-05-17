@@ -95,6 +95,8 @@ function MediaItemEditor({
   replacing,
   onExtractText,
   extracting,
+  onTranscribe,
+  transcribing,
 }: {
   item: MediaItem;
   onRemove: () => void;
@@ -102,11 +104,23 @@ function MediaItemEditor({
   replacing?: boolean;
   onExtractText?: () => void;
   extracting?: boolean;
+  onTranscribe?: () => void;
+  transcribing?: boolean;
 }): React.ReactElement {
   const replaceRef = useRef<HTMLInputElement>(null);
   const [showExtracted, setShowExtracted] = useState(false);
+  // For documents we look at ocrStatus, for audio/video at transcriptionStatus.
+  // The displayed status (pending / processing / completed / failed) drives
+  // the same UI — only the verb in the label differs.
+  const isMedia = item.type === "audio" || item.type === "video";
+  const pipelineStatus = isMedia ? item.transcriptionStatus : item.ocrStatus;
+  const pipelineModel = isMedia ? item.transcriptionModel : item.ocrModel;
+  const pipelineError = isMedia ? item.transcriptionError : item.ocrError;
+  const verb = isMedia ? "transcribed" : "extracted";
+  const verbPresent = isMedia ? "transcribing" : "extracting";
+  const verbFailed = isMedia ? "transcription failed" : "extraction failed";
   const canRevealExtracted =
-    item.type === "document" && !!item.extractedText && item.extractedText.length > 0;
+    (item.type === "document" || isMedia) && !!item.extractedText && item.extractedText.length > 0;
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-3 rounded-lg border p-3">
@@ -121,7 +135,7 @@ function MediaItemEditor({
           <p className="truncate text-sm font-medium">{item.fileName}</p>
           <p className="text-muted-foreground text-xs capitalize">
             {item.type} · {formatSize(item.fileSize)}
-            {item.ocrStatus === "completed" && item.extractedText ? (
+            {pipelineStatus === "completed" && item.extractedText ? (
               <>
                 {" · "}
                 <button
@@ -129,24 +143,24 @@ function MediaItemEditor({
                   onClick={() => setShowExtracted((v) => !v)}
                   className="hover:text-foreground underline decoration-dotted"
                 >
-                  {item.extractedText.length} chars extracted — {showExtracted ? "hide" : "view"}
+                  {item.extractedText.length} chars {verb} — {showExtracted ? "hide" : "view"}
                 </button>
               </>
-            ) : item.ocrStatus === "processing" ? (
-              " · extracting…"
-            ) : item.ocrStatus === "failed" ? (
+            ) : pipelineStatus === "processing" ? (
+              ` · ${verbPresent}…`
+            ) : pipelineStatus === "failed" ? (
               <>
                 {" · "}
                 <span
                   className="text-destructive cursor-help"
-                  title={item.ocrError ?? "extraction failed (no detail)"}
+                  title={pipelineError ?? `${verbFailed} (no detail)`}
                 >
-                  extraction failed
+                  {verbFailed}
                 </span>
-                {item.ocrError && (
+                {pipelineError && (
                   <span className="text-muted-foreground/80 ml-1 normal-case">
-                    — {item.ocrError.slice(0, 120)}
-                    {item.ocrError.length > 120 ? "…" : ""}
+                    — {pipelineError.slice(0, 120)}
+                    {pipelineError.length > 120 ? "…" : ""}
                   </span>
                 )}
               </>
@@ -182,6 +196,28 @@ function MediaItemEditor({
                 <FileText className="size-3.5" />
               )}
               {item.extractedText ? "Re-extract" : "Extract text"}
+            </Button>
+          )}
+          {onTranscribe && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1 text-xs"
+              title={
+                item.extractedText
+                  ? "Re-transcribe this file"
+                  : "Transcribe this file for the AI tutor"
+              }
+              disabled={transcribing || item.transcriptionStatus === "processing"}
+              onClick={onTranscribe}
+            >
+              {transcribing || item.transcriptionStatus === "processing" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <FileText className="size-3.5" />
+              )}
+              {item.extractedText ? "Re-transcribe" : "Transcribe"}
             </Button>
           )}
           <Button
@@ -220,10 +256,14 @@ function MediaItemEditor({
       {showExtracted && canRevealExtracted && (
         <div className="bg-muted/40 rounded-lg border p-3">
           <div className="text-muted-foreground mb-2 flex items-center justify-between text-xs">
-            <span>Extracted text — this is what the AI tutor reads from this file</span>
-            {item.ocrModel && (
+            <span>
+              {isMedia
+                ? "Transcript — this is what the AI tutor reads from this file"
+                : "Extracted text — this is what the AI tutor reads from this file"}
+            </span>
+            {pipelineModel && (
               <Badge variant="outline" className="text-[10px]">
-                {item.ocrModel}
+                {pipelineModel}
               </Badge>
             )}
           </div>
@@ -244,17 +284,22 @@ export default function ContentDetailPage(props: {
   const contentQuery = trpc.creatorContent.byId.useQuery({ contentId: id });
   const content = contentQuery.data ?? null;
 
-  // Auto-refetch while any OCR job is in flight so extracted text lands
-  // without the creator having to reload the page.
-  const hasInFlightOcr =
+  // Auto-refetch while any extraction job is in flight (OCR for
+  // documents/images, transcription for audio/video) so the extracted
+  // text / transcript lands without the creator having to reload.
+  const hasInFlightExtraction =
     ((content?.mediaItems as MediaItem[] | undefined) ?? []).some(
-      (m) => m.ocrStatus === "pending" || m.ocrStatus === "processing",
+      (m) =>
+        m.ocrStatus === "pending" ||
+        m.ocrStatus === "processing" ||
+        m.transcriptionStatus === "pending" ||
+        m.transcriptionStatus === "processing",
     ) ?? false;
   useEffect(() => {
-    if (!hasInFlightOcr) return;
+    if (!hasInFlightExtraction) return;
     const id = setInterval(() => void contentQuery.refetch(), 5000);
     return (): void => clearInterval(id);
-  }, [hasInFlightOcr, contentQuery]);
+  }, [hasInFlightExtraction, contentQuery]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -264,6 +309,7 @@ export default function ContentDetailPage(props: {
   const [addingFiles, setAddingFiles] = useState(false);
   const [replacingOrder, setReplacingOrder] = useState<number | null>(null);
   const [extractingOrder, setExtractingOrder] = useState<number | null>(null);
+  const [transcribingOrder, setTranscribingOrder] = useState<number | null>(null);
   const addFilesRef = useRef<HTMLInputElement>(null);
 
   async function handleExtractText(order: number): Promise<void> {
@@ -290,6 +336,33 @@ export default function ContentDetailPage(props: {
       }
     } finally {
       setExtractingOrder(null);
+    }
+  }
+
+  async function handleTranscribe(order: number): Promise<void> {
+    setTranscribingOrder(order);
+    try {
+      const res = await fetch(`/api/creator-content/${id}/transcribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ order }),
+      });
+      const data = (await res.json()) as
+        | { success: true; data: { model: string } }
+        | { success: false; error?: { message: string; code?: string } };
+      if (!res.ok || !data.success) {
+        toast.error(
+          !data.success ? (data.error?.message ?? "Transcription failed") : "Transcription failed",
+        );
+      } else {
+        toast.success(
+          `Transcription queued (${data.data.model}). Tutor will refresh after it completes.`,
+        );
+        void contentQuery.refetch();
+      }
+    } finally {
+      setTranscribingOrder(null);
     }
   }
 
@@ -535,6 +608,12 @@ export default function ContentDetailPage(props: {
                         : undefined
                     }
                     extracting={extractingOrder === item.order}
+                    onTranscribe={
+                      item.type === "audio" || item.type === "video"
+                        ? (): void => void handleTranscribe(item.order)
+                        : undefined
+                    }
+                    transcribing={transcribingOrder === item.order}
                   />
                 ))}
               </CardContent>
@@ -685,7 +764,7 @@ export default function ContentDetailPage(props: {
         </TabsContent>
 
         <TabsContent value="ai-tutor" className="mt-4 space-y-4">
-          {(() => {
+          {((): React.ReactElement => {
             // Per-content tutor needs a classroom for membership scoping. Use
             // the first assigned classroom; surface a hint if none yet.
             const classroomIds = Array.isArray(content.assignedClassrooms)
