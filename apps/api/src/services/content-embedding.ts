@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { Database } from "@examforge/shared/db";
 import { creatorContent, contentEmbeddings } from "@examforge/shared/db/schema";
 import { routeEmbedRequest } from "../ai/ai-router.js";
+import { sanitizeOcrText } from "../ai/text-sanitize.js";
 
 const MAX_TOKENS_PER_CHUNK = 500;
 const OVERLAP_TOKENS = 50;
@@ -22,31 +23,10 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-/** Collapse HTML whitespace entities and runs that OCR tooling sometimes
- *  emits when it sees layout-only whitespace in a PDF. A 200-entity run
- *  of nbsp is structurally noise but tokenises to ~600 tokens and can
- *  push a single chunk past OpenAI's 8192-token ceiling. We don't
- *  unescape every entity, only the whitespace ones, because real content
- *  might legitimately contain `&amp;` etc. that should stay.
- *  Also strips raw Unicode non-breaking-space and zero-width chars that
- *  OCR can emit alongside the entity form. */
-// Built with \u escapes via new RegExp so the source stays ASCII and the
-// no-irregular-whitespace lint rule doesn't trip on the character class.
-// Covers: NBSP (U+00A0), NARROW NBSP (U+202F), ZERO WIDTH SPACE (U+200B),
-// ZWNJ / ZWJ (U+200C / U+200D), ZERO WIDTH NO-BREAK SPACE / BOM (U+FEFF).
-// Alternation rather than a character class so the lint rule
-// no-misleading-character-class (zero-width joiners next to other code
-// points combining into a single grapheme) stays happy.
-const INVISIBLE_WHITESPACE_RE = new RegExp("\\u00a0|\\u202f|\\u200b|\\u200c|\\u200d|\\ufeff", "g");
-function sanitizeForEmbedding(text: string): string {
-  return text
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&#160;/g, " ")
-    .replace(/&#x?a0;/gi, " ")
-    .replace(/&ensp;|&emsp;|&thinsp;|&zwj;|&zwnj;/gi, " ")
-    .replace(INVISIBLE_WHITESPACE_RE, " ")
-    .replace(/[ \t]{2,}/g, " ");
-}
+// Whitespace sanitisation lives in ai/text-sanitize.ts now so both the
+// OCR worker (before persisting extractedText) and this pipeline use the
+// same logic. Keeping them in sync matters: noisy OCR output otherwise
+// blows past OpenAI's 8192-token embedding ceiling.
 
 /** Final safety net: if any chunk is still over the hard char cap (e.g.
  *  a single "paragraph" with no sentence boundaries — unusual but seen
@@ -249,7 +229,10 @@ export async function upsertContentEmbeddings(
   }
 
   const { text: rawText, sources } = extractTextForContent(content);
-  const text = sanitizeForEmbedding(rawText);
+  // Belt + suspenders: the OCR worker also sanitises before storing
+  // extractedText, but legacy rows from before that change may still
+  // contain entity noise. Re-sanitise on read.
+  const text = sanitizeOcrText(rawText);
   if (!text.trim()) {
     // Nothing embed-able yet — common for audio/video before any
     // transcription worker has populated aiTranscript, or a document

@@ -14,6 +14,7 @@ import { readFile } from "node:fs/promises";
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
+import { sanitizeOcrText } from "./text-sanitize.js";
 
 export type OcrModel = "claude-sonnet-4-6" | "gemini-2.5-pro" | "gemini-2.5-flash";
 
@@ -56,7 +57,13 @@ Language handling:
 
 Output constraints:
 - Respond with Markdown only — no code-fence wrapper around the full response
-- If the image contains no meaningful text, respond with exactly: "(no text extracted)"`;
+- If the image contains no meaningful text, respond with exactly: "(no text extracted)"
+
+Whitespace constraints (IMPORTANT — applies to PDFs especially):
+- Do NOT emit HTML entities for whitespace such as &nbsp;, &ensp;, &emsp;, &#160; — never use them.
+- Do NOT preserve layout-only whitespace from the source. Tables, multi-column pages, and visually-padded headings often have wide gaps that exist only for printed appearance; don't try to reproduce them.
+- Use a single space between words; one blank line between paragraphs; nothing more. The output should read like prose / markdown, not like an ASCII-art reproduction of the page.
+- Token budget is finite. Whitespace inflation truncates real content on later pages; treat every byte you spend on visual padding as one byte less of actual extracted text.`;
 
 function resolveModel(model: OcrModel): ReturnType<typeof anthropic> | ReturnType<typeof google> {
   switch (model) {
@@ -105,7 +112,7 @@ export async function runOcrOnImage(
     maxOutputTokens: 4096,
   });
 
-  const markdown = result.text.trim();
+  const markdown = sanitizeOcrText(result.text);
   return {
     model,
     markdown,
@@ -147,11 +154,13 @@ export async function runOcrOnDocument(
     ],
     temperature: 0,
     // Documents are typically longer than single images — give the model
-    // more headroom before it gets cut off mid-page.
-    maxOutputTokens: 16384,
+    // more headroom before it gets cut off mid-page. 32K is the upper
+    // bound where most providers (Claude Sonnet 4.x, Gemini 2.5 Pro)
+    // still complete reliably; higher and latency / cost balloon.
+    maxOutputTokens: 32768,
   });
 
-  const markdown = result.text.trim();
+  const markdown = sanitizeOcrText(result.text);
   return {
     model,
     markdown,
