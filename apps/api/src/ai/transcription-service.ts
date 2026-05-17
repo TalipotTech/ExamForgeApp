@@ -84,6 +84,7 @@ function resolveGeminiModel(): ReturnType<typeof google> {
 export type TranscriptionError =
   | { code: "FILE_TOO_LARGE"; provider: TranscriptionModel; sizeBytes: number; capBytes: number }
   | { code: "UNSUPPORTED_MEDIA"; provider: TranscriptionModel; mimeType: string }
+  | { code: "UNSUPPORTED_LANGUAGE"; provider: TranscriptionModel; language: string }
   | { code: "MISSING_CREDENTIAL"; provider: TranscriptionModel; envVar: string }
   | { code: "PROVIDER_ERROR"; provider: TranscriptionModel; message: string }
   | { code: "ALL_PROVIDERS_FAILED"; attempts: Array<{ model: TranscriptionModel; error: string }> };
@@ -96,11 +97,13 @@ export class TranscriptionFailure extends Error {
         ? `File is ${(detail.sizeBytes / (1024 * 1024)).toFixed(1)}MB, max for ${detail.provider} is ${(detail.capBytes / (1024 * 1024)).toFixed(0)}MB`
         : detail.code === "UNSUPPORTED_MEDIA"
           ? `${detail.provider} does not support ${detail.mimeType}`
-          : detail.code === "MISSING_CREDENTIAL"
-            ? `${detail.provider} requires ${detail.envVar} (not set)`
-            : detail.code === "PROVIDER_ERROR"
-              ? `Transcription failed on ${detail.provider}: ${detail.message}`
-              : `Transcription failed on all models: ${detail.attempts.map((a) => `${a.model}: ${a.error}`).join(" | ")}`,
+          : detail.code === "UNSUPPORTED_LANGUAGE"
+            ? `${detail.provider} does not support language "${detail.language}"`
+            : detail.code === "MISSING_CREDENTIAL"
+              ? `${detail.provider} requires ${detail.envVar} (not set)`
+              : detail.code === "PROVIDER_ERROR"
+                ? `Transcription failed on ${detail.provider}: ${detail.message}`
+                : `Transcription failed on all models: ${detail.attempts.map((a) => `${a.model}: ${a.error}`).join(" | ")}`,
     );
     this.name = "TranscriptionFailure";
     this.detail = detail;
@@ -112,30 +115,116 @@ export class TranscriptionFailure extends Error {
  * 2.0 Flash. Throws `TranscriptionFailure` on rejection — callers fall
  * back via runTranscriptionWithFallback.
  */
+// Sarvam Saarika's supported language set (Indian languages + Indian
+// English). Anything outside this set means Sarvam can't help — fail
+// fast with UNSUPPORTED_LANGUAGE so the fallback chain moves on.
+const SARVAM_SUPPORTED_LANGS = new Set([
+  "hi",
+  "ta",
+  "ml",
+  "te",
+  "kn",
+  "bn",
+  "mr",
+  "gu",
+  "pa",
+  "or",
+  "en",
+]);
+
+// Whisper's documented language list for /v1/audio/transcriptions
+// (whisper-1 model). Of Indian languages it covers only hi, kn, mr, ne,
+// ta, ur — Malayalam, Telugu, Bengali, Gujarati, Odia, Punjabi are NOT
+// supported. The API rejects unsupported codes with a 400, so we gate
+// here instead of letting the request fail.
+const WHISPER_SUPPORTED_LANGS = new Set([
+  "af",
+  "ar",
+  "hy",
+  "az",
+  "be",
+  "bs",
+  "bg",
+  "ca",
+  "zh",
+  "hr",
+  "cs",
+  "da",
+  "nl",
+  "en",
+  "et",
+  "fi",
+  "fr",
+  "gl",
+  "de",
+  "el",
+  "he",
+  "hi",
+  "hu",
+  "is",
+  "id",
+  "it",
+  "ja",
+  "kn",
+  "kk",
+  "ko",
+  "lv",
+  "lt",
+  "mk",
+  "ms",
+  "mr",
+  "mi",
+  "ne",
+  "no",
+  "fa",
+  "pl",
+  "pt",
+  "ro",
+  "ru",
+  "sr",
+  "sk",
+  "sl",
+  "es",
+  "sw",
+  "sv",
+  "tl",
+  "ta",
+  "th",
+  "tr",
+  "uk",
+  "ur",
+  "vi",
+  "cy",
+]);
+
+/** Normalise our internal language hint to the bare 2-letter ISO code
+ *  (handles BCP-47 inputs like "ml-IN" → "ml"). Returns undefined if
+ *  the input doesn't look like a language code. */
+function normaliseLanguageHint(lang: string | undefined): string | undefined {
+  if (!lang) return undefined;
+  const stripped = lang.trim().toLowerCase().replace(/-in$/, "");
+  if (/^[a-z]{2}$/.test(stripped)) return stripped;
+  return undefined;
+}
+
 /** Convert our internal language code (e.g. "ml") into a Sarvam
  *  language_code value. Sarvam wants the BCP-47 Indian-variant form
  *  ("ml-IN"). Unknown / unsupported languages fall back to "unknown"
  *  which makes Sarvam auto-detect. */
 function toSarvamLanguageCode(lang: string | undefined): string {
-  if (!lang) return "unknown";
-  const normalised = lang.trim().toLowerCase();
-  const supported = new Set(["hi", "ta", "ml", "te", "kn", "bn", "mr", "gu", "pa", "or", "en"]);
-  // Already in BCP-47 region form ("ml-IN") — pass through if Indian.
-  if (/^[a-z]{2}-IN$/i.test(lang)) return lang;
-  if (supported.has(normalised)) return `${normalised}-IN`;
+  const normalised = normaliseLanguageHint(lang);
+  if (!normalised) return "unknown";
+  if (SARVAM_SUPPORTED_LANGS.has(normalised)) return `${normalised}-IN`;
   return "unknown";
 }
 
 /** Convert our internal language code into a Whisper-compatible
- *  ISO-639-1 code. Whisper accepts the 2-letter form. Empty / unknown
- *  → undefined so we don't send the param (Whisper auto-detects). */
+ *  ISO-639-1 code. Returns undefined if Whisper doesn't support the
+ *  language, in which case callers should skip Whisper entirely. */
 function toWhisperLanguageCode(lang: string | undefined): string | undefined {
-  if (!lang) return undefined;
-  const normalised = lang.trim().toLowerCase();
-  // Strip Indian-variant suffix if the caller passed BCP-47.
-  const stripped = normalised.replace(/-in$/, "");
-  if (/^[a-z]{2}$/.test(stripped)) return stripped;
-  return undefined;
+  const normalised = normaliseLanguageHint(lang);
+  if (!normalised) return undefined;
+  return WHISPER_SUPPORTED_LANGS.has(normalised) ? normalised : undefined;
 }
 
 async function runGeminiTranscription(
@@ -228,6 +317,18 @@ async function runSarvamTranscription(
       code: "UNSUPPORTED_MEDIA",
       provider: "sarvam-saarika",
       mimeType,
+    });
+  }
+
+  // If an explicit hint is set to a language Sarvam doesn't cover, bail
+  // before burning a request. (Sarvam handles 11 Indian languages +
+  // Indian English.) Unset / unknown languages auto-detect.
+  const hintNormalised = normaliseLanguageHint(language);
+  if (hintNormalised && !SARVAM_SUPPORTED_LANGS.has(hintNormalised)) {
+    throw new TranscriptionFailure({
+      code: "UNSUPPORTED_LANGUAGE",
+      provider: "sarvam-saarika",
+      language: hintNormalised,
     });
   }
 
@@ -327,6 +428,19 @@ async function runWhisperTranscription(
       code: "UNSUPPORTED_MEDIA",
       provider: "openai-whisper",
       mimeType,
+    });
+  }
+
+  // Whisper's official supported-language list excludes several Indian
+  // languages (Malayalam, Telugu, Bengali, Gujarati, Odia, Punjabi).
+  // If the creator has an explicit hint Whisper can't handle, bail
+  // rather than send a request the API will reject with 400.
+  const hintNormalised = normaliseLanguageHint(language);
+  if (hintNormalised && !WHISPER_SUPPORTED_LANGS.has(hintNormalised)) {
+    throw new TranscriptionFailure({
+      code: "UNSUPPORTED_LANGUAGE",
+      provider: "openai-whisper",
+      language: hintNormalised,
     });
   }
 
