@@ -63,9 +63,15 @@ type MediaItem = {
   order: number;
   extractedText?: string;
   duration?: number;
+  // OCR pipeline (documents + images) — populated by the OCR worker.
   ocrStatus?: OcrStatus;
   ocrModel?: string;
   ocrError?: string;
+  // Transcription pipeline (audio + video) — populated by the
+  // transcription worker. Shares the extractedText slot with OCR.
+  transcriptionStatus?: OcrStatus;
+  transcriptionModel?: string;
+  transcriptionError?: string;
 };
 
 function FileIcon({ type, className }: { type: string; className?: string }): React.ReactElement {
