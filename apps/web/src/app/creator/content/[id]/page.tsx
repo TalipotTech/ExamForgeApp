@@ -732,7 +732,10 @@ export default function ContentDetailPage(props: {
               (description.trim() || "") !== (content.description ?? "") ||
               (body.trim() || "") !== (content.body ?? "");
             const saveBlocked =
-              updateMutation.isPending || hasInFlightOcr || addingFiles || replacingOrder !== null;
+              updateMutation.isPending ||
+              hasInFlightExtraction ||
+              addingFiles ||
+              replacingOrder !== null;
             const saveDisabled = !detailsDirty || saveBlocked;
             return (
               <Button
@@ -747,8 +750,8 @@ export default function ContentDetailPage(props: {
                 disabled={saveDisabled}
                 className="gap-2"
                 title={
-                  hasInFlightOcr
-                    ? "Wait for OCR to finish before saving"
+                  hasInFlightExtraction
+                    ? "Wait for text extraction / transcription to finish before saving"
                     : addingFiles
                       ? "Wait for uploads to finish"
                       : replacingOrder !== null
@@ -758,12 +761,12 @@ export default function ContentDetailPage(props: {
                           : undefined
                 }
               >
-                {updateMutation.isPending || hasInFlightOcr ? (
+                {updateMutation.isPending || hasInFlightExtraction ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <Save className="size-4" />
                 )}
-                {hasInFlightOcr ? "Waiting for OCR…" : "Save Changes"}
+                {hasInFlightExtraction ? "Waiting for extraction…" : "Save Changes"}
               </Button>
             );
           })()}
