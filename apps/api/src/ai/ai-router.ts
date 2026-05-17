@@ -452,61 +452,97 @@ export async function routeTextRequest(
   }
 
   const mapping = TASK_PROVIDER_MAP[params.task];
-  const provider = params.overrideProvider ?? mapping.primary;
-  const model =
+  const primaryProvider = params.overrideProvider ?? mapping.primary;
+  const primaryModel =
     params.overrideModel ??
-    (params.overrideProvider ? PROVIDER_DEFAULT_MODELS[provider] : mapping.model);
-  const languageModel = getLanguageModel(provider, model);
+    (params.overrideProvider ? PROVIDER_DEFAULT_MODELS[primaryProvider] : mapping.model);
 
-  const startTime = Date.now();
+  // Helper that performs the actual call and writes a usage log. Hoisted
+  // so we can run it once for primary, then again for fallback on failure
+  // without duplicating the success-path logic.
+  const callOnce = async (
+    provider: AiProvider,
+    model: string,
+    startTime: number,
+  ): Promise<AIRequestResult<string>> => {
+    const languageModel = getLanguageModel(provider, model);
+    let response;
+    try {
+      response = await withRetry(() =>
+        generateText({
+          model: languageModel,
+          prompt: params.prompt,
+          system: params.systemPrompt,
+          temperature: params.temperature,
+          maxOutputTokens: params.maxTokens ?? 8192,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof AIRouterError) throw error;
+      throw toUserFriendlyAIError(error, provider);
+    }
 
-  let response;
-  try {
-    response = await withRetry(async () => {
-      return generateText({
-        model: languageModel,
-        prompt: params.prompt,
-        system: params.systemPrompt,
-        temperature: params.temperature,
-        maxOutputTokens: params.maxTokens ?? 8192,
-      });
+    const latencyMs = Date.now() - startTime;
+    const inputTokens = response.usage.inputTokens ?? 0;
+    const outputTokens = response.usage.outputTokens ?? 0;
+    const cost = estimateCost(model, inputTokens, outputTokens);
+
+    const logId = await logAICall(db, {
+      provider,
+      model,
+      feature: params.feature ?? taskToFeature(params.task),
+      inputTokens,
+      outputTokens,
+      latencyMs,
+      estimatedCostUsd: cost,
+      userId: params.userId,
+      examId: params.examId,
     });
-  } catch (error) {
-    if (error instanceof AIRouterError) throw error;
-    throw toUserFriendlyAIError(error, provider);
-  }
 
-  const latencyMs = Date.now() - startTime;
-  const inputTokens = response.usage.inputTokens ?? 0;
-  const outputTokens = response.usage.outputTokens ?? 0;
-  const cost = estimateCost(model, inputTokens, outputTokens);
-
-  const logId = await logAICall(db, {
-    provider,
-    model,
-    feature: params.feature ?? taskToFeature(params.task),
-    inputTokens,
-    outputTokens,
-    latencyMs,
-    estimatedCostUsd: cost,
-    userId: params.userId,
-    examId: params.examId,
-  });
-
-  return {
-    data: response.text,
-    provider,
-    model,
-    usage: {
-      promptTokens: inputTokens,
-      completionTokens: outputTokens,
-      totalTokens: inputTokens + outputTokens,
-    },
-    latencyMs,
-    estimatedCostUsd: cost,
-    cached: false,
-    logId,
+    return {
+      data: response.text,
+      provider,
+      model,
+      usage: {
+        promptTokens: inputTokens,
+        completionTokens: outputTokens,
+        totalTokens: inputTokens + outputTokens,
+      },
+      latencyMs,
+      estimatedCostUsd: cost,
+      cached: false,
+      logId,
+    };
   };
+
+  // Try primary. On failure, fall through to the task's declared fallback
+  // provider (if any) — same pattern routeAIRequest already uses for
+  // structured calls. Previously routeTextRequest just threw, so a
+  // single-vendor outage (e.g. Anthropic credit exhausted) took the AI
+  // tutor down even though the task map declared an OpenAI fallback.
+  // overrideProvider intentionally skips fallback: caller explicitly
+  // picked a provider, respect that.
+  const startTime = Date.now();
+  try {
+    return await callOnce(primaryProvider, primaryModel, startTime);
+  } catch (primaryError) {
+    if (params.overrideProvider || !mapping.fallback || !mapping.fallbackModel) {
+      throw primaryError;
+    }
+    console.warn(
+      `[ai-router] routeTextRequest: ${primaryProvider}/${primaryModel} failed, falling back to ${mapping.fallback}/${mapping.fallbackModel}`,
+      primaryError instanceof Error ? primaryError.message : primaryError,
+    );
+    try {
+      return await callOnce(mapping.fallback, mapping.fallbackModel, Date.now());
+    } catch (fallbackError) {
+      throw new AIRouterError(
+        "ALL_PROVIDERS_FAILED",
+        `Both primary (${primaryProvider}) and fallback (${mapping.fallback}) providers failed.`,
+        { primaryError, fallbackError },
+      );
+    }
+  }
 }
 
 // ─── Streaming Variant (unstructured text responses) ───
