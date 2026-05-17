@@ -547,6 +547,22 @@ export async function routeTextRequest(
 
 // ─── Streaming Variant (unstructured text responses) ───
 
+/**
+ * Streaming text request with provider fallback.
+ *
+ * IMPORTANT — streaming + fallback tradeoff: to detect a primary
+ * provider failure (auth, billing, network) we have to materialise the
+ * stream via `await result.text` before returning. That means the
+ * returned StreamTextResult has its `textStream` iterator already
+ * consumed: `result.text` (the cached full text) is what callers should
+ * read. The only current caller (content-search-engine.ts) already uses
+ * that pattern, so the change is non-breaking for it.
+ *
+ * If you have a future caller that needs true token-by-token streaming
+ * to the consumer, either (a) accept no fallback and call streamText
+ * directly, or (b) use routeTextRequest which now has full fallback +
+ * returns the complete text in one shot.
+ */
 export async function routeStreamingRequest(
   params: AIStreamParams,
   db: Database,
@@ -562,40 +578,75 @@ export async function routeStreamingRequest(
   }
 
   const mapping = TASK_PROVIDER_MAP[params.task];
-  const provider = params.overrideProvider ?? mapping.primary;
-  const model =
+  const primaryProvider = params.overrideProvider ?? mapping.primary;
+  const primaryModel =
     params.overrideModel ??
-    (params.overrideProvider ? PROVIDER_DEFAULT_MODELS[provider] : mapping.model);
-  const languageModel = getLanguageModel(provider, model);
+    (params.overrideProvider ? PROVIDER_DEFAULT_MODELS[primaryProvider] : mapping.model);
 
-  const startTime = Date.now();
+  // Kick off a stream against a specific provider/model. The stream is
+  // materialised here (await result.text) so we can detect upstream
+  // errors before returning — that's the price of fallback support.
+  const startStream = async (
+    provider: AiProvider,
+    model: string,
+  ): Promise<ReturnType<typeof streamText>> => {
+    const languageModel = getLanguageModel(provider, model);
+    const startTime = Date.now();
+    const result = streamText({
+      model: languageModel,
+      prompt: params.prompt,
+      system: params.systemPrompt,
+      temperature: params.temperature,
+      maxOutputTokens: params.maxTokens,
+      onFinish: async ({ usage }) => {
+        const latencyMs = Date.now() - startTime;
+        const cost = estimateCost(model, usage.inputTokens ?? 0, usage.outputTokens ?? 0);
+        await logAICall(db, {
+          provider,
+          model,
+          feature: params.feature ?? taskToFeature(params.task),
+          inputTokens: usage.inputTokens ?? 0,
+          outputTokens: usage.outputTokens ?? 0,
+          latencyMs,
+          estimatedCostUsd: cost,
+          userId: params.userId,
+          examId: params.examId,
+        }).catch((err) => {
+          console.error("Failed to log streaming AI call:", err);
+        });
+      },
+    });
+    // Awaiting `text` consumes the stream and throws if the provider
+    // rejected the request. After this resolves, `result.text` is a
+    // cached Promise that callers can read freely; `result.textStream`
+    // is empty (already consumed).
+    await result.text;
+    return result;
+  };
 
-  const result = streamText({
-    model: languageModel,
-    prompt: params.prompt,
-    system: params.systemPrompt,
-    temperature: params.temperature,
-    maxOutputTokens: params.maxTokens,
-    onFinish: async ({ usage }) => {
-      const latencyMs = Date.now() - startTime;
-      const cost = estimateCost(model, usage.inputTokens ?? 0, usage.outputTokens ?? 0);
-      await logAICall(db, {
-        provider,
-        model,
-        feature: params.feature ?? taskToFeature(params.task),
-        inputTokens: usage.inputTokens ?? 0,
-        outputTokens: usage.outputTokens ?? 0,
-        latencyMs,
-        estimatedCostUsd: cost,
-        userId: params.userId,
-        examId: params.examId,
-      }).catch((err) => {
-        console.error("Failed to log streaming AI call:", err);
-      });
-    },
-  });
-
-  return result;
+  // overrideProvider intentionally skips fallback — caller explicitly
+  // picked a provider, respect that.
+  try {
+    return await startStream(primaryProvider, primaryModel);
+  } catch (primaryError) {
+    if (params.overrideProvider || !mapping.fallback || !mapping.fallbackModel) {
+      if (primaryError instanceof AIRouterError) throw primaryError;
+      throw toUserFriendlyAIError(primaryError, primaryProvider);
+    }
+    console.warn(
+      `[ai-router] routeStreamingRequest: ${primaryProvider}/${primaryModel} failed, falling back to ${mapping.fallback}/${mapping.fallbackModel}`,
+      primaryError instanceof Error ? primaryError.message : primaryError,
+    );
+    try {
+      return await startStream(mapping.fallback, mapping.fallbackModel);
+    } catch (fallbackError) {
+      throw new AIRouterError(
+        "ALL_PROVIDERS_FAILED",
+        `Both primary (${primaryProvider}) and fallback (${mapping.fallback}) streaming providers failed.`,
+        { primaryError, fallbackError },
+      );
+    }
+  }
 }
 
 // ─── Embedding Request ───
