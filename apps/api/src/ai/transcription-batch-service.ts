@@ -29,6 +29,7 @@
  */
 
 import { readFile, stat } from "node:fs/promises";
+import path from "node:path";
 import { sanitizeOcrText } from "./text-sanitize.js";
 
 const SARVAM_BATCH_JOB_INIT = "https://api.sarvam.ai/speech-to-text/job/init";
@@ -172,9 +173,11 @@ async function initJob(
       body: `Unexpected init response: ${JSON.stringify(json)}`,
     });
   }
-  console.log(
-    `[sarvam-batch] init OK job_id=${json.job_id} input=${json.input_storage_path.split("?")[0]}? output=${json.output_storage_path.split("?")[0]}?`,
-  );
+  // Log the FULL init response (with SAS query strings redacted) so we
+  // can see any hint fields Sarvam returns beyond the three we know
+  // about — e.g. a `start_url`, expected file name, or initial state
+  // worth poking at.
+  console.log(`[sarvam-batch] init OK full response: ${JSON.stringify(redactSasInValue(json))}`);
   return {
     jobId: json.job_id,
     inputStoragePath: json.input_storage_path,
@@ -182,26 +185,44 @@ async function initJob(
   };
 }
 
-/** Step 2 — PUT the audio bytes to the Azure SAS URL the init step
- *  returned. The SAS URL handles auth itself (no extra header needed
- *  beyond `x-ms-blob-type`).
+/** Mask SAS query strings in any string-valued field of an object so
+ *  the logs don't leak short-lived credentials. */
+function redactSasInValue(v: unknown): unknown {
+  if (typeof v === "string") {
+    const qIdx = v.indexOf("?");
+    return qIdx >= 0 && v.includes("sig=") ? `${v.slice(0, qIdx)}?<sas-redacted>` : v;
+  }
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    const out: Record<string, unknown> = {};
+    for (const [k, val] of Object.entries(v)) out[k] = redactSasInValue(val);
+    return out;
+  }
+  if (Array.isArray(v)) return v.map((x) => redactSasInValue(x));
+  return v;
+}
+
+/** Step 2 — PUT the audio bytes to a blob inside the container SAS URL
+ *  init returned. The path ends with `/inputs?{sas}` — a CONTAINER, not
+ *  a blob — so we append the filename before the query string to
+ *  produce `/inputs/<name>?{sas}`.
  *
- *  Sarvam returns the SAS URL as a direct blob target (not a container
- *  folder), and their batch trigger watches that exact path. Uploading
- *  to a filename-appended sub-path produces a 200/201 from Azure but
- *  the trigger doesn't fire — the job stays "Accepted" forever. So
- *  PUT directly to inputStoragePath, no modification. */
+ *  Earlier revision experimented with PUTting to the container URL
+ *  directly; Azure rejects with HTTP 409 OperationNotAllowedInCurrentState
+ *  because container-level PUT means create-or-set-properties, not
+ *  blob upload. The filename-appended path is correct. */
 async function uploadFile(
   inputStoragePath: string,
   filePath: string,
   mimeType: string,
 ): Promise<void> {
   const fileBuffer = await readFile(filePath);
+  const fileName = path.basename(filePath);
+  const targetUrl = appendFileNameToSasUrl(inputStoragePath, fileName);
   console.log(
-    `[sarvam-batch] PUT upload → ${inputStoragePath.split("?")[0]}? (${fileBuffer.byteLength} bytes, ${mimeType})`,
+    `[sarvam-batch] PUT upload → ${targetUrl.split("?")[0]}? (${fileBuffer.byteLength} bytes, ${mimeType})`,
   );
 
-  const res = await fetch(inputStoragePath, {
+  const res = await fetch(targetUrl, {
     method: "PUT",
     headers: {
       "x-ms-blob-type": "BlockBlob",
@@ -230,11 +251,31 @@ function appendFileNameToSasUrl(sasUrl: string, fileName: string): string {
   return `${cleanPath}/${encodeURIComponent(fileName)}${query}`;
 }
 
-/** (no explicit start step — Sarvam's batch API takes the job
- *  parameters in the init body and auto-runs once the audio blob lands
- *  in the input SAS container. An earlier revision tried POSTing to
- *  /speech-to-text/job/{job_id}/start after upload; that path returned
- *  404 in production, confirming the config-in-init flow.) */
+/** Step 3 — kick the job. Sarvam's batch API has an explicit start
+ *  step that we need to call after the file is uploaded. The earlier
+ *  revision's 404 from POST /speech-to-text/job/{job_id}/start happened
+ *  BEFORE we had a valid upload — the previous error may have been
+ *  Sarvam refusing to start a job with no input rather than the path
+ *  being wrong. Try the documented path again now that upload is fixed.
+ *
+ *  If Sarvam responds with a non-404 error, the body comes through in
+ *  START_FAILED so we can adjust the path or payload from the message. */
+async function startJob(apiKey: string, jobId: string): Promise<void> {
+  const startUrl = `${SARVAM_BATCH_JOB_BASE}/${encodeURIComponent(jobId)}/start`;
+  console.log(`[sarvam-batch] POST start → ${startUrl}`);
+  const res = await fetch(startUrl, {
+    method: "POST",
+    headers: { ...authHeader(apiKey), "Content-Type": "application/json" },
+    // Sarvam might accept an empty body since config was already
+    // attached at init. Sending {} so the content-type is honoured.
+    body: "{}",
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "(no body)");
+    throw new SarvamBatchFailure({ code: "START_FAILED", status: res.status, body });
+  }
+  console.log(`[sarvam-batch] start OK status=${res.status}`);
+}
 
 /** Step 4 — poll until completion or timeout. */
 async function pollUntilDone(apiKey: string, jobId: string): Promise<string /* terminal state */> {
@@ -394,8 +435,7 @@ export async function runSarvamBatchTranscription(
   const started = Date.now();
   const { jobId, inputStoragePath, outputStoragePath } = await initJob(apiKey, `${normalised}-IN`);
   await uploadFile(inputStoragePath, filePath, mimeType);
-  // No explicit start — the job auto-runs once init returns and the
-  // file is uploaded. Poll directly.
+  await startJob(apiKey, jobId);
   await pollUntilDone(apiKey, jobId);
   const { transcript } = await fetchTranscript(outputStoragePath);
   const trimmed = transcript.trim();
