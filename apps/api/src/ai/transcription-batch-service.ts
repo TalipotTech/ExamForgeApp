@@ -5,17 +5,17 @@
  * lecture-length recordings (the typical ExamForge upload) we need
  * Sarvam's batch flow:
  *
- *   1. POST /speech-to-text/job/init
+ *   1. POST /speech-to-text/job/init with the model + language_code in
+ *      the body
  *        → returns { job_id, input_storage_path, output_storage_path }.
  *          The storage paths are Azure Blob SAS URLs valid for hours.
  *   2. PUT the audio file to input_storage_path (Azure REST,
  *      `x-ms-blob-type: BlockBlob`).
- *   3. POST /speech-to-text/job/{job_id}/start with the model +
- *      language_code so Sarvam queues the actual transcription.
- *   4. GET /speech-to-text/job/{job_id}/status until job_state is
+ *   3. GET /speech-to-text/job/{job_id}/status until job_state is
  *      "Completed" or "Failed". Backoff 5s → 10s → 15s up to a 5-minute
- *      ceiling.
- *   5. List files under output_storage_path; each input audio produces
+ *      ceiling. (No explicit start step — Sarvam auto-runs once the
+ *      audio lands in the input SAS container.)
+ *   4. List files under output_storage_path; each input audio produces
  *      a JSON output file with the transcript.
  *
  * The BullMQ worker holds its job slot for the duration of the poll
@@ -137,8 +137,16 @@ function authHeader(apiKey: string): HeadersInit {
   return { "api-subscription-key": apiKey };
 }
 
-/** Step 1 — ask Sarvam for a job id + Azure SAS URLs. */
-async function initJob(apiKey: string): Promise<{
+/** Step 1 — ask Sarvam for a job id + Azure SAS URLs, with the
+ *  transcription config attached so the job auto-runs once we upload
+ *  the audio. The earlier version of this code POSTed to a separate
+ *  /{job_id}/start endpoint after upload, but that path returned 404
+ *  — Sarvam's batch API processes automatically once input lands in
+ *  the SAS container. Config in init is the consistent shape. */
+async function initJob(
+  apiKey: string,
+  languageCode: string,
+): Promise<{
   jobId: string;
   inputStoragePath: string;
   outputStoragePath: string;
@@ -146,9 +154,12 @@ async function initJob(apiKey: string): Promise<{
   const res = await fetch(SARVAM_BATCH_JOB_INIT, {
     method: "POST",
     headers: { ...authHeader(apiKey), "Content-Type": "application/json" },
-    // Some Sarvam revisions require an empty JSON body; sending `{}` is
-    // harmless when not required.
-    body: "{}",
+    body: JSON.stringify({
+      language_code: languageCode,
+      model: "saarika:v2.5",
+      with_timestamps: false,
+      with_diarization: false,
+    }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "(no body)");
@@ -215,25 +226,11 @@ function appendFileNameToSasUrl(sasUrl: string, fileName: string): string {
   return `${cleanPath}/${encodeURIComponent(fileName)}${query}`;
 }
 
-/** Step 3 — tell Sarvam to start processing the file we just uploaded. */
-async function startJob(apiKey: string, jobId: string, languageCode: string): Promise<void> {
-  const res = await fetch(`${SARVAM_BATCH_JOB_BASE}/${encodeURIComponent(jobId)}/start`, {
-    method: "POST",
-    headers: { ...authHeader(apiKey), "Content-Type": "application/json" },
-    body: JSON.stringify({
-      job_parameters: {
-        model: "saarika:v2.5",
-        language_code: languageCode,
-        with_timestamps: false,
-        with_diarization: false,
-      },
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "(no body)");
-    throw new SarvamBatchFailure({ code: "START_FAILED", status: res.status, body });
-  }
-}
+/** (no explicit start step — Sarvam's batch API takes the job
+ *  parameters in the init body and auto-runs once the audio blob lands
+ *  in the input SAS container. An earlier revision tried POSTing to
+ *  /speech-to-text/job/{job_id}/start after upload; that path returned
+ *  404 in production, confirming the config-in-init flow.) */
 
 /** Step 4 — poll until completion or timeout. */
 async function pollUntilDone(apiKey: string, jobId: string): Promise<string /* terminal state */> {
@@ -385,9 +382,10 @@ export async function runSarvamBatchTranscription(
   }
 
   const started = Date.now();
-  const { jobId, inputStoragePath, outputStoragePath } = await initJob(apiKey);
+  const { jobId, inputStoragePath, outputStoragePath } = await initJob(apiKey, `${normalised}-IN`);
   await uploadFile(inputStoragePath, filePath, mimeType);
-  await startJob(apiKey, jobId, `${normalised}-IN`);
+  // No explicit start — the job auto-runs once init returns and the
+  // file is uploaded. Poll directly.
   await pollUntilDone(apiKey, jobId);
   const { transcript } = await fetchTranscript(outputStoragePath);
   const trimmed = transcript.trim();
