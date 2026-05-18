@@ -29,7 +29,6 @@
  */
 
 import { readFile, stat } from "node:fs/promises";
-import path from "node:path";
 import { sanitizeOcrText } from "./text-sanitize.js";
 
 const SARVAM_BATCH_JOB_INIT = "https://api.sarvam.ai/speech-to-text/job/init";
@@ -173,6 +172,9 @@ async function initJob(
       body: `Unexpected init response: ${JSON.stringify(json)}`,
     });
   }
+  console.log(
+    `[sarvam-batch] init OK job_id=${json.job_id} input=${json.input_storage_path.split("?")[0]}? output=${json.output_storage_path.split("?")[0]}?`,
+  );
   return {
     jobId: json.job_id,
     inputStoragePath: json.input_storage_path,
@@ -182,23 +184,24 @@ async function initJob(
 
 /** Step 2 — PUT the audio bytes to the Azure SAS URL the init step
  *  returned. The SAS URL handles auth itself (no extra header needed
- *  beyond `x-ms-blob-type`). The input_storage_path is typically a
- *  container URL; we append the filename so the blob has a recognisable
- *  name on Sarvam's side. */
+ *  beyond `x-ms-blob-type`).
+ *
+ *  Sarvam returns the SAS URL as a direct blob target (not a container
+ *  folder), and their batch trigger watches that exact path. Uploading
+ *  to a filename-appended sub-path produces a 200/201 from Azure but
+ *  the trigger doesn't fire — the job stays "Accepted" forever. So
+ *  PUT directly to inputStoragePath, no modification. */
 async function uploadFile(
   inputStoragePath: string,
   filePath: string,
   mimeType: string,
 ): Promise<void> {
   const fileBuffer = await readFile(filePath);
-  const fileName = path.basename(filePath);
-  // If Sarvam returns a folder-style SAS URL ending with a trailing
-  // path component or "?<sas>", append /<filename> before the query.
-  // The init endpoint typically returns ".../<jobId>/input?sv=..." —
-  // we need ".../<jobId>/input/<filename>?sv=...".
-  const targetUrl = appendFileNameToSasUrl(inputStoragePath, fileName);
+  console.log(
+    `[sarvam-batch] PUT upload → ${inputStoragePath.split("?")[0]}? (${fileBuffer.byteLength} bytes, ${mimeType})`,
+  );
 
-  const res = await fetch(targetUrl, {
+  const res = await fetch(inputStoragePath, {
     method: "PUT",
     headers: {
       "x-ms-blob-type": "BlockBlob",
@@ -210,6 +213,7 @@ async function uploadFile(
     const body = await res.text().catch(() => "(no body)");
     throw new SarvamBatchFailure({ code: "UPLOAD_FAILED", status: res.status, body });
   }
+  console.log(`[sarvam-batch] upload OK status=${res.status}`);
 }
 
 function appendFileNameToSasUrl(sasUrl: string, fileName: string): string {
@@ -251,13 +255,19 @@ async function pollUntilDone(apiKey: string, jobId: string): Promise<string /* t
       throw new SarvamBatchFailure({ code: "POLL_FAILED", status: res.status, body });
     }
     const json = (await res.json().catch(() => null)) as BatchStatusResponse | null;
-    lastState = json?.job_state ?? lastState;
+    const newState = json?.job_state ?? lastState;
+    if (newState !== lastState) {
+      console.log(
+        `[sarvam-batch] job ${jobId} state transition ${lastState} → ${newState} (attempt ${attempt}, +${Math.round((Date.now() - started) / 1000)}s)`,
+      );
+      lastState = newState;
+    }
 
     if (lastState === "Completed") return lastState;
     if (lastState === "Failed") {
       throw new SarvamBatchFailure({ code: "JOB_FAILED", state: lastState });
     }
-    // Otherwise (Queued / Running / etc.) keep polling.
+    // Otherwise (Queued / Running / Accepted / etc.) keep polling.
   }
   throw new SarvamBatchFailure({ code: "POLL_TIMEOUT", lastState });
 }
