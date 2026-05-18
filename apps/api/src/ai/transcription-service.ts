@@ -32,12 +32,22 @@ import { readFile, stat } from "node:fs/promises";
 import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
 import { sanitizeOcrText } from "./text-sanitize.js";
+import { runSarvamBatchTranscription, SarvamBatchFailure } from "./transcription-batch-service.js";
 
-export type TranscriptionModel = "gemini-2.0-flash" | "sarvam-saarika" | "openai-whisper";
+export type TranscriptionModel =
+  | "gemini-2.0-flash"
+  | "sarvam-saarika"
+  | "sarvam-saarika-batch"
+  | "openai-whisper";
 
+// Order matters: cheaper / faster providers first, batch (async +
+// minutes-long) last among Sarvam, Whisper as final cross-vendor.
+// sarvam-saarika-batch sits AFTER the 30s-cap sync API so we only pay
+// the batch round-trip when the sync API actually rejects a long file.
 export const TRANSCRIPTION_FALLBACK_ORDER: TranscriptionModel[] = [
   "gemini-2.0-flash",
   "sarvam-saarika",
+  "sarvam-saarika-batch",
   "openai-whisper",
 ];
 
@@ -514,6 +524,69 @@ async function runWhisperTranscription(
  * is responsible for its own size / media-type checks since the
  * constraints differ per provider.
  */
+/** Convert a Sarvam batch service failure (its own error class with a
+ *  richer detail union) into the shared TranscriptionFailure shape so
+ *  the fallback runner doesn't need to know about batch internals. */
+function mapBatchFailure(err: SarvamBatchFailure): TranscriptionFailure {
+  switch (err.detail.code) {
+    case "MISSING_CREDENTIAL":
+      return new TranscriptionFailure({
+        code: "MISSING_CREDENTIAL",
+        provider: "sarvam-saarika-batch",
+        envVar: err.detail.envVar,
+      });
+    case "FILE_TOO_LARGE":
+      return new TranscriptionFailure({
+        code: "FILE_TOO_LARGE",
+        provider: "sarvam-saarika-batch",
+        sizeBytes: err.detail.sizeBytes,
+        capBytes: err.detail.capBytes,
+      });
+    case "UNSUPPORTED_MEDIA":
+      return new TranscriptionFailure({
+        code: "UNSUPPORTED_MEDIA",
+        provider: "sarvam-saarika-batch",
+        mimeType: err.detail.mimeType,
+      });
+    case "UNSUPPORTED_LANGUAGE":
+      return new TranscriptionFailure({
+        code: "UNSUPPORTED_LANGUAGE",
+        provider: "sarvam-saarika-batch",
+        language: err.detail.language,
+      });
+    default:
+      return new TranscriptionFailure({
+        code: "PROVIDER_ERROR",
+        provider: "sarvam-saarika-batch",
+        message: err.message,
+      });
+  }
+}
+
+async function runSarvamBatchAdapter(
+  filePath: string,
+  mimeType: string,
+  language?: string,
+): Promise<TranscriptionResult> {
+  try {
+    const result = await runSarvamBatchTranscription(filePath, mimeType, language);
+    return {
+      model: "sarvam-saarika-batch",
+      markdown: result.transcript,
+      durationMs: result.durationMs,
+    };
+  } catch (err) {
+    if (err instanceof SarvamBatchFailure) {
+      throw mapBatchFailure(err);
+    }
+    throw new TranscriptionFailure({
+      code: "PROVIDER_ERROR",
+      provider: "sarvam-saarika-batch",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 export async function runTranscriptionOnFile(
   filePath: string,
   mimeType: string,
@@ -525,6 +598,8 @@ export async function runTranscriptionOnFile(
       return runGeminiTranscription(filePath, mimeType, language);
     case "sarvam-saarika":
       return runSarvamTranscription(filePath, mimeType, language);
+    case "sarvam-saarika-batch":
+      return runSarvamBatchAdapter(filePath, mimeType, language);
     case "openai-whisper":
       return runWhisperTranscription(filePath, mimeType, language);
   }

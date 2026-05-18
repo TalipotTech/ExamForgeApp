@@ -10,7 +10,11 @@
 
 import { Queue } from "bullmq";
 
-export type TranscriptionModel = "gemini-2.0-flash" | "sarvam-saarika" | "openai-whisper";
+export type TranscriptionModel =
+  | "gemini-2.0-flash"
+  | "sarvam-saarika"
+  | "sarvam-saarika-batch"
+  | "openai-whisper";
 
 export type TranscriptionJobData = {
   contentId: string;
