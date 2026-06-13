@@ -11,7 +11,7 @@ Order of recommendation (low blast radius → high):
 3. Public creator directory `/creators`
 4. Subscription pool distribution worker
 5. ~~Live sessions~~ — **SHIPPED** (Options A + B + C all built; see § Status below)
-6. AI tutor / RAG (needs infra decision before coding — see prompt §6a)
+6. ~~AI tutor / RAG~~ — **SHIPPED** (core slice merged; 4 multimedia follow-ups in §7)
 
 ---
 
@@ -23,6 +23,8 @@ Order of recommendation (low blast radius → high):
 | Live sessions — Option B (Zoom OAuth) | Shipped, **PR open** | [#6](https://github.com/TalipotTech/ExamForgeApp/pull/6) → `feat/live-sessions`      |
 | Live sessions — Option C (embedded)   | Shipped, **PR open** | [#7](https://github.com/TalipotTech/ExamForgeApp/pull/7) → `feat/live-sessions-zoom` |
 | Live sessions — docs (creator + ops)  | Shipped on #7        | bundled in PR #7                                                                     |
+| AI tutor / RAG — core slice           | Shipped + merged     | `feat/ai-tutor-rag` → `creators-feature`                                             |
+| AI tutor — multimedia follow-ups      | Deferred             | see §7 (video / Sarvam-batch validation / auto-trigger / Gemini billing)             |
 
 **Before starting any NEW slice that adds schema** (RAG / #6 below is the
 imminent one): merge the live-sessions PR tree into `creators-feature`
@@ -652,6 +654,100 @@ Acceptance:
 
 When done: commit on feat/ai-tutor-rag, open PR against creators-feature.
 ```
+
+---
+
+## 7. AI tutor — multimedia follow-ups (after the RAG slice shipped)
+
+> The core AI-tutor RAG slice (§6b) shipped on `feat/ai-tutor-rag` and
+> merged to `creators-feature`. The pipeline works end-to-end: classroom
+>
+> - per-content RAG with citations, background embedding worker,
+>   PDF/image OCR (4-provider fallback), audio transcription (Gemini 2.5
+>   Flash primary → Sarvam sync → Sarvam batch → Whisper, with
+>   content.language hints), and formatted transcript/extraction display
+>   on creator + student views. These four items were deliberately
+>   deferred. Each is independent.
+
+### 7a. Video transcription (large files)
+
+**Problem:** audio + PDF transcribe/extract fine, but video can't. A
+424MB lecture mp4 fails on every provider: Gemini's inline `file`
+content caps at 20MB, and Sarvam/Whisper don't accept video at all. The
+error surfaces cleanly on the media row — this is a missing capability,
+not a bug.
+
+**Two viable paths (pick one — it's a deployment-dependency call):**
+
+- **Gemini File API** — upload the video to Gemini's File API (handles
+  up to 2GB, stored 48h), transcribe by URI instead of inline bytes. No
+  new system dependency. Video-native, single call. Gemini-only (no
+  fallback — but Sarvam/Whisper don't take video regardless). Needs
+  Gemini billing active. Add a `runGeminiFileApiTranscription` path in
+  `apps/api/src/ai/transcription-service.ts` that the dispatcher uses
+  when `mimeType.startsWith("video/")` and size > the inline cap.
+- **ffmpeg audio extraction** — extract the audio track (424MB video →
+  ~10–40MB audio) with ffmpeg, then route through the EXISTING audio
+  chain (Gemini inline if small, else Sarvam batch). Keeps the full
+  multi-provider fallback. Adds ffmpeg as a system dependency in the
+  worker container — update `apps/api/Dockerfile` (or the App Runner
+  build) AND document the local-dev install. Two-step: extract → then
+  transcribe.
+
+Recommend Gemini File API if Gemini billing is reliably on (simpler, no
+container change); ffmpeg if you want video transcription to survive a
+Gemini outage. Key files: `transcription-service.ts`,
+`transcription-queue.ts` (may need a longer job timeout for extraction),
+the transcribe route's size/type gating.
+
+### 7b. Sarvam batch — live validation
+
+**Status:** the Sarvam batch path (`sarvam-saarika-batch`) is fully
+wired and the `/v1` endpoint paths were fixed against Sarvam's docs, but
+it has **never had a successful live run** — Gemini 2.5 Flash keeps
+succeeding first, so the fallback is never reached. The batch flow
+(init → upload to Azure SAS → `POST /job/v1/{id}/start` → poll
+`GET /job/v1/{id}/status` → fetch output) is unverified against the
+live API beyond init+upload.
+
+**Task:** force the batch path once (temporarily reorder
+`TRANSCRIPTION_FALLBACK_ORDER` so batch is first, or point a >30s audio
+file at it while Gemini quota is exhausted) and confirm: (a) `/start`
+returns 200 at the `/v1` path, (b) status transitions Accepted →
+Running → Completed, (c) `fetchTranscript` actually reads the output
+blob. If output fetch fails after a Completed job, switch from the
+Azure-container-listing approach to Sarvam's documented
+`POST /speech-to-text/job/v1/download-files` (body `{ job_id, files }`).
+Watch the `[sarvam-batch]` diagnostic logs — they narrate every step.
+Key file: `apps/api/src/ai/transcription-batch-service.ts`.
+
+### 7c. Auto-trigger OCR / transcription on publish
+
+**Current:** OCR (documents/images) and transcription (audio/video) are
+manual — the creator clicks "Extract text" / "Transcribe" per media item
+on the content Edit tab. That's deliberate for cost control while the
+feature settles, but for steady-state it's friction.
+
+**Task:** on `creator_content` publish (the `togglePublish` mutation in
+`apps/api/src/trpc/routers/creator-content.ts`, which already enqueues
+the embedding job), also enqueue OCR for un-extracted document/image
+media items and transcription for un-transcribed audio/video media
+items. Gate behind a flag (e.g. `creators.auto_extract_on_publish`) so
+it can be turned off. Respect the existing `ocr_enabled` flag for OCR.
+Idempotency: skip items that already have `extractedText` or are
+`processing`. Mind cost — a publish could fan out many provider calls;
+consider only auto-extracting when the creator opts in per-upload (like
+the existing `handwritten` flag) rather than blanket-on.
+
+### 7d. Gemini billing / quota (ops, not code)
+
+**Not a code task** — a standing ops reminder. Gemini's free tier sits
+at quota=0, so the primary transcription/OCR/video paths intermittently
+fall through to paid fallbacks (Claude, OpenAI, Sarvam) or fail when
+those are also exhausted. Top up Gemini billing in Google AI Studio /
+GCP so `gemini-2.5-flash` and `gemini-2.5-pro` are reliably available as
+the cheapest primary. No code change; once billing is on, the existing
+fallback chains just stop being exercised as often.
 
 ---
 
