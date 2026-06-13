@@ -245,6 +245,13 @@ export const aiTutorRouter = router({
         citations: [] as AiTutorCitation[],
         tokensUsed: 0,
         cached: false,
+        // No AI call was made — the query had no candidate content /
+        // no matching chunks. Empty provider/model + 0 latency so the
+        // UI's MessageMeta renders nothing for these fields, while the
+        // return shape stays uniform across all ask() branches.
+        provider: "",
+        model: "",
+        latencyMs: 0,
       };
     }
 
@@ -305,6 +312,13 @@ export const aiTutorRouter = router({
         citations: [] as AiTutorCitation[],
         tokensUsed: 0,
         cached: false,
+        // No AI call was made — the query had no candidate content /
+        // no matching chunks. Empty provider/model + 0 latency so the
+        // UI's MessageMeta renders nothing for these fields, while the
+        // return shape stays uniform across all ask() branches.
+        provider: "",
+        model: "",
+        latencyMs: 0,
       };
     }
 

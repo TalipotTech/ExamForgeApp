@@ -403,7 +403,7 @@ export function AiTutorChat({
                   .map((c) => (
                     <Link
                       key={c.contentId}
-                      href={`${routePrefix}/${c.contentId}`}
+                      href={`${routePrefix}/${c.contentId}` as "/"}
                       className="hover:bg-muted block rounded px-2 py-1 text-xs"
                     >
                       <FileText className="mr-1 inline size-3" />
@@ -501,7 +501,10 @@ function CitationChip({
 }): React.ReactElement {
   return (
     <Link
-      href={`${routePrefix}/${citation.contentId}`}
+      // routePrefix is a runtime-chosen base ("/creator/content" |
+      // "/dashboard/content"), so the interpolated path can't be a
+      // statically-known typedRoutes literal — cast per repo convention.
+      href={`${routePrefix}/${citation.contentId}` as "/"}
       title={`${citation.contentTitle} — ${citation.snippet}`}
     >
       <Badge variant="outline" className="hover:bg-accent cursor-pointer text-[10px]">
