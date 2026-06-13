@@ -9,14 +9,18 @@
  *      the body
  *        → returns { job_id, input_storage_path, output_storage_path }.
  *          The storage paths are Azure Blob SAS URLs valid for hours.
- *   2. PUT the audio file to input_storage_path (Azure REST,
+ *   2. PUT the audio file to input_storage_path/<filename> (Azure REST,
  *      `x-ms-blob-type: BlockBlob`).
- *   3. GET /speech-to-text/job/{job_id}/status until job_state is
- *      "Completed" or "Failed". Backoff 5s → 10s → 15s up to a 5-minute
- *      ceiling. (No explicit start step — Sarvam auto-runs once the
- *      audio lands in the input SAS container.)
- *   4. List files under output_storage_path; each input audio produces
+ *   3. POST /speech-to-text/job/v1/{job_id}/start to begin processing.
+ *   4. GET /speech-to-text/job/v1/{job_id}/status until job_state is
+ *      "Completed" or "Failed" (interim states: Accepted / Pending /
+ *      Running). Backoff 5s → 10s → 15s up to a 5-minute ceiling.
+ *   5. List files under output_storage_path; each input audio produces
  *      a JSON output file with the transcript.
+ *
+ * NOTE the /v1 segment on the start + status sub-operations. Init is at
+ * /job/init (no /v1) because that variant returns the SAS upload URLs
+ * directly; the sub-ops are versioned under /job/v1.
  *
  * The BullMQ worker holds its job slot for the duration of the poll
  * loop. Concurrency=2 on the transcription worker means two long jobs
@@ -33,7 +37,13 @@ import path from "node:path";
 import { sanitizeOcrText } from "./text-sanitize.js";
 
 const SARVAM_BATCH_JOB_INIT = "https://api.sarvam.ai/speech-to-text/job/init";
-const SARVAM_BATCH_JOB_BASE = "https://api.sarvam.ai/speech-to-text/job";
+// Sub-operations (start, status) live under the /v1 path segment per
+// Sarvam's docs: GET /speech-to-text/job/v1/{job_id}/status. The earlier
+// 404 on /start was because this base was missing the /v1 segment. Init
+// stays at /job/init since that endpoint returns the SAS storage URLs we
+// upload to directly (the /job/v1 initiate returns storage_container_type
+// instead, which would need the Sarvam SDK to resolve).
+const SARVAM_BATCH_JOB_BASE = "https://api.sarvam.ai/speech-to-text/job/v1";
 
 // Sarvam's batch endpoint is documented to accept much larger files
 // than the 30MB sync limit; cap at 500MB as a sanity guard so we don't
