@@ -28,7 +28,7 @@ type StoredMediaItem = {
 };
 
 const VALID_MODELS: TranscriptionModel[] = [
-  "gemini-2.0-flash",
+  "gemini-2.5-flash",
   "sarvam-saarika",
   "sarvam-saarika-batch",
   "openai-whisper",
@@ -124,7 +124,7 @@ export async function POST(
 
     const model: TranscriptionModel = VALID_MODELS.includes(body.model as TranscriptionModel)
       ? (body.model as TranscriptionModel)
-      : "gemini-2.0-flash";
+      : "gemini-2.5-flash";
 
     // Flip status to pending before enqueue so the UI's poll picks up
     // "extracting…" immediately rather than after the worker grabs the

@@ -454,8 +454,9 @@ export const aiTutorRouter = router({
       answer: { provider: "anthropic", model: "claude-sonnet-4-20250514" },
       embedding: { provider: "openai", model: "text-embedding-3-small" },
       transcription: {
-        primary: { provider: "google", model: "gemini-2.0-flash" },
-        fallback: { provider: "openai", model: "whisper-1" },
+        primary: { provider: "google", model: "gemini-2.5-flash" },
+        fallback: { provider: "sarvam", model: "saarika:v2.5 (sync + batch)" },
+        fallback2: { provider: "openai", model: "whisper-1" },
       },
     };
   }),

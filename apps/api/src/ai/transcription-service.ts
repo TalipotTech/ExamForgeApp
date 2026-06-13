@@ -10,7 +10,7 @@
  * different model preferences.
  *
  * Provider chain (TRANSCRIPTION_FALLBACK_ORDER):
- * 1. Gemini 2.0 Flash — primary. Audio + video natively via AI SDK
+ * 1. Gemini 2.5 Flash — primary. Audio + video natively via AI SDK
  *    file content type. ~20MB inline file cap.
  * 2. Sarvam Saarika — Indian-language-first ASR via direct HTTP. Strong
  *    on Hindi, Tamil, Telugu, Malayalam, Kannada, Bengali, Marathi,
@@ -35,7 +35,7 @@ import { sanitizeOcrText } from "./text-sanitize.js";
 import { runSarvamBatchTranscription, SarvamBatchFailure } from "./transcription-batch-service.js";
 
 export type TranscriptionModel =
-  | "gemini-2.0-flash"
+  | "gemini-2.5-flash"
   | "sarvam-saarika"
   | "sarvam-saarika-batch"
   | "openai-whisper";
@@ -45,7 +45,7 @@ export type TranscriptionModel =
 // sarvam-saarika-batch sits AFTER the 30s-cap sync API so we only pay
 // the batch round-trip when the sync API actually rejects a long file.
 export const TRANSCRIPTION_FALLBACK_ORDER: TranscriptionModel[] = [
-  "gemini-2.0-flash",
+  "gemini-2.5-flash",
   "sarvam-saarika",
   "sarvam-saarika-batch",
   "openai-whisper",
@@ -88,7 +88,7 @@ Output constraints:
 - If the audio contains no intelligible speech, respond with exactly: "(no speech detected)"`;
 
 function resolveGeminiModel(): ReturnType<typeof google> {
-  return google("gemini-2.0-flash");
+  return google("gemini-2.5-flash");
 }
 
 export type TranscriptionError =
@@ -122,7 +122,7 @@ export class TranscriptionFailure extends Error {
 
 /**
  * Run transcription on a single audio/video file on disk via Gemini
- * 2.0 Flash. Throws `TranscriptionFailure` on rejection — callers fall
+ * 2.5 Flash. Throws `TranscriptionFailure` on rejection — callers fall
  * back via runTranscriptionWithFallback.
  */
 // Sarvam Saarika's supported language set (Indian languages + Indian
@@ -246,7 +246,7 @@ async function runGeminiTranscription(
   if (fileStats.size > GEMINI_INLINE_FILE_CAP_BYTES) {
     throw new TranscriptionFailure({
       code: "FILE_TOO_LARGE",
-      provider: "gemini-2.0-flash",
+      provider: "gemini-2.5-flash",
       sizeBytes: fileStats.size,
       capBytes: GEMINI_INLINE_FILE_CAP_BYTES,
     });
@@ -283,14 +283,14 @@ async function runGeminiTranscription(
   } catch (err) {
     throw new TranscriptionFailure({
       code: "PROVIDER_ERROR",
-      provider: "gemini-2.0-flash",
+      provider: "gemini-2.5-flash",
       message: err instanceof Error ? err.message : String(err),
     });
   }
 
   const markdown = sanitizeOcrText(response.text);
   return {
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
     markdown,
     tokensIn: response.usage?.inputTokens,
     tokensOut: response.usage?.outputTokens,
@@ -594,7 +594,7 @@ export async function runTranscriptionOnFile(
   language?: string,
 ): Promise<TranscriptionResult> {
   switch (model) {
-    case "gemini-2.0-flash":
+    case "gemini-2.5-flash":
       return runGeminiTranscription(filePath, mimeType, language);
     case "sarvam-saarika":
       return runSarvamTranscription(filePath, mimeType, language);

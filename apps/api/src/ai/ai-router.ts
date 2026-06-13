@@ -35,13 +35,13 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
   },
   generate_from_video: {
     primary: "google",
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
   },
   generate_from_document: {
     primary: "anthropic",
     model: "claude-sonnet-4-20250514",
     fallback: "google",
-    fallbackModel: "gemini-2.0-flash",
+    fallbackModel: "gemini-2.5-flash",
   },
   verify_answer: {
     primary: "anthropic",
@@ -59,7 +59,7 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
   },
   translate: {
     primary: "google",
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
     fallback: "anthropic",
     fallbackModel: "claude-sonnet-4-20250514",
   },
@@ -73,7 +73,7 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     primary: "anthropic",
     model: "claude-sonnet-4-20250514",
     fallback: "google",
-    fallbackModel: "gemini-2.0-flash",
+    fallbackModel: "gemini-2.5-flash",
   },
   generate_tutorial: {
     primary: "anthropic",
@@ -97,7 +97,7 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     primary: "anthropic",
     model: "claude-sonnet-4-20250514",
     fallback: "google",
-    fallbackModel: "gemini-2.0-flash",
+    fallbackModel: "gemini-2.5-flash",
   },
   analyze_source: {
     primary: "anthropic",
@@ -119,7 +119,7 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     primary: "anthropic",
     model: "claude-sonnet-4-20250514",
     fallback: "google",
-    fallbackModel: "gemini-2.0-flash",
+    fallbackModel: "gemini-2.5-flash",
   },
   extract_mcq_from_pdf: {
     primary: "anthropic",
@@ -131,7 +131,7 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     primary: "anthropic",
     model: "claude-sonnet-4-20250514",
     fallback: "google",
-    fallbackModel: "gemini-2.0-flash",
+    fallbackModel: "gemini-2.5-flash",
   },
   extract_descriptive_questions: {
     primary: "anthropic",
@@ -143,7 +143,7 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     primary: "anthropic",
     model: "claude-sonnet-4-20250514",
     fallback: "google",
-    fallbackModel: "gemini-2.0-flash",
+    fallbackModel: "gemini-2.5-flash",
   },
   generate_tutorial_html: {
     primary: "anthropic",
@@ -232,7 +232,7 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
 const PROVIDER_DEFAULT_MODELS: Record<AiProvider, string> = {
   anthropic: "claude-sonnet-4-20250514",
   openai: "gpt-4o",
-  google: "gemini-2.0-flash",
+  google: "gemini-2.5-flash",
   mistral: "mistral-large-latest",
   perplexity: "sonar-pro",
 };

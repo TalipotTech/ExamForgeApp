@@ -11,7 +11,7 @@
 import { Queue } from "bullmq";
 
 export type TranscriptionModel =
-  | "gemini-2.0-flash"
+  | "gemini-2.5-flash"
   | "sarvam-saarika"
   | "sarvam-saarika-batch"
   | "openai-whisper";
