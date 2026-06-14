@@ -567,3 +567,16 @@ export type {
   ListVerificationQueueInput,
   ReviewQuestionInput,
 } from "./question-verification";
+
+export {
+  aiTutorAskSchema,
+  aiTutorListConversationsSchema,
+  aiTutorGetConversationSchema,
+  aiTutorCitationSchema,
+} from "./ai-tutor";
+export type {
+  AiTutorAskInput,
+  AiTutorListConversationsInput,
+  AiTutorGetConversationInput,
+  AiTutorCitationData,
+} from "./ai-tutor";

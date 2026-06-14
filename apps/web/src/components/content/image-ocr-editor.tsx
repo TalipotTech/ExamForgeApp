@@ -45,7 +45,7 @@ import {
 import { MarkdownRenderer } from "@/components/content/markdown-renderer";
 import { trpc } from "@/lib/trpc";
 
-type OcrModel = "gemini-2.5-pro" | "gemini-2.5-flash" | "claude-sonnet-4-6";
+type OcrModel = "gemini-2.5-pro" | "gemini-2.5-flash" | "claude-sonnet-4-6" | "gpt-4o";
 type OcrStatus = "pending" | "processing" | "completed" | "failed";
 
 export type ImageMediaItem = {
@@ -331,6 +331,7 @@ export function ImageOcrEditor({
               <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
               <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
               <SelectItem value="claude-sonnet-4-6">Claude Sonnet 4.6</SelectItem>
+              <SelectItem value="gpt-4o">GPT-4o</SelectItem>
             </SelectContent>
           </Select>
           <Button

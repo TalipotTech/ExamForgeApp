@@ -1,10 +1,11 @@
 /**
- * POST /api/creator-content/:id/retry-ocr
- *   body: { order: number, model?: OcrModel }
+ * POST /api/creator-content/:id/transcribe
+ *   body: { order: number, model?: TranscriptionModel }
  *
- * Re-enqueues OCR for a single image media item. Used from the detail
- * page when the creator wants to re-run OCR (e.g. a different model,
- * after a failure, or to refresh the extraction).
+ * Queues an audio/video media item for transcription. Mirror of the
+ * retry-ocr route — same auth, same disk-path resolution, same
+ * status-flip-before-enqueue pattern so the UI can poll mediaItem
+ * status while the worker runs.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
@@ -12,8 +13,8 @@ import { eq } from "drizzle-orm";
 import path from "node:path";
 import { auth } from "@/lib/auth";
 import { createDatabase } from "@examforge/shared/db";
-import { adminFeatureFlags, creatorContent, creatorProfiles } from "@examforge/shared/db/schema";
-import { enqueueOcrJob, type OcrModel } from "@/lib/ocr-queue-client";
+import { creatorContent, creatorProfiles } from "@examforge/shared/db/schema";
+import { enqueueTranscriptionJob, type TranscriptionModel } from "@/lib/transcription-queue-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,16 +27,15 @@ type StoredMediaItem = {
   order: number;
 };
 
-const VALID_MODELS: OcrModel[] = [
-  "gemini-2.5-pro",
+const VALID_MODELS: TranscriptionModel[] = [
   "gemini-2.5-flash",
-  "claude-sonnet-4-6",
-  "gpt-4o",
+  "sarvam-saarika",
+  "sarvam-saarika-batch",
+  "openai-whisper",
 ];
 
-/** Map a public upload URL back to its on-disk location.
- *  `/api/uploads/creator-content/<id>/<file>` → apps/web/storage/creator-content/<id>/<file>
- */
+/** Map a public upload URL back to its on-disk location. Same logic the
+ *  retry-ocr route uses. */
 function resolveDiskPath(publicUrl: string): string | null {
   const prefix = "/api/uploads/";
   if (!publicUrl.startsWith(prefix)) return null;
@@ -68,21 +68,6 @@ export async function POST(
 
     const db = createDatabase(process.env.DATABASE_URL!);
 
-    const [ocrFlag] = await db
-      .select({ value: adminFeatureFlags.value })
-      .from(adminFeatureFlags)
-      .where(eq(adminFeatureFlags.key, "creators.ocr_enabled"))
-      .limit(1);
-    if (ocrFlag?.value !== true) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "FEATURE_DISABLED", message: "OCR is not enabled" },
-        },
-        { status: 403 },
-      );
-    }
-
     const [profile] = await db
       .select({ id: creatorProfiles.id })
       .from(creatorProfiles)
@@ -114,14 +99,13 @@ export async function POST(
       ? ((meta as { mediaItems?: StoredMediaItem[] }).mediaItems as StoredMediaItem[])
       : [];
     const target = items.find((i) => i.order === body.order);
-    // Accept images (existing behaviour) and documents (new — PDFs go
-    // through the `file` content path in ocr-service). Audio/video are
-    // not OCR targets.
-    if (!target || (target.type !== "image" && target.type !== "document")) {
+    // Transcription is audio/video only — documents go through retry-ocr,
+    // images don't have spoken content.
+    if (!target || (target.type !== "audio" && target.type !== "video")) {
       return NextResponse.json(
         {
           success: false,
-          error: { code: "NOT_FOUND", message: "Image or document media item not found" },
+          error: { code: "NOT_FOUND", message: "Audio or video media item not found" },
         },
         { status: 404 },
       );
@@ -138,18 +122,20 @@ export async function POST(
       );
     }
 
-    const model: OcrModel = VALID_MODELS.includes(body.model as OcrModel)
-      ? (body.model as OcrModel)
-      : (((meta as { ocrModel?: OcrModel }).ocrModel as OcrModel) ?? "gemini-2.5-pro");
+    const model: TranscriptionModel = VALID_MODELS.includes(body.model as TranscriptionModel)
+      ? (body.model as TranscriptionModel)
+      : "gemini-2.5-flash";
 
-    // Mark the item as pending before enqueue so the UI reflects the retry
+    // Flip status to pending before enqueue so the UI's poll picks up
+    // "extracting…" immediately rather than after the worker grabs the
+    // job (could be several seconds under load).
     const updatedItems = items.map((m) =>
       m.order === body.order
         ? {
             ...m,
-            ocrStatus: "pending" as const,
-            ocrError: undefined,
-            ocrModel: model,
+            transcriptionStatus: "pending" as const,
+            transcriptionError: undefined,
+            transcriptionModel: model,
           }
         : m,
     );
@@ -161,7 +147,7 @@ export async function POST(
       })
       .where(eq(creatorContent.id, contentId));
 
-    await enqueueOcrJob(
+    await enqueueTranscriptionJob(
       {
         contentId,
         mediaOrder: body.order,
@@ -169,18 +155,23 @@ export async function POST(
         mimeType: target.mimeType,
         model,
         userId,
+        // creator_content.language defaults to "en" but creators can set
+        // it to any 2-letter / BCP-47 code at upload. Passing it through
+        // lets the provider skip its (often fuzzy) auto-detect step. The
+        // service module maps it into each provider's expected format.
+        language: content.language ?? undefined,
       },
       { force: true },
     );
 
     return NextResponse.json({ success: true, data: { model } });
   } catch (err) {
-    console.error("[retry-ocr]", err);
+    console.error("[transcribe]", err);
     return NextResponse.json(
       {
         success: false,
         error: {
-          code: "RETRY_FAILED",
+          code: "TRANSCRIBE_FAILED",
           message: err instanceof Error ? err.message : "Failed",
         },
       },

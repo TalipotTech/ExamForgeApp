@@ -103,13 +103,13 @@ function NavList({
       <Link
         href={"/dashboard" as "/"}
         onClick={onNavigate}
-        title={collapsed ? "Back to dashboard" : undefined}
+        title={collapsed ? "Switch to student view" : undefined}
         className={`text-muted-foreground hover:bg-accent/50 hover:text-foreground flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
           collapsed ? "justify-center px-2" : ""
         }`}
       >
         <ArrowLeft className="size-4 shrink-0" />
-        {!collapsed && <span className="truncate">Back to dashboard</span>}
+        {!collapsed && <span className="truncate">Switch to student view</span>}
       </Link>
     </nav>
   );

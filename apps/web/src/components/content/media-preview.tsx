@@ -44,6 +44,11 @@ export type PreviewMediaItem = {
   ocrStatus?: PreviewOcrStatus;
   ocrModel?: string;
   ocrError?: string;
+  // Transcription pipeline fields (audio / video). The extracted text
+  // slot is shared with OCR — these just attribute the source.
+  transcriptionStatus?: PreviewOcrStatus;
+  transcriptionModel?: string;
+  transcriptionError?: string;
 };
 
 function formatSize(bytes: number | undefined): string {
@@ -79,6 +84,19 @@ export function MediaPreview({
               <div className="aspect-video bg-black">
                 <video src={item.url} controls className="h-full w-full" />
               </div>
+              {item.extractedText && item.extractedText.trim().length > 0 && (
+                <div className="bg-muted/10 border-t p-4">
+                  <div className="text-muted-foreground mb-2 flex items-center justify-between text-xs font-medium uppercase">
+                    <span>Transcript</span>
+                    {item.transcriptionModel && (
+                      <span className="font-normal normal-case">via {item.transcriptionModel}</span>
+                    )}
+                  </div>
+                  <div className="max-h-[500px] overflow-y-auto">
+                    <MarkdownRenderer content={item.extractedText} />
+                  </div>
+                </div>
+              )}
             </>
           )}
           {item.type === "audio" && (
@@ -91,6 +109,19 @@ export function MediaPreview({
               <div className="p-4">
                 <audio src={item.url} controls className="w-full" />
               </div>
+              {item.extractedText && item.extractedText.trim().length > 0 && (
+                <div className="bg-muted/10 border-t p-4">
+                  <div className="text-muted-foreground mb-2 flex items-center justify-between text-xs font-medium uppercase">
+                    <span>Transcript</span>
+                    {item.transcriptionModel && (
+                      <span className="font-normal normal-case">via {item.transcriptionModel}</span>
+                    )}
+                  </div>
+                  <div className="max-h-[500px] overflow-y-auto">
+                    <MarkdownRenderer content={item.extractedText} />
+                  </div>
+                </div>
+              )}
             </>
           )}
           {item.type === "image" && (
@@ -170,6 +201,19 @@ export function MediaPreview({
                   <FileText className="text-muted-foreground size-10" />
                   <p className="text-sm">{item.fileName}</p>
                   <p className="text-muted-foreground text-xs">{formatSize(item.fileSize)}</p>
+                </div>
+              )}
+              {item.extractedText && item.extractedText.trim().length > 0 && (
+                <div className="bg-muted/10 border-t p-4">
+                  <div className="text-muted-foreground mb-2 flex items-center justify-between text-xs font-medium uppercase">
+                    <span>Extracted text</span>
+                    {item.ocrModel && (
+                      <span className="font-normal normal-case">via {item.ocrModel}</span>
+                    )}
+                  </div>
+                  <div className="max-h-[500px] overflow-y-auto">
+                    <MarkdownRenderer content={item.extractedText} />
+                  </div>
                 </div>
               )}
             </>

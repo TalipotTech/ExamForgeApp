@@ -32,6 +32,8 @@ import { marketplaceRouter } from "./routers/marketplace.js";
 import { creatorEarningsRouter } from "./routers/creator-earnings.js";
 import { promotionRouter } from "./routers/promotion.js";
 import { contentRatingRouter } from "./routers/content-rating.js";
+import { aiTutorRouter } from "./routers/ai-tutor.js";
+import { usageRouter } from "./routers/usage.js";
 
 export const appRouter = router({
   health: healthRouter,
@@ -67,6 +69,8 @@ export const appRouter = router({
   creatorEarnings: creatorEarningsRouter,
   promotion: promotionRouter,
   contentRating: contentRatingRouter,
+  aiTutor: aiTutorRouter,
+  usage: usageRouter,
 });
 
 export type AppRouter = typeof appRouter;

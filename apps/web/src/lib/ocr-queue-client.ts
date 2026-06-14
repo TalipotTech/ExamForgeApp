@@ -10,7 +10,7 @@
 
 import { Queue } from "bullmq";
 
-export type OcrModel = "claude-sonnet-4-6" | "gemini-2.5-pro" | "gemini-2.5-flash";
+export type OcrModel = "claude-sonnet-4-6" | "gemini-2.5-pro" | "gemini-2.5-flash" | "gpt-4o";
 
 export type OcrJobData = {
   contentId: string;

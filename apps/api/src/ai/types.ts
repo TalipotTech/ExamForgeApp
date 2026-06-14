@@ -76,6 +76,8 @@ export type AIStreamParams = {
   overrideModel?: string;
   temperature?: number;
   maxTokens?: number;
+  /** Override the ai_usage_logs `feature` label. Defaults to taskToFeature(task). */
+  feature?: string;
 };
 
 export type EmbedRequestParams = {
@@ -83,6 +85,8 @@ export type EmbedRequestParams = {
   texts: string[];
   userId: string;
   examId?: string;
+  /** Override the ai_usage_logs `feature` label. Defaults to "embed". */
+  feature?: string;
 };
 
 export type AIRequestResult<T> = {

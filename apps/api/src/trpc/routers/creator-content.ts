@@ -14,6 +14,7 @@ import {
 } from "@examforge/shared/validators";
 import { router, publicProcedure, protectedProcedure } from "../trpc.js";
 import { assertCreatorsFeature } from "../../services/creators-gate.js";
+import { enqueueContentEmbedding } from "../../queues/content-embedding-queue.js";
 
 async function requireCreatorProfile(db: Database, userId: string): Promise<{ id: string }> {
   const [profile] = await db
@@ -170,6 +171,16 @@ export const creatorContentRouter = router({
         updatedAt: now,
       })
       .where(eq(creatorContent.id, input.contentId));
+
+    // Fire-and-forget: queue an embedding job on publish so the AI tutor
+    // can retrieve from this content. Failure here must not fail the
+    // publish action itself.
+    if (nextPublished) {
+      enqueueContentEmbedding(input.contentId, "publish").catch((err) => {
+        console.error("[creator-content] enqueueContentEmbedding failed:", err);
+      });
+    }
+
     return { success: true as const, isPublished: nextPublished };
   }),
 

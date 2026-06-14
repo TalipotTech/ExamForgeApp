@@ -34,6 +34,7 @@ import {
   Trash2,
   Plus,
   BookOpen,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,6 +47,7 @@ import { MarkdownRenderer } from "@/components/content/markdown-renderer";
 import { ImageLightbox } from "@/components/content/image-lightbox";
 import { ImageOcrEditor } from "@/components/content/image-ocr-editor";
 import { MediaPreview } from "@/components/content/media-preview";
+import { AiTutorChat } from "@/components/classroom/ai-tutor-chat";
 import { trpc } from "@/lib/trpc";
 
 type MediaType = "video" | "audio" | "image" | "document";
@@ -61,9 +63,15 @@ type MediaItem = {
   order: number;
   extractedText?: string;
   duration?: number;
+  // OCR pipeline (documents + images) — populated by the OCR worker.
   ocrStatus?: OcrStatus;
   ocrModel?: string;
   ocrError?: string;
+  // Transcription pipeline (audio + video) — populated by the
+  // transcription worker. Shares the extractedText slot with OCR.
+  transcriptionStatus?: OcrStatus;
+  transcriptionModel?: string;
+  transcriptionError?: string;
 };
 
 function FileIcon({ type, className }: { type: string; className?: string }): React.ReactElement {
@@ -91,69 +99,185 @@ function MediaItemEditor({
   onRemove,
   onReplace,
   replacing,
+  onExtractText,
+  extracting,
+  onTranscribe,
+  transcribing,
 }: {
   item: MediaItem;
   onRemove: () => void;
   onReplace: (file: File) => void;
   replacing?: boolean;
+  onExtractText?: () => void;
+  extracting?: boolean;
+  onTranscribe?: () => void;
+  transcribing?: boolean;
 }): React.ReactElement {
   const replaceRef = useRef<HTMLInputElement>(null);
+  const [showExtracted, setShowExtracted] = useState(false);
+  // For documents we look at ocrStatus, for audio/video at transcriptionStatus.
+  // The displayed status (pending / processing / completed / failed) drives
+  // the same UI — only the verb in the label differs.
+  const isMedia = item.type === "audio" || item.type === "video";
+  const pipelineStatus = isMedia ? item.transcriptionStatus : item.ocrStatus;
+  const pipelineModel = isMedia ? item.transcriptionModel : item.ocrModel;
+  const pipelineError = isMedia ? item.transcriptionError : item.ocrError;
+  const verb = isMedia ? "transcribed" : "extracted";
+  const verbPresent = isMedia ? "transcribing" : "extracting";
+  const verbFailed = isMedia ? "transcription failed" : "extraction failed";
+  const canRevealExtracted =
+    (item.type === "document" || isMedia) && !!item.extractedText && item.extractedText.length > 0;
   return (
-    <div className="flex items-center gap-3 rounded-lg border p-3">
-      <div className="bg-muted/50 flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border">
-        {item.type === "image" ? (
-          <img src={item.url} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <FileIcon type={item.type} className="size-6" />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{item.fileName}</p>
-        <p className="text-muted-foreground text-xs capitalize">
-          {item.type} · {formatSize(item.fileSize)}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <input
-          ref={replaceRef}
-          type="file"
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files?.[0]) onReplace(e.target.files[0]);
-          }}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          title="Replace"
-          disabled={replacing}
-          onClick={() => replaceRef.current?.click()}
-        >
-          {replacing ? (
-            <Loader2 className="size-3.5 animate-spin" />
+    <div className="space-y-2">
+      <div className="flex items-center gap-3 rounded-lg border p-3">
+        <div className="bg-muted/50 flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border">
+          {item.type === "image" ? (
+            <img src={item.url} alt="" className="h-full w-full object-cover" />
           ) : (
-            <RefreshCw className="size-3.5" />
+            <FileIcon type={item.type} className="size-6" />
           )}
-        </Button>
-        <a href={item.url} target="_blank" rel="noopener noreferrer">
-          <Button type="button" variant="ghost" size="icon" className="size-8" title="Open">
-            <Download className="size-3.5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{item.fileName}</p>
+          <p className="text-muted-foreground text-xs capitalize">
+            {item.type} · {formatSize(item.fileSize)}
+            {pipelineStatus === "completed" && item.extractedText ? (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  onClick={() => setShowExtracted((v) => !v)}
+                  className="hover:text-foreground underline decoration-dotted"
+                >
+                  {item.extractedText.length} chars {verb} — {showExtracted ? "hide" : "view"}
+                </button>
+              </>
+            ) : pipelineStatus === "processing" ? (
+              ` · ${verbPresent}…`
+            ) : pipelineStatus === "failed" ? (
+              <>
+                {" · "}
+                <span
+                  className="text-destructive cursor-help"
+                  title={pipelineError ?? `${verbFailed} (no detail)`}
+                >
+                  {verbFailed}
+                </span>
+                {pipelineError && (
+                  <span className="text-muted-foreground/80 ml-1 normal-case">
+                    — {pipelineError.slice(0, 120)}
+                    {pipelineError.length > 120 ? "…" : ""}
+                  </span>
+                )}
+              </>
+            ) : null}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <input
+            ref={replaceRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.[0]) onReplace(e.target.files[0]);
+            }}
+          />
+          {onExtractText && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1 text-xs"
+              title={
+                item.extractedText
+                  ? "Re-extract text from this document"
+                  : "Extract text from this document for the AI tutor"
+              }
+              disabled={extracting || item.ocrStatus === "processing"}
+              onClick={onExtractText}
+            >
+              {extracting || item.ocrStatus === "processing" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <FileText className="size-3.5" />
+              )}
+              {item.extractedText ? "Re-extract" : "Extract text"}
+            </Button>
+          )}
+          {onTranscribe && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1 text-xs"
+              title={
+                item.extractedText
+                  ? "Re-transcribe this file"
+                  : "Transcribe this file for the AI tutor"
+              }
+              disabled={transcribing || item.transcriptionStatus === "processing"}
+              onClick={onTranscribe}
+            >
+              {transcribing || item.transcriptionStatus === "processing" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <FileText className="size-3.5" />
+              )}
+              {item.extractedText ? "Re-transcribe" : "Transcribe"}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            title="Replace"
+            disabled={replacing}
+            onClick={() => replaceRef.current?.click()}
+          >
+            {replacing ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="size-3.5" />
+            )}
           </Button>
-        </a>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="text-destructive hover:text-destructive size-8"
-          title="Remove"
-          disabled={replacing}
-          onClick={onRemove}
-        >
-          <Trash2 className="size-3.5" />
-        </Button>
+          <a href={item.url} target="_blank" rel="noopener noreferrer">
+            <Button type="button" variant="ghost" size="icon" className="size-8" title="Open">
+              <Download className="size-3.5" />
+            </Button>
+          </a>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-destructive hover:text-destructive size-8"
+            title="Remove"
+            disabled={replacing}
+            onClick={onRemove}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
       </div>
+      {showExtracted && canRevealExtracted && (
+        <div className="bg-muted/40 rounded-lg border p-3">
+          <div className="text-muted-foreground mb-2 flex items-center justify-between text-xs">
+            <span>
+              {isMedia
+                ? "Transcript — this is what the AI tutor reads from this file"
+                : "Extracted text — this is what the AI tutor reads from this file"}
+            </span>
+            {pipelineModel && (
+              <Badge variant="outline" className="text-[10px]">
+                {pipelineModel}
+              </Badge>
+            )}
+          </div>
+          <div className="bg-background max-h-96 overflow-auto rounded-md border p-3">
+            <MarkdownRenderer content={item.extractedText ?? ""} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -166,17 +290,22 @@ export default function ContentDetailPage(props: {
   const contentQuery = trpc.creatorContent.byId.useQuery({ contentId: id });
   const content = contentQuery.data ?? null;
 
-  // Auto-refetch while any OCR job is in flight so extracted text lands
-  // without the creator having to reload the page.
-  const hasInFlightOcr =
+  // Auto-refetch while any extraction job is in flight (OCR for
+  // documents/images, transcription for audio/video) so the extracted
+  // text / transcript lands without the creator having to reload.
+  const hasInFlightExtraction =
     ((content?.mediaItems as MediaItem[] | undefined) ?? []).some(
-      (m) => m.ocrStatus === "pending" || m.ocrStatus === "processing",
+      (m) =>
+        m.ocrStatus === "pending" ||
+        m.ocrStatus === "processing" ||
+        m.transcriptionStatus === "pending" ||
+        m.transcriptionStatus === "processing",
     ) ?? false;
   useEffect(() => {
-    if (!hasInFlightOcr) return;
+    if (!hasInFlightExtraction) return;
     const id = setInterval(() => void contentQuery.refetch(), 5000);
     return (): void => clearInterval(id);
-  }, [hasInFlightOcr, contentQuery]);
+  }, [hasInFlightExtraction, contentQuery]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -185,7 +314,63 @@ export default function ContentDetailPage(props: {
   const [activeTab, setActiveTab] = useState("preview");
   const [addingFiles, setAddingFiles] = useState(false);
   const [replacingOrder, setReplacingOrder] = useState<number | null>(null);
+  const [extractingOrder, setExtractingOrder] = useState<number | null>(null);
+  const [transcribingOrder, setTranscribingOrder] = useState<number | null>(null);
   const addFilesRef = useRef<HTMLInputElement>(null);
+
+  async function handleExtractText(order: number): Promise<void> {
+    setExtractingOrder(order);
+    try {
+      const res = await fetch(`/api/creator-content/${id}/retry-ocr`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ order }),
+      });
+      const data = (await res.json()) as
+        | { success: true; data: { model: string } }
+        | { success: false; error?: { message: string; code?: string } };
+      if (!res.ok || !data.success) {
+        toast.error(
+          !data.success ? (data.error?.message ?? "Extraction failed") : "Extraction failed",
+        );
+      } else {
+        toast.success(
+          `Extraction queued (${data.data.model}). Tutor will refresh after it completes.`,
+        );
+        void contentQuery.refetch();
+      }
+    } finally {
+      setExtractingOrder(null);
+    }
+  }
+
+  async function handleTranscribe(order: number): Promise<void> {
+    setTranscribingOrder(order);
+    try {
+      const res = await fetch(`/api/creator-content/${id}/transcribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ order }),
+      });
+      const data = (await res.json()) as
+        | { success: true; data: { model: string } }
+        | { success: false; error?: { message: string; code?: string } };
+      if (!res.ok || !data.success) {
+        toast.error(
+          !data.success ? (data.error?.message ?? "Transcription failed") : "Transcription failed",
+        );
+      } else {
+        toast.success(
+          `Transcription queued (${data.data.model}). Tutor will refresh after it completes.`,
+        );
+        void contentQuery.refetch();
+      }
+    } finally {
+      setTranscribingOrder(null);
+    }
+  }
 
   useEffect(() => {
     if (content) {
@@ -356,6 +541,10 @@ export default function ContentDetailPage(props: {
             <Pencil className="size-3.5" />
             Edit
           </TabsTrigger>
+          <TabsTrigger value="ai-tutor" className="gap-1.5">
+            <Sparkles className="size-3.5" />
+            Ask AI
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="preview" className="mt-4 space-y-4">
@@ -419,6 +608,18 @@ export default function ContentDetailPage(props: {
                     }}
                     onReplace={(file) => void handleReplace(item.order, file)}
                     replacing={replacingOrder === item.order}
+                    onExtractText={
+                      item.type === "document"
+                        ? (): void => void handleExtractText(item.order)
+                        : undefined
+                    }
+                    extracting={extractingOrder === item.order}
+                    onTranscribe={
+                      item.type === "audio" || item.type === "video"
+                        ? (): void => void handleTranscribe(item.order)
+                        : undefined
+                    }
+                    transcribing={transcribingOrder === item.order}
                   />
                 ))}
               </CardContent>
@@ -531,7 +732,10 @@ export default function ContentDetailPage(props: {
               (description.trim() || "") !== (content.description ?? "") ||
               (body.trim() || "") !== (content.body ?? "");
             const saveBlocked =
-              updateMutation.isPending || hasInFlightOcr || addingFiles || replacingOrder !== null;
+              updateMutation.isPending ||
+              hasInFlightExtraction ||
+              addingFiles ||
+              replacingOrder !== null;
             const saveDisabled = !detailsDirty || saveBlocked;
             return (
               <Button
@@ -546,8 +750,8 @@ export default function ContentDetailPage(props: {
                 disabled={saveDisabled}
                 className="gap-2"
                 title={
-                  hasInFlightOcr
-                    ? "Wait for OCR to finish before saving"
+                  hasInFlightExtraction
+                    ? "Wait for text extraction / transcription to finish before saving"
                     : addingFiles
                       ? "Wait for uploads to finish"
                       : replacingOrder !== null
@@ -557,13 +761,54 @@ export default function ContentDetailPage(props: {
                           : undefined
                 }
               >
-                {updateMutation.isPending || hasInFlightOcr ? (
+                {updateMutation.isPending || hasInFlightExtraction ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <Save className="size-4" />
                 )}
-                {hasInFlightOcr ? "Waiting for OCR…" : "Save Changes"}
+                {hasInFlightExtraction ? "Waiting for extraction…" : "Save Changes"}
               </Button>
+            );
+          })()}
+        </TabsContent>
+
+        <TabsContent value="ai-tutor" className="mt-4 space-y-4">
+          {((): React.ReactElement => {
+            // Per-content tutor needs a classroom for membership scoping. Use
+            // the first assigned classroom; surface a hint if none yet.
+            const classroomIds = Array.isArray(content.assignedClassrooms)
+              ? (content.assignedClassrooms as string[])
+              : [];
+            if (classroomIds.length === 0) {
+              return (
+                <Card>
+                  <CardContent className="text-muted-foreground py-8 text-center text-sm">
+                    <Sparkles className="mx-auto mb-2 size-6" />
+                    <p className="font-medium">Assign this content to a classroom first.</p>
+                    <p className="mt-1 text-xs">
+                      The AI tutor scopes retrieval by classroom membership, so this content needs
+                      to be in at least one classroom before students (or you) can ask questions
+                      about it.
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            }
+            return (
+              <>
+                {classroomIds.length > 1 && (
+                  <p className="text-muted-foreground text-xs">
+                    Answering within the first of {classroomIds.length} assigned classrooms.
+                    Retrieval is restricted to this content piece regardless.
+                  </p>
+                )}
+                <AiTutorChat
+                  classroomId={classroomIds[0]!}
+                  isTeacher
+                  contentId={id}
+                  contentTitle={content.title}
+                />
+              </>
             );
           })()}
         </TabsContent>

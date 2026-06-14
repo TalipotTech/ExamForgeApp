@@ -12,9 +12,11 @@ import {
   LogOut,
   ExternalLink,
   Radio,
+  Sparkles,
 } from "lucide-react";
 import { StudentAssignments } from "@/components/classroom/student-assignments";
 import { ClassroomLiveSessions } from "@/components/classroom/classroom-live-sessions";
+import { AiTutorChat } from "@/components/classroom/ai-tutor-chat";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -137,6 +139,10 @@ export default function StudentClassroomDetailPage(props: {
           <TabsTrigger value="doubts">
             <MessageCircle className="mr-1 size-4" />
             Doubts
+          </TabsTrigger>
+          <TabsTrigger value="ai-tutor">
+            <Sparkles className="mr-1 size-4" />
+            AI Tutor
           </TabsTrigger>
         </TabsList>
 
@@ -262,6 +268,10 @@ export default function StudentClassroomDetailPage(props: {
               </Link>
             ))
           )}
+        </TabsContent>
+
+        <TabsContent value="ai-tutor">
+          <AiTutorChat classroomId={id} isTeacher={isTeacher} />
         </TabsContent>
       </Tabs>
     </div>
