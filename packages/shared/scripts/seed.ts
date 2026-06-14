@@ -2,6 +2,7 @@ import { config } from "dotenv";
 config({ path: "../../.env.local" });
 
 import bcrypt from "bcryptjs";
+import { eq } from "drizzle-orm";
 import { createDatabase } from "../src/db/index";
 import {
   organizations,
@@ -14,6 +15,7 @@ import {
   userSubscriptions,
   userCredits,
   adminFeatureFlags,
+  creatorProfiles,
 } from "../src/db/schema/index";
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -27,6 +29,8 @@ const db = createDatabase(DATABASE_URL);
 const ORG_ID = "a0000000-0000-0000-0000-000000000001";
 const ADMIN_ID = "b0000000-0000-0000-0000-000000000001";
 const STUDENT_ID = "b0000000-0000-0000-0000-000000000002";
+const CREATOR_ID = "b0000000-0000-0000-0000-000000000003";
+const CREATOR_PROFILE_ID = "f0000000-0000-0000-0000-000000000001";
 const PLAN_IDS = {
   free: "e0000000-0000-0000-0000-000000000001",
   pro: "e0000000-0000-0000-0000-000000000002",
@@ -176,10 +180,75 @@ async function seed(): Promise<void> {
       orgId: ORG_ID,
       authProvider: "credentials",
       emailVerified: new Date(),
+      phoneVerified: new Date(),
       isActive: true,
       isBanned: false,
       loginCount: 0,
+      unverifiedLoginCount: 0,
       signupSource: "seed",
+      onboardingCompleted: true,
+    })
+    .onConflictDoNothing();
+  // Reset verification state on re-seed so a previously-locked seed user
+  // becomes usable again (onConflictDoNothing above leaves existing rows
+  // untouched, so this update is the escape hatch for dev loops).
+  await db
+    .update(users)
+    .set({
+      phoneVerified: new Date(),
+      emailVerified: new Date(),
+      unverifiedLoginCount: 0,
+      isActive: true,
+      isBanned: false,
+    })
+    .where(eq(users.id, STUDENT_ID));
+
+  console.log("  Creating test creator user + profile...");
+  const creatorPasswordHash = await bcrypt.hash("creator123", 12);
+  await db
+    .insert(users)
+    .values({
+      id: CREATOR_ID,
+      name: "Test Creator",
+      email: "creator@examforge.dev",
+      username: "testcreator",
+      phone: "+919999999997",
+      passwordHash: creatorPasswordHash,
+      role: "student",
+      orgId: ORG_ID,
+      authProvider: "credentials",
+      emailVerified: new Date(),
+      phoneVerified: new Date(),
+      isActive: true,
+      isBanned: false,
+      loginCount: 0,
+      unverifiedLoginCount: 0,
+      signupSource: "seed",
+      onboardingCompleted: true,
+    })
+    .onConflictDoNothing();
+  // Reset verification state on re-seed (see note above).
+  await db
+    .update(users)
+    .set({
+      phoneVerified: new Date(),
+      emailVerified: new Date(),
+      unverifiedLoginCount: 0,
+      isActive: true,
+      isBanned: false,
+    })
+    .where(eq(users.id, CREATOR_ID));
+  await db
+    .insert(creatorProfiles)
+    .values({
+      id: CREATOR_PROFILE_ID,
+      userId: CREATOR_ID,
+      displayName: "Test Creator",
+      bio: "Seeded demo creator for end-to-end testing of the marketplace flow.",
+      institutionType: "independent",
+      qualification: "M.Pharm, GPAT topper",
+      verificationStatus: "unverified",
+      creatorTier: "free",
     })
     .onConflictDoNothing();
 
@@ -199,6 +268,13 @@ async function seed(): Promise<void> {
         currentPeriodStart: periodStart,
         currentPeriodEnd: periodEnd,
       },
+      {
+        userId: CREATOR_ID,
+        planId: PLAN_IDS.free,
+        status: "active",
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+      },
     ])
     .onConflictDoNothing();
 
@@ -208,6 +284,13 @@ async function seed(): Promise<void> {
     .values([
       {
         userId: STUDENT_ID,
+        periodStart: periodStart.toISOString().split("T")[0],
+        periodEnd: periodEnd.toISOString().split("T")[0],
+        creditsTotal: 50,
+        creditsUsed: 0,
+      },
+      {
+        userId: CREATOR_ID,
         periodStart: periodStart.toISOString().split("T")[0],
         periodEnd: periodEnd.toISOString().split("T")[0],
         creditsTotal: 50,
@@ -367,6 +450,134 @@ async function seed(): Promise<void> {
         value: false,
         category: "feature",
         description: "Show maintenance page to non-admins",
+      },
+      // Creators Ecosystem (Phase A — all disabled at launch, enable progressively)
+      {
+        key: "creators.enabled",
+        value: false,
+        category: "creators",
+        description: "Master switch for the creators ecosystem",
+      },
+      {
+        key: "creators.registration_open",
+        value: false,
+        category: "creators",
+        description: "Allow users to register as creators",
+      },
+      {
+        key: "creators.marketplace_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable paid content marketplace",
+      },
+      {
+        key: "creators.classrooms_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable classroom creation and enrolment",
+      },
+      {
+        key: "creators.live_sessions_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable scheduling and joining live sessions",
+      },
+      {
+        key: "creators.video_upload_enabled",
+        value: false,
+        category: "creators",
+        description: "Allow creators to upload video lessons",
+      },
+      {
+        key: "creators.audio_upload_enabled",
+        value: false,
+        category: "creators",
+        description: "Allow creators to upload audio lessons",
+      },
+      {
+        key: "creators.ocr_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable handwritten-note OCR ingestion",
+      },
+      {
+        key: "creators.promotions_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable paid promotions/featured placements",
+      },
+      {
+        key: "creators.doubts_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable student doubt submission and responses",
+      },
+      {
+        key: "creators.ai_tutor_enabled",
+        value: false,
+        category: "creators",
+        description: "Enable creator-branded AI tutor (RAG on creator content)",
+      },
+      {
+        key: "creators.paid_classrooms_enabled",
+        value: false,
+        category: "creators",
+        description: "Allow classrooms to charge recurring fees",
+      },
+      {
+        key: "creators.revenue_share_verified",
+        value: 70,
+        category: "creators",
+        description: "Verified creator revenue share percentage",
+      },
+      {
+        key: "creators.revenue_share_premium",
+        value: 80,
+        category: "creators",
+        description: "Premium/institute creator revenue share percentage",
+      },
+      {
+        key: "creators.subscription_pool_percent",
+        value: 20,
+        category: "creators",
+        description:
+          "Percent of subscription revenue that flows into the free-content creator pool",
+      },
+      {
+        key: "creators.classroom_platform_fee_percent",
+        value: 15,
+        category: "creators",
+        description: "Platform cut on paid classroom fees",
+      },
+      {
+        key: "creators.min_payout_inr",
+        value: 500,
+        category: "creators",
+        description: "Minimum creator wallet balance eligible for payout",
+      },
+      {
+        key: "creators.max_video_size_mb",
+        value: 2048,
+        category: "creators",
+        description: "Maximum creator video upload size in MB",
+      },
+      {
+        key: "creators.max_audio_size_mb",
+        value: 500,
+        category: "creators",
+        description: "Maximum creator audio upload size in MB",
+      },
+      {
+        key: "creators.kyc_required_for_payout",
+        value: true,
+        category: "creators",
+        description: "Require completed KYC before first payout",
+      },
+      {
+        key: "creators.auto_publish_threshold",
+        value: 0.75,
+        category: "creators",
+        description: "AI quality score threshold for auto-publishing without manual review",
       },
     ])
     .onConflictDoNothing();
@@ -853,10 +1064,11 @@ async function seed(): Promise<void> {
   console.log("──────────────────────────────────────");
   console.log("  Admin:    admin@examforge.dev / password123");
   console.log("  Student:  student@examforge.dev / student123");
+  console.log("  Creator:  creator@examforge.dev / creator123");
   console.log("  Exams:    10 seeded");
   console.log("  Sources:  3 seeded");
   console.log("  Plans:    3 seeded (free, pro, premium)");
-  console.log("  Flags:    24 seeded");
+  console.log("  Flags:    45 seeded");
   console.log("──────────────────────────────────────");
 
   process.exit(0);

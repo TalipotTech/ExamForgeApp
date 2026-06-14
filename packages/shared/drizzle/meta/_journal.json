@@ -162,6 +162,34 @@
       "when": 1776695148314,
       "tag": "0022_living_butterfly",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1776841830491,
+      "tag": "0023_woozy_glorian",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1778119259500,
+      "tag": "0024_low_squadron_supreme",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1778203331675,
+      "tag": "0025_nice_sister_grimm",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1778739070869,
+      "tag": "0026_lowly_pandemic",
+      "breakpoints": true
     }
   ]
 }

@@ -21,6 +21,19 @@ import { voiceTutorRouter } from "./routers/voice-tutor.js";
 import { examPatternRouter } from "./routers/exam-pattern.js";
 import { questionVerificationRouter } from "./routers/question-verification.js";
 import { topicGenerationRouter } from "./routers/topic-generation.js";
+import { creatorRouter } from "./routers/creator.js";
+import { creatorContentRouter } from "./routers/creator-content.js";
+import { classroomRouter } from "./routers/classroom.js";
+import { assignmentRouter } from "./routers/assignment.js";
+import { doubtRouter } from "./routers/doubt.js";
+import { liveSessionRouter } from "./routers/live-session.js";
+import { zoomIntegrationRouter } from "./routers/zoom-integration.js";
+import { marketplaceRouter } from "./routers/marketplace.js";
+import { creatorEarningsRouter } from "./routers/creator-earnings.js";
+import { promotionRouter } from "./routers/promotion.js";
+import { contentRatingRouter } from "./routers/content-rating.js";
+import { aiTutorRouter } from "./routers/ai-tutor.js";
+import { usageRouter } from "./routers/usage.js";
 
 export const appRouter = router({
   health: healthRouter,
@@ -45,6 +58,19 @@ export const appRouter = router({
   examPattern: examPatternRouter,
   questionVerification: questionVerificationRouter,
   topicGeneration: topicGenerationRouter,
+  creator: creatorRouter,
+  creatorContent: creatorContentRouter,
+  classroom: classroomRouter,
+  assignment: assignmentRouter,
+  doubt: doubtRouter,
+  liveSession: liveSessionRouter,
+  zoomIntegration: zoomIntegrationRouter,
+  marketplace: marketplaceRouter,
+  creatorEarnings: creatorEarningsRouter,
+  promotion: promotionRouter,
+  contentRating: contentRatingRouter,
+  aiTutor: aiTutorRouter,
+  usage: usageRouter,
 });
 
 export type AppRouter = typeof appRouter;

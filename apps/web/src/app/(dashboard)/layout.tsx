@@ -49,8 +49,14 @@ import {
   Users,
   PanelLeftClose,
   PanelLeftOpen,
+  Store,
+  Sparkles,
+  Package,
+  MessageCircle,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
 
 const ADMIN_ROLES = ["admin", "superadmin"];
 const SIDEBAR_COLLAPSED_KEY = "examforge.sidebar.collapsed";
@@ -61,6 +67,8 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
   group?: string;
+  // Only show when the creators ecosystem master flag is on.
+  requiresCreators?: boolean;
 }
 
 const ADMIN_NAV: NavItem[] = [
@@ -95,6 +103,22 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/learn", label: "Learn", icon: Library, group: "content" },
   { href: "/dashboard/find", label: "Find", icon: Search, adminOnly: true, group: "content" },
   { href: "/dashboard/saved", label: "Saved", icon: Bookmark, adminOnly: true, group: "content" },
+  // Creators ecosystem (only when master flag is on).
+  // Marketplace is public, Creator Hub has its own /creator/* layout.
+  {
+    href: "/marketplace",
+    label: "Marketplace",
+    icon: Store,
+    requiresCreators: true,
+    group: "creators",
+  },
+  {
+    href: "/creator",
+    label: "Creator Hub",
+    icon: Sparkles,
+    requiresCreators: true,
+    group: "creators",
+  },
   // Admin-only — users + global settings. Pulled off the UserMenu so
   // they show up in the main nav alongside the other admin tools.
   { href: "/admin/users", label: "Users", icon: Users, adminOnly: true, group: "admin" },
@@ -116,8 +140,51 @@ const STUDENT_NAV: NavItem[] = [
   { href: "/dashboard/topics", label: "My Topics", icon: BookMarked },
   { href: "/dashboard/ai-chat", label: "AI Chat", icon: MessageSquare },
   // { href: "/dashboard/voice-exam", label: "Voice Tutor", icon: Mic }, // TODO: re-enable after polish
-  { href: "/dashboard/profile", label: "Profile", icon: User },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  // Creators ecosystem — marketplace is public, creator hub lives at /creator/*
+  {
+    href: "/marketplace",
+    label: "Marketplace",
+    icon: Store,
+    requiresCreators: true,
+    group: "creators",
+  },
+  {
+    href: "/dashboard/my-purchases",
+    label: "My Purchases",
+    icon: Package,
+    requiresCreators: true,
+    group: "creators",
+  },
+  {
+    href: "/dashboard/classrooms",
+    label: "Classrooms",
+    icon: GraduationCap,
+    requiresCreators: true,
+    group: "creators",
+  },
+  {
+    href: "/dashboard/live",
+    label: "Live Sessions",
+    icon: Radio,
+    requiresCreators: true,
+    group: "creators",
+  },
+  {
+    href: "/dashboard/doubts",
+    label: "My Doubts",
+    icon: MessageCircle,
+    requiresCreators: true,
+    group: "creators",
+  },
+  {
+    href: "/creator",
+    label: "Creator Hub",
+    icon: Sparkles,
+    requiresCreators: true,
+    group: "creators",
+  },
+  { href: "/dashboard/profile", label: "Profile", icon: User, group: "settings" },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings, group: "settings" },
 ];
 
 function isLinkActive(pathname: string, href: string): boolean {
@@ -214,9 +281,15 @@ export default function DashboardLayout({
   const isAdmin = mounted && ADMIN_ROLES.includes(session?.user?.role ?? "");
   const isSubscriber =
     mounted && ((session?.user as { isSubscriber?: boolean } | undefined)?.isSubscriber ?? false);
+  const creatorsStatus = trpc.creator.status.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  const creatorsEnabled = creatorsStatus.data?.enabled ?? false;
   const allNavItems = isAdmin ? ADMIN_NAV : STUDENT_NAV;
   const navItems = allNavItems.filter((item) => {
     if (item.href === "/dashboard/profile" && !isSubscriber && !isAdmin) return false;
+    if (item.requiresCreators && !creatorsEnabled) return false;
     return true;
   });
 

@@ -7,6 +7,13 @@
       "runtimeArgs": ["/c", "pnpm --filter @examforge/web exec next dev"],
       "port": 3100,
       "autoPort": true
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "pnpm --filter @examforge/api dev"],
+      "port": 4100,
+      "autoPort": false
     }
   ]
 }

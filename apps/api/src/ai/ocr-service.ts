@@ -1,0 +1,216 @@
+/**
+ * OCR service — extract markdown-formatted text from an image using
+ * Claude Vision or Gemini Vision via the Vercel AI SDK. Provider is
+ * picked by the caller (`claude-sonnet-4-6`, `gemini-2.5-pro`, or
+ * `gemini-2.5-flash`) so creators can trade off quality / latency /
+ * cost per upload.
+ *
+ * Intentionally isolated from the rest of ai-router.ts — the existing
+ * router is text-only; this module owns image-in/text-out. Failures are
+ * typed so the worker can retry with a fallback model.
+ */
+
+import { readFile } from "node:fs/promises";
+import { generateText } from "ai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
+import { openai } from "@ai-sdk/openai";
+import { sanitizeOcrText } from "./text-sanitize.js";
+
+export type OcrModel = "claude-sonnet-4-6" | "gemini-2.5-pro" | "gemini-2.5-flash" | "gpt-4o";
+
+export const OCR_MODEL_IDS: OcrModel[] = [
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
+  "claude-sonnet-4-6",
+  "gpt-4o",
+];
+
+// gpt-4o is the resilience fallback — different vendor (OpenAI) from
+// Gemini (Google) and Claude (Anthropic), so a single-provider outage
+// or billing exhaustion on Google + Anthropic doesn't take OCR down.
+// Placed last because cost is similar to claude-sonnet but image-input
+// quality on dense / formula-heavy pages is a notch behind Gemini Pro.
+export const OCR_FALLBACK_ORDER: OcrModel[] = [
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
+  "claude-sonnet-4-6",
+  "gpt-4o",
+];
+
+export type OcrResult = {
+  model: OcrModel;
+  markdown: string;
+  tokensIn?: number;
+  tokensOut?: number;
+  durationMs: number;
+};
+
+const OCR_SYSTEM_PROMPT = `You are an expert OCR and document-structuring assistant for educational content in Indian competitive-exam contexts.
+
+Extract ALL text from the image and return well-formed Markdown. Preserve:
+- Headings → # / ## / ### based on visual hierarchy
+- Bullet lists and numbered lists
+- Tables → GFM markdown tables
+- Formulas → inline / display LaTeX ($...$ and $$...$$)
+- Code / pseudocode → fenced code blocks
+- Diagrams → wrap a concise description in > quote blocks prefixed with "Diagram:"
+- Margin notes / callouts → wrap in > quote blocks prefixed with "Note:"
+- Multi-column layouts → linearise left-to-right, top-to-bottom
+
+Language handling:
+- If the text is in Hindi, Malayalam, Tamil, Telugu, or Kannada, preserve the original script verbatim
+- Do NOT translate
+- Do NOT add explanations, commentary, or meta-text — output only the extracted content
+
+Output constraints:
+- Respond with Markdown only — no code-fence wrapper around the full response
+- If the image contains no meaningful text, respond with exactly: "(no text extracted)"
+
+Whitespace constraints (IMPORTANT — applies to PDFs especially):
+- Do NOT emit HTML entities for whitespace such as &nbsp;, &ensp;, &emsp;, &#160; — never use them.
+- Do NOT preserve layout-only whitespace from the source. Tables, multi-column pages, and visually-padded headings often have wide gaps that exist only for printed appearance; don't try to reproduce them.
+- Use a single space between words; one blank line between paragraphs; nothing more. The output should read like prose / markdown, not like an ASCII-art reproduction of the page.
+- Token budget is finite. Whitespace inflation truncates real content on later pages; treat every byte you spend on visual padding as one byte less of actual extracted text.`;
+
+function resolveModel(
+  model: OcrModel,
+): ReturnType<typeof anthropic> | ReturnType<typeof google> | ReturnType<typeof openai> {
+  switch (model) {
+    case "claude-sonnet-4-6":
+      return anthropic("claude-sonnet-4-5-20250929");
+    case "gemini-2.5-pro":
+      return google("gemini-2.5-pro");
+    case "gemini-2.5-flash":
+      return google("gemini-2.5-flash");
+    case "gpt-4o":
+      return openai("gpt-4o");
+  }
+}
+
+/**
+ * Run OCR on a single image file on disk. Returns the extracted markdown
+ * plus token usage metrics. Throws if the provider rejects the request;
+ * callers are expected to catch + fall back to a different model.
+ */
+export async function runOcrOnImage(
+  imagePath: string,
+  mimeType: string,
+  model: OcrModel,
+): Promise<OcrResult> {
+  const started = Date.now();
+  const bytes = await readFile(imagePath);
+  // AI SDK v6 rejects data: URLs for image parts — it expects an
+  // http/https URL, Uint8Array, ArrayBuffer, or Buffer. Pass the raw
+  // bytes with mediaType so the SDK handles base64-encoding per provider.
+  const imageBytes = new Uint8Array(bytes);
+
+  const result = await generateText({
+    model: resolveModel(model),
+    system: OCR_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Extract all text from this image and format it as Markdown per the system instructions.",
+          },
+          { type: "image", image: imageBytes, mediaType: mimeType },
+        ],
+      },
+    ],
+    temperature: 0,
+    maxOutputTokens: 4096,
+  });
+
+  const markdown = sanitizeOcrText(result.text);
+  return {
+    model,
+    markdown,
+    tokensIn: result.usage?.inputTokens,
+    tokensOut: result.usage?.outputTokens,
+    durationMs: Date.now() - started,
+  };
+}
+
+/**
+ * Run OCR on a PDF / document file. Uses the AI SDK `file` content type
+ * which Gemini and Claude both accept for PDFs natively (no need to
+ * rasterise to image). Same shape as runOcrOnImage so the fallback
+ * runner can dispatch by mimeType.
+ */
+export async function runOcrOnDocument(
+  filePath: string,
+  mimeType: string,
+  model: OcrModel,
+): Promise<OcrResult> {
+  const started = Date.now();
+  const bytes = await readFile(filePath);
+  const fileBytes = new Uint8Array(bytes);
+
+  const result = await generateText({
+    model: resolveModel(model),
+    system: OCR_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Extract all text from this document and format it as Markdown per the system instructions.",
+          },
+          { type: "file", data: fileBytes, mediaType: mimeType },
+        ],
+      },
+    ],
+    temperature: 0,
+    // Documents are typically longer than single images — give the model
+    // more headroom before it gets cut off mid-page. 32K is the upper
+    // bound where most providers (Claude Sonnet 4.x, Gemini 2.5 Pro)
+    // still complete reliably; higher and latency / cost balloon.
+    maxOutputTokens: 32768,
+  });
+
+  const markdown = sanitizeOcrText(result.text);
+  return {
+    model,
+    markdown,
+    tokensIn: result.usage?.inputTokens,
+    tokensOut: result.usage?.outputTokens,
+    durationMs: Date.now() - started,
+  };
+}
+
+/**
+ * Run OCR with automatic fallback to the next model in the default order
+ * when the primary fails (auth errors, rate limits, refusals). Returns the
+ * first successful result. Throws only if every model fails.
+ */
+export async function runOcrWithFallback(
+  filePath: string,
+  mimeType: string,
+  preferred: OcrModel,
+): Promise<OcrResult> {
+  const order: OcrModel[] = [preferred, ...OCR_FALLBACK_ORDER.filter((m) => m !== preferred)];
+  const errors: Array<{ model: OcrModel; error: string }> = [];
+  // Dispatch by MIME type so PDFs go through the `file` content path and
+  // raster images go through the `image` content path. Audio/video aren't
+  // OCR targets — those need a transcription worker (separate slice).
+  const isPdf = mimeType === "application/pdf";
+  for (const model of order) {
+    try {
+      return isPdf
+        ? await runOcrOnDocument(filePath, mimeType, model)
+        : await runOcrOnImage(filePath, mimeType, model);
+    } catch (err) {
+      errors.push({
+        model,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  throw new Error(
+    `OCR failed on all models: ${errors.map((e) => `${e.model}: ${e.error}`).join(" | ")}`,
+  );
+}

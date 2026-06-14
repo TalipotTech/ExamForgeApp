@@ -377,6 +377,157 @@ export type {
   RunExamValidationInput,
 } from "./discovery";
 
+// ─── Creators Ecosystem — Content ───────────────────────
+
+export {
+  creatorContentTypeSchema,
+  mediaItemTypeSchema,
+  mediaItemSchema,
+  contentIdInputSchema,
+  updateContentSchema,
+  removeMediaSchema,
+  updateMediaTextSchema,
+  ocrModelSchema,
+  myContentListSchema,
+} from "./creator-content";
+export type {
+  CreatorContentType,
+  MediaItemType,
+  MediaItem,
+  ContentIdInput,
+  UpdateContentInput,
+  RemoveMediaInput,
+  UpdateMediaTextInput,
+  OcrModelValue,
+  MyContentListInput,
+} from "./creator-content";
+
+// ─── Creators Ecosystem — Classrooms ────────────────────
+
+export {
+  billingCycleSchema,
+  classroomSettingsSchema,
+  classroomScheduleSchema,
+  createClassroomSchema,
+  updateClassroomSchema,
+  classroomIdInputSchema,
+  joinClassroomByCodeSchema,
+  assignContentToClassroomSchema,
+  removeMemberSchema,
+} from "./classroom";
+export type {
+  BillingCycle,
+  ClassroomSettingsInput,
+  ClassroomScheduleInput,
+  CreateClassroomInput,
+  UpdateClassroomInput,
+  ClassroomIdInput,
+  JoinClassroomByCodeInput,
+  AssignContentToClassroomInput,
+  RemoveMemberInput,
+} from "./classroom";
+
+// ─── Creators Ecosystem — Classroom Assignments ─────────
+
+export {
+  createAssignmentSchema,
+  updateAssignmentSchema,
+  assignmentIdInputSchema,
+  submitAssignmentSchema,
+  gradeSubmissionSchema,
+} from "./assignment";
+export type {
+  CreateAssignmentInput,
+  UpdateAssignmentInput,
+  AssignmentIdInput,
+  SubmitAssignmentInput,
+  GradeSubmissionInput,
+} from "./assignment";
+
+// ─── Creators Ecosystem — Doubts ────────────────────────
+
+export {
+  doubtStatusSchema,
+  askDoubtSchema,
+  respondToDoubtSchema,
+  doubtIdInputSchema,
+  classroomDoubtsInputSchema,
+  myDoubtsInputSchema,
+} from "./doubt";
+export type {
+  DoubtStatus,
+  AskDoubtInput,
+  RespondToDoubtInput,
+  DoubtIdInput,
+  ClassroomDoubtsInput,
+  MyDoubtsInput,
+} from "./doubt";
+
+// ─── Creators Ecosystem — Live Sessions ─────────────────
+
+export {
+  liveSessionStatusSchema,
+  meetingTypeSchema,
+  scheduleLiveSessionSchema,
+  scheduleEmbeddedLiveSessionSchema,
+  liveSessionIdInputSchema,
+  listLiveSessionsInputSchema,
+  markLeftSchema,
+  setRecordingUrlSchema,
+} from "./live-session";
+export type {
+  LiveSessionStatus,
+  MeetingType,
+  ScheduleLiveSessionInput,
+  ScheduleEmbeddedLiveSessionInput,
+  LiveSessionIdInput,
+  ListLiveSessionsInput,
+  MarkLeftInput,
+  SetRecordingUrlInput,
+} from "./live-session";
+
+export {
+  zoomAccountTypeSchema,
+  zoomUserMeSchema,
+  zoomTokenResponseSchema,
+  zoomCreateMeetingResponseSchema,
+  scheduleZoomLiveSessionSchema,
+  zoomIntegrationStatusSchema,
+} from "./zoom-integration";
+export type {
+  ZoomAccountType,
+  ZoomUserMe,
+  ZoomTokenResponse,
+  ZoomCreateMeetingResponse,
+  ScheduleZoomLiveSessionInput,
+  ZoomIntegrationStatus,
+} from "./zoom-integration";
+
+// ─── Creators Ecosystem — Marketplace ───────────────────
+
+export {
+  marketplaceListingTypeSchema,
+  marketplaceListingStatusSchema,
+  createMarketplaceListingSchema,
+  updateMarketplaceListingSchema,
+  marketplaceBrowseFilterSchema,
+  createPurchaseOrderSchema,
+  verifyPurchaseSchema,
+  rateListingSchema,
+  requestPayoutSchema,
+} from "./marketplace";
+export type {
+  MarketplaceListingType,
+  MarketplaceListingStatus,
+  CreateMarketplaceListing,
+  UpdateMarketplaceListing,
+  MarketplaceBrowseFilter,
+  CreatePurchaseOrderInput,
+  VerifyPurchaseInput,
+  RateListingInput,
+  RequestPayoutInput,
+} from "./marketplace";
+
 // ─── Question verification pipeline ─────────────────────
 
 export {
@@ -416,3 +567,16 @@ export type {
   ListVerificationQueueInput,
   ReviewQuestionInput,
 } from "./question-verification";
+
+export {
+  aiTutorAskSchema,
+  aiTutorListConversationsSchema,
+  aiTutorGetConversationSchema,
+  aiTutorCitationSchema,
+} from "./ai-tutor";
+export type {
+  AiTutorAskInput,
+  AiTutorListConversationsInput,
+  AiTutorGetConversationInput,
+  AiTutorCitationData,
+} from "./ai-tutor";

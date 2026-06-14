@@ -73,6 +73,19 @@ export default function HomePage(): React.ReactElement {
             >
               Exams
             </Link>
+            <Link
+              href="/marketplace"
+              className="text-foreground/80 hover:text-foreground text-sm transition-colors"
+            >
+              Marketplace
+            </Link>
+            <Link href="/creator">
+              <Button variant="ghost" size="sm" className="gap-1.5">
+                <Sparkles className="size-3.5" />
+                <span className="hidden sm:inline">Become a creator</span>
+                <span className="sm:hidden">Creator</span>
+              </Button>
+            </Link>
             <Link href="/login">
               <Button variant="outline" size="sm">
                 Sign in
@@ -108,6 +121,12 @@ export default function HomePage(): React.ReactElement {
               <GraduationCap className="size-5" />
               Start Practicing
               <ArrowRight className="size-4" />
+            </Button>
+          </Link>
+          <Link href="/creator">
+            <Button size="lg" variant="outline" className="gap-2 text-base">
+              <Sparkles className="size-5" />
+              Become a creator
             </Button>
           </Link>
         </div>
