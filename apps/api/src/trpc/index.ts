@@ -30,6 +30,7 @@ import { liveSessionRouter } from "./routers/live-session.js";
 import { zoomIntegrationRouter } from "./routers/zoom-integration.js";
 import { marketplaceRouter } from "./routers/marketplace.js";
 import { creatorEarningsRouter } from "./routers/creator-earnings.js";
+import { creatorAnalyticsRouter } from "./routers/creator-analytics.js";
 import { promotionRouter } from "./routers/promotion.js";
 import { contentRatingRouter } from "./routers/content-rating.js";
 import { aiTutorRouter } from "./routers/ai-tutor.js";
@@ -67,6 +68,7 @@ export const appRouter = router({
   zoomIntegration: zoomIntegrationRouter,
   marketplace: marketplaceRouter,
   creatorEarnings: creatorEarningsRouter,
+  creatorAnalytics: creatorAnalyticsRouter,
   promotion: promotionRouter,
   contentRating: contentRatingRouter,
   aiTutor: aiTutorRouter,

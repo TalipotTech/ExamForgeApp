@@ -85,7 +85,8 @@
       "WebFetch(domain:www.keralapsc.gov.in)",
       "Bash(pnpm remove:*)",
       "PowerShell(Get-ChildItem \"apps/web/src/app\" -Recurse -Filter \"page.tsx\" | Where-Object { $_.FullName -match \"creator|marketplace|classroom|doubt|live|earnings|promotion|analytics\" } | ForEach-Object { $_.FullName.Replace\\(\"$PWD\\\\apps\\\\web\\\\src\\\\app\\\\\",\"\"\\) })",
-      "PowerShell(git checkout creators-feature 2>&1)"
+      "PowerShell(git checkout creators-feature 2>&1)",
+      "PowerShell(pnpm --filter @examforge/web exec tsc --noEmit 2>&1 | Select-Object -Last 30; Write-Output \"=== EXIT: $LASTEXITCODE ===\")"
     ]
   }
 }
