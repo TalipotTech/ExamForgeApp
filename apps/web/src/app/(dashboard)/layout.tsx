@@ -55,6 +55,7 @@ import {
   MessageCircle,
   Radio,
   Megaphone,
+  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -127,6 +128,13 @@ const ADMIN_NAV: NavItem[] = [
     href: "/admin/promotions",
     label: "Promotions",
     icon: Megaphone,
+    adminOnly: true,
+    group: "admin",
+  },
+  {
+    href: "/admin/subscription-pool",
+    label: "Subscription Pool",
+    icon: Coins,
     adminOnly: true,
     group: "admin",
   },
