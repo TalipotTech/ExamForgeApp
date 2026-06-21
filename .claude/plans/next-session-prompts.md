@@ -15,6 +15,25 @@ Order of recommendation (low blast radius → high):
 
 ---
 
+## Status (as of 2026-06-21) — slice integration
+
+The four "remaining" slices below were each **built on their own branch in
+earlier sessions but never merged**. Three of them (no migration conflicts)
+have now been integrated into `creators-feature`:
+
+| Slice                          | Branch                          | Status                                                                                                                                                                                           |
+| ------------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1. Promotions admin flow       | `feat/promotions-admin`         | **Merged** → `creators-feature` (9a2401e)                                                                                                                                                        |
+| 2. Creator analytics dashboard | `feat/creator-analytics`        | **Merged** → `creators-feature` (1cd8a20)                                                                                                                                                        |
+| 4. Subscription-pool worker    | `feat/subscription-pool-worker` | **Merged** → `creators-feature` (5a4cbfa); 13 vitest tests pass                                                                                                                                  |
+| 3. Public creator directory    | `feat/creator-directory`        | **NOT merged** — collides on migration 0024 (renames `0024_assignment_attachments.sql`, adds `slug` column). Needs the schema change regenerated cleanly off current head (0026) before merging. |
+
+All three merges typecheck clean across shared/api/web. Conflicts were
+confined to additive files: `seed.ts`, `trpc/index.ts`, `workers/index.ts`,
+`(dashboard)/layout.tsx`, `creator/layout.tsx` — all resolved as unions.
+**Remaining: integrate `feat/creator-directory`** (regenerate its migration
+off 0026 first), then push `creators-feature`.
+
 ## Status (as of 2026-05-09)
 
 | Slice                                 | Status               | PR / branch                                                                          |
