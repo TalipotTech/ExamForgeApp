@@ -54,6 +54,7 @@ import {
   Package,
   MessageCircle,
   Radio,
+  Megaphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -122,6 +123,13 @@ const ADMIN_NAV: NavItem[] = [
   // Admin-only — users + global settings. Pulled off the UserMenu so
   // they show up in the main nav alongside the other admin tools.
   { href: "/admin/users", label: "Users", icon: Users, adminOnly: true, group: "admin" },
+  {
+    href: "/admin/promotions",
+    label: "Promotions",
+    icon: Megaphone,
+    adminOnly: true,
+    group: "admin",
+  },
   {
     href: "/admin/settings",
     label: "Settings",

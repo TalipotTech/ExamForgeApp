@@ -83,7 +83,9 @@
       "Bash(del 2135a198-7faf-4b23-b656-43717b3ad3ba.pdf 3f7bf54c-f4a2-4675-8334-bdb885b6dbd8.pdf f52f762b-d8f7-445f-b15a-b3f974faa7ea.pdf 36daf2ac-b082-484c-985e-a6dc65a9d9de.pdf c1e3a696-bf46-46c4-8d36-07f5aac903e7.pdf)",
       "Bash(ls \"E:\\\\DEVELOPMENT\\\\WEBSITE\\\\ENSATE\\\\INHOUSE\\\\ExamForge\\\\ExamForgeApp\\\\apps\\\\api\\\\storage\\\\syllabi\"\" 2>&1 || echo \"directory empty or gone \")",
       "WebFetch(domain:www.keralapsc.gov.in)",
-      "Bash(pnpm remove:*)"
+      "Bash(pnpm remove:*)",
+      "PowerShell(Get-ChildItem \"apps/web/src/app\" -Recurse -Filter \"page.tsx\" | Where-Object { $_.FullName -match \"creator|marketplace|classroom|doubt|live|earnings|promotion|analytics\" } | ForEach-Object { $_.FullName.Replace\\(\"$PWD\\\\apps\\\\web\\\\src\\\\app\\\\\",\"\"\\) })",
+      "PowerShell(git checkout creators-feature 2>&1)"
     ]
   }
 }
