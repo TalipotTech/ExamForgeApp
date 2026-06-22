@@ -9,6 +9,9 @@
 > PadVik + ExamForge. ExamForge's spec was itself _adapted from PadVik_; this
 > document ports the now-superset feature set **back** to PadVik.
 >
+> **PadVik repo:** `E:\DEVELOPMENT\WEBSITE\ENSATE\INHOUSE\PadVik\PadVikProject`
+> — copy this `docs/padvik-port/` folder into it, then run Prompt 0 there.
+>
 > **Read this whole section before touching anything →** The Golden Rule.
 
 ---

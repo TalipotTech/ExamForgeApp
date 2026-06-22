@@ -2,7 +2,8 @@
 
 Self-contained prompts to port the full Creators ecosystem onto **PadVik**
 without breaking what PadVik already ships. Paste one section into a fresh
-Claude Code session **inside the PadVik repo**.
+Claude Code session **inside the PadVik repo**
+(`E:\DEVELOPMENT\WEBSITE\ENSATE\INHOUSE\PadVik\PadVikProject`).
 
 - **Companion spec:** `PADVIK_CREATORS_PORT_SPEC.md` (read its §0 Golden Rule).
 - **Reference implementation:** ExamForge `docs/features/CREATORS_COMPLETE_SPEC.md`
