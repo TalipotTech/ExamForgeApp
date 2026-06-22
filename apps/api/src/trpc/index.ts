@@ -30,10 +30,12 @@ import { liveSessionRouter } from "./routers/live-session.js";
 import { zoomIntegrationRouter } from "./routers/zoom-integration.js";
 import { marketplaceRouter } from "./routers/marketplace.js";
 import { creatorEarningsRouter } from "./routers/creator-earnings.js";
+import { creatorAnalyticsRouter } from "./routers/creator-analytics.js";
 import { promotionRouter } from "./routers/promotion.js";
 import { contentRatingRouter } from "./routers/content-rating.js";
 import { aiTutorRouter } from "./routers/ai-tutor.js";
 import { usageRouter } from "./routers/usage.js";
+import { subscriptionPoolRouter } from "./routers/subscription-pool.js";
 
 export const appRouter = router({
   health: healthRouter,
@@ -67,10 +69,12 @@ export const appRouter = router({
   zoomIntegration: zoomIntegrationRouter,
   marketplace: marketplaceRouter,
   creatorEarnings: creatorEarningsRouter,
+  creatorAnalytics: creatorAnalyticsRouter,
   promotion: promotionRouter,
   contentRating: contentRatingRouter,
   aiTutor: aiTutorRouter,
   usage: usageRouter,
+  subscriptionPool: subscriptionPoolRouter,
 });
 
 export type AppRouter = typeof appRouter;

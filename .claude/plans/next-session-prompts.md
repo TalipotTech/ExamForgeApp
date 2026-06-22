@@ -15,6 +15,27 @@ Order of recommendation (low blast radius → high):
 
 ---
 
+## Status (as of 2026-06-21) — slice integration
+
+The four "remaining" slices below were each **built on their own branch in
+earlier sessions but never merged**. Three of them (no migration conflicts)
+have now been integrated into `creators-feature`:
+
+| Slice                          | Branch                          | Status                                                                                                                                                                                                           |
+| ------------------------------ | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Promotions admin flow       | `feat/promotions-admin`         | **Merged** → `creators-feature` (9a2401e)                                                                                                                                                                        |
+| 2. Creator analytics dashboard | `feat/creator-analytics`        | **Merged** → `creators-feature` (1cd8a20)                                                                                                                                                                        |
+| 4. Subscription-pool worker    | `feat/subscription-pool-worker` | **Merged** → `creators-feature` (5a4cbfa); 13 vitest tests pass                                                                                                                                                  |
+| 3. Public creator directory    | `feat/creator-directory`        | **Merged** → `creators-feature` (36a0c60). The branch's stale 0024 rename/snapshot was discarded (kept ours); the `slug` column was regenerated cleanly as `0027_empty_morlun.sql` (pure `ADD COLUMN` + unique). |
+
+**All four slices are now integrated.** All merges typecheck clean across
+shared/api/web. Conflicts were confined to additive files (`seed.ts`,
+`trpc/index.ts`, `workers/index.ts`, the two layouts, `creator.ts`,
+`creator-profiles.ts`, `package.json`) — resolved as unions / keep-ours for
+the drizzle artifacts. **Remaining work tracked in
+`docs/CREATORS_TODO_NEXT_PHASE.md`** (video transcription 7a, auto-extract 7c,
+Sarvam validation 7b, Gemini billing 7d). Next: push `creators-feature`.
+
 ## Status (as of 2026-05-09)
 
 | Slice                                 | Status               | PR / branch                                                                          |

@@ -2,7 +2,7 @@ import { config } from "dotenv";
 config({ path: "../../.env.local" });
 
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { createDatabase } from "../src/db/index";
 import {
   organizations,
@@ -16,6 +16,18 @@ import {
   userCredits,
   adminFeatureFlags,
   creatorProfiles,
+  promotions,
+  adminAuditLog,
+  creatorContent,
+  creatorWallets,
+  creatorEarnings,
+  creatorFollowers,
+  contentViews,
+  classrooms,
+  classroomMembers,
+  doubts,
+  doubtResponses,
+  paymentOrders,
 } from "../src/db/schema/index";
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -244,13 +256,30 @@ async function seed(): Promise<void> {
       id: CREATOR_PROFILE_ID,
       userId: CREATOR_ID,
       displayName: "Test Creator",
+      slug: "test-creator",
       bio: "Seeded demo creator for end-to-end testing of the marketplace flow.",
       institutionType: "independent",
       qualification: "M.Pharm, GPAT topper",
-      verificationStatus: "unverified",
+      verificationStatus: "verified",
+      isFeatured: true,
       creatorTier: "free",
+      specializations: ["pharmacology", "pharmaceutics"],
+      examsCovered: [EXAM_IDS.bpharm, EXAM_IDS.gpat],
     })
     .onConflictDoNothing();
+  // Backfill the slug + visibility on re-seed (onConflictDoNothing leaves
+  // existing rows untouched, so this update is the escape hatch).
+  await db
+    .update(creatorProfiles)
+    .set({
+      slug: "test-creator",
+      verificationStatus: "verified",
+      isFeatured: true,
+      isActive: true,
+      specializations: ["pharmacology", "pharmaceutics"],
+      examsCovered: [EXAM_IDS.bpharm, EXAM_IDS.gpat],
+    })
+    .where(eq(creatorProfiles.id, CREATOR_PROFILE_ID));
 
   // Create subscriptions for admin and student
   const now = new Date();
@@ -542,6 +571,13 @@ async function seed(): Promise<void> {
         category: "creators",
         description:
           "Percent of subscription revenue that flows into the free-content creator pool",
+      },
+      {
+        key: "creators.subscription_pool_enabled",
+        value: false,
+        category: "creators",
+        description:
+          "Master gate for the monthly subscription-pool worker (off by default until real subscription revenue lands)",
       },
       {
         key: "creators.classroom_platform_fee_percent",
@@ -1060,15 +1096,563 @@ async function seed(): Promise<void> {
     ])
     .onConflictDoNothing();
 
+  // ─── Promotions (one row per status for /admin/promotions QA) ──────────
+  console.log("  Seeding promotions...");
+  const PROMO_IDS = {
+    pending: "a1000000-0000-0000-0000-000000000001",
+    active: "a1000000-0000-0000-0000-000000000002",
+    rejected: "a1000000-0000-0000-0000-000000000003",
+    expired: "a1000000-0000-0000-0000-000000000004",
+  };
+  const nowMs = Date.now();
+  const days = (n: number): Date => new Date(nowMs + n * 24 * 60 * 60 * 1000);
+
+  await db
+    .insert(promotions)
+    .values([
+      {
+        id: PROMO_IDS.pending,
+        creatorId: CREATOR_PROFILE_ID,
+        promotionType: "banner",
+        bannerImageUrl: "https://picsum.photos/seed/promo-pending/640/360",
+        headline: "Free GPAT crash course — limited seats",
+        description: "Two-week intensive GPAT prep with daily MCQs and weekly mock tests.",
+        ctaText: "Enroll free",
+        ctaUrl: "https://example.com/gpat-crash",
+        targetExams: ["gpat", "bpharm"],
+        targetSubjects: ["pharmacology"],
+        budgetType: "flat",
+        budgetAmountInr: 5000,
+        spentAmountInr: 0,
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+        startsAt: days(0),
+        endsAt: days(30),
+        status: "pending",
+      },
+      {
+        id: PROMO_IDS.active,
+        creatorId: CREATOR_PROFILE_ID,
+        promotionType: "featured",
+        bannerImageUrl: "https://picsum.photos/seed/promo-active/640/360",
+        headline: "BPharm 2026 batch — early-bird discount",
+        description: "Full-syllabus BPharm Assistant Professor coaching with mentor calls.",
+        ctaText: "Join now",
+        ctaUrl: "https://example.com/bpharm-2026",
+        targetExams: ["bpharm"],
+        targetSubjects: ["pharmaceutics", "pharmacology"],
+        budgetType: "impressions",
+        budgetAmountInr: 100000,
+        spentAmountInr: 27500,
+        impressions: 27500,
+        clicks: 612,
+        conversions: 38,
+        startsAt: days(-5),
+        endsAt: days(25),
+        status: "active",
+        approvedBy: ADMIN_ID,
+      },
+      {
+        id: PROMO_IDS.rejected,
+        creatorId: CREATOR_PROFILE_ID,
+        promotionType: "sponsored",
+        bannerImageUrl: "https://picsum.photos/seed/promo-rejected/640/360",
+        headline: "Spam test promo",
+        description: "Banner failed brand-safety review.",
+        ctaText: "Click here",
+        ctaUrl: "https://example.com/spam",
+        targetExams: ["neet"],
+        targetSubjects: [],
+        budgetType: "flat",
+        budgetAmountInr: 2000,
+        spentAmountInr: 0,
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+        startsAt: days(-2),
+        endsAt: days(28),
+        status: "rejected",
+      },
+      {
+        id: PROMO_IDS.expired,
+        creatorId: CREATOR_PROFILE_ID,
+        promotionType: "banner",
+        bannerImageUrl: "https://picsum.photos/seed/promo-expired/640/360",
+        headline: "Old GATE-Pharma promo (expired)",
+        description: "Promo whose run window has ended.",
+        ctaText: "Learn more",
+        ctaUrl: "https://example.com/gate-pharma",
+        targetExams: ["gate"],
+        targetSubjects: ["pharmaceutics"],
+        budgetType: "clicks",
+        budgetAmountInr: 50000,
+        spentAmountInr: 48750,
+        impressions: 412300,
+        clicks: 9750,
+        conversions: 184,
+        startsAt: days(-30),
+        endsAt: days(-1),
+        status: "active",
+        approvedBy: ADMIN_ID,
+      },
+    ])
+    .onConflictDoNothing();
+
+  // ─── Creator analytics fixtures (Test Creator) ─────────────────────────
+  // Populates content_views, creator_earnings, creator_wallets,
+  // creator_followers, classrooms + members, doubts + responses so
+  // /creator/analytics shows non-empty charts and KPIs.
+  console.log("  Seeding creator analytics fixtures...");
+  // nowMs/days helpers are declared above in the promotions block.
+
+  const ANALYTICS_IDS = {
+    content: "f1000000-0000-0000-0000-000000000001",
+    classroom: "f2000000-0000-0000-0000-000000000001",
+    classroomMember1: "f2000000-0000-0000-0000-000000000011",
+    classroomMember2: "f2000000-0000-0000-0000-000000000012",
+    follower1: "f3000000-0000-0000-0000-000000000001",
+    follower2: "f3000000-0000-0000-0000-000000000002",
+    follower3: "f3000000-0000-0000-0000-000000000003",
+    follower4: "f3000000-0000-0000-0000-000000000004",
+    follower5: "f3000000-0000-0000-0000-000000000005",
+  };
+
+  // 1) One published piece of content for views to hang off.
+  await db
+    .insert(creatorContent)
+    .values({
+      id: ANALYTICS_IDS.content,
+      creatorId: CREATOR_PROFILE_ID,
+      contentType: "article",
+      title: "Pharmacology cheat-sheet — top 50 drug classes",
+      description: "Quick-revision notes for GPAT / BPharm.",
+      body: "Stub body for the seeded analytics fixture.",
+      isPublished: true,
+      publishedAt: days(-25),
+      uploadStatus: "completed",
+      reviewStatus: "approved",
+      viewCount: 320,
+      likeCount: 42,
+      doubtCount: 3,
+      totalWatchMinutes: 480,
+      avgRating: 4.5,
+    })
+    .onConflictDoNothing();
+
+  // 2) Wallet (one row per creator). Amounts are paisa, recomputed
+  // below from creator_earnings so balance == sum(available earnings).
+  await db
+    .insert(creatorWallets)
+    .values({
+      creatorId: CREATOR_PROFILE_ID,
+      balanceInr: 0,
+      pendingInr: 0,
+      lifetimeEarnedInr: 0,
+    })
+    .onConflictDoNothing();
+
+  // 3) Earnings spread across last ~30 days. Mix of statuses.
+  const earningRows: (typeof creatorEarnings.$inferInsert)[] = [];
+  const earningSchedule: { offset: number; amount: number; status: string; type: string }[] = [
+    { offset: -28, amount: 49900, status: "available", type: "sale" },
+    { offset: -22, amount: 29900, status: "available", type: "sale" },
+    { offset: -18, amount: 9900, status: "available", type: "tip" },
+    { offset: -14, amount: 49900, status: "available", type: "sale" },
+    { offset: -10, amount: 99900, status: "available", type: "sale" },
+    { offset: -7, amount: 19900, status: "available", type: "tip" },
+    { offset: -5, amount: 49900, status: "pending", type: "sale" },
+    { offset: -3, amount: 14900, status: "pending", type: "tip" },
+    { offset: -1, amount: 19900, status: "pending", type: "sale" },
+    { offset: 0, amount: 9900, status: "pending", type: "subscription_pool" },
+  ];
+  for (const e of earningSchedule) {
+    earningRows.push({
+      creatorId: CREATOR_PROFILE_ID,
+      earningType: e.type,
+      amountInr: e.amount,
+      status: e.status,
+      availableAt: e.status === "available" ? days(e.offset + 7) : null,
+      createdAt: days(e.offset),
+      description: `Seeded ${e.type} earning`,
+    });
+  }
+  await db.insert(creatorEarnings).values(earningRows).onConflictDoNothing();
+
+  // 4) Daily content_views for the last 30 days (1-12 per day, weighted).
+  const viewRows: (typeof contentViews.$inferInsert)[] = [];
+  for (let dayOffset = -29; dayOffset <= 0; dayOffset += 1) {
+    // Deterministic pseudo-random: gentle weekly oscillation 2-12 views.
+    const base = 4 + ((dayOffset + 30) % 7);
+    const burst = dayOffset % 5 === 0 ? 4 : 0;
+    const count = base + burst;
+    for (let i = 0; i < count; i += 1) {
+      viewRows.push({
+        contentId: ANALYTICS_IDS.content,
+        creatorId: CREATOR_PROFILE_ID,
+        userId: STUDENT_ID,
+        watchedSeconds: 60 + ((i * 17) % 240),
+        completed: i % 4 === 0,
+        creditCost: 0,
+        createdAt: new Date(days(dayOffset).getTime() + i * 60_000),
+      });
+    }
+  }
+  await db.insert(contentViews).values(viewRows).onConflictDoNothing();
+
+  // 5) Five followers across last 30 days (drives follower-delta KPI).
+  await db
+    .insert(creatorFollowers)
+    .values([
+      {
+        id: ANALYTICS_IDS.follower1,
+        creatorId: CREATOR_PROFILE_ID,
+        studentId: STUDENT_ID,
+        followedAt: days(-25),
+      },
+      {
+        id: ANALYTICS_IDS.follower2,
+        creatorId: CREATOR_PROFILE_ID,
+        studentId: ADMIN_ID,
+        followedAt: days(-18),
+      },
+      {
+        id: ANALYTICS_IDS.follower3,
+        creatorId: CREATOR_PROFILE_ID,
+        studentId: STUDENT_ID,
+        followedAt: days(-12),
+      },
+      {
+        id: ANALYTICS_IDS.follower4,
+        creatorId: CREATOR_PROFILE_ID,
+        studentId: ADMIN_ID,
+        followedAt: days(-5),
+      },
+      {
+        id: ANALYTICS_IDS.follower5,
+        creatorId: CREATOR_PROFILE_ID,
+        studentId: STUDENT_ID,
+        followedAt: days(-1),
+      },
+    ])
+    .onConflictDoNothing();
+
+  // Audit log entry so the "Why rejected?" popover has a reason to show.
+  await db
+    .insert(adminAuditLog)
+    .values({
+      adminId: ADMIN_ID,
+      action: "promotion.reject",
+      targetType: "promotion",
+      targetId: PROMO_IDS.rejected,
+      details: {
+        before: { status: "pending" },
+        after: { status: "rejected" },
+        reason: "Banner image violates policy: includes competitor branding and unverified claims.",
+      },
+    })
+    .onConflictDoNothing();
+
+  // 6) One classroom + two members so the Classrooms tab has a row.
+  await db
+    .insert(classrooms)
+    .values({
+      id: ANALYTICS_IDS.classroom,
+      teacherId: CREATOR_ID,
+      creatorId: CREATOR_PROFILE_ID,
+      name: "BPharm 2026 — pilot batch",
+      description: "Seeded classroom for analytics QA.",
+      joinCode: "ANALY1",
+      isActive: true,
+      maxStudents: 50,
+      studentCount: 2,
+      isPaid: false,
+      createdAt: days(-20),
+    })
+    .onConflictDoNothing();
+  await db
+    .insert(classroomMembers)
+    .values([
+      {
+        id: ANALYTICS_IDS.classroomMember1,
+        classroomId: ANALYTICS_IDS.classroom,
+        studentId: STUDENT_ID,
+        joinedAt: days(-15),
+      },
+      {
+        id: ANALYTICS_IDS.classroomMember2,
+        classroomId: ANALYTICS_IDS.classroom,
+        studentId: ADMIN_ID,
+        joinedAt: days(-3),
+      },
+    ])
+    .onConflictDoNothing();
+
+  // 7) Doubts + a response so the Engagement tab populates.
+  const DOUBT_IDS = {
+    open: "f4000000-0000-0000-0000-000000000001",
+    answered: "f4000000-0000-0000-0000-000000000002",
+    closed: "f4000000-0000-0000-0000-000000000003",
+  };
+  await db
+    .insert(doubts)
+    .values([
+      {
+        id: DOUBT_IDS.open,
+        studentId: STUDENT_ID,
+        creatorId: CREATOR_ID,
+        contentId: ANALYTICS_IDS.content,
+        questionText: "What is the mechanism of action of beta-blockers?",
+        status: "open",
+        createdAt: days(-2),
+      },
+      {
+        id: DOUBT_IDS.answered,
+        studentId: STUDENT_ID,
+        creatorId: CREATOR_ID,
+        contentId: ANALYTICS_IDS.content,
+        questionText: "Difference between agonist and antagonist?",
+        status: "answered",
+        createdAt: days(-7),
+      },
+      {
+        id: DOUBT_IDS.closed,
+        studentId: STUDENT_ID,
+        creatorId: CREATOR_ID,
+        contentId: ANALYTICS_IDS.content,
+        questionText: "What's the half-life formula?",
+        status: "closed",
+        createdAt: days(-12),
+      },
+    ])
+    .onConflictDoNothing();
+  await db
+    .insert(doubtResponses)
+    .values([
+      {
+        doubtId: DOUBT_IDS.answered,
+        responderId: CREATOR_ID,
+        responseText: "Agonists activate; antagonists block. Full notes attached.",
+        responseType: "text",
+        isAi: false,
+        createdAt: new Date(days(-7).getTime() + 4 * 60 * 60 * 1000), // +4h
+      },
+      {
+        doubtId: DOUBT_IDS.closed,
+        responderId: CREATOR_ID,
+        responseText: "t½ = 0.693 / k. See chapter 3.",
+        responseType: "text",
+        isAi: false,
+        createdAt: new Date(days(-12).getTime() + 2 * 60 * 60 * 1000), // +2h
+      },
+    ])
+    .onConflictDoNothing();
+
+  // 8) Recompute aggregates from the rows we just inserted so every
+  // counter on the profile + wallet + content cross-references against
+  // the underlying tables. This is the test-bench equivalent of the
+  // counter-update jobs that run in production.
+  const [availableSumRow] = await db
+    .select({
+      sum: sql<number>`coalesce(sum(${creatorEarnings.amountInr}), 0)::int`,
+    })
+    .from(creatorEarnings)
+    .where(
+      and(
+        eq(creatorEarnings.creatorId, CREATOR_PROFILE_ID),
+        eq(creatorEarnings.status, "available"),
+      ),
+    );
+  const [pendingSumRow] = await db
+    .select({
+      sum: sql<number>`coalesce(sum(${creatorEarnings.amountInr}), 0)::int`,
+    })
+    .from(creatorEarnings)
+    .where(
+      and(eq(creatorEarnings.creatorId, CREATOR_PROFILE_ID), eq(creatorEarnings.status, "pending")),
+    );
+  const [paidOutSumRow] = await db
+    .select({
+      sum: sql<number>`coalesce(sum(${creatorEarnings.amountInr}), 0)::int`,
+    })
+    .from(creatorEarnings)
+    .where(
+      and(
+        eq(creatorEarnings.creatorId, CREATOR_PROFILE_ID),
+        eq(creatorEarnings.status, "paid_out"),
+      ),
+    );
+  const [salesCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(creatorEarnings)
+    .where(
+      and(
+        eq(creatorEarnings.creatorId, CREATOR_PROFILE_ID),
+        eq(creatorEarnings.earningType, "sale"),
+      ),
+    );
+  const [viewsCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(contentViews)
+    .where(eq(contentViews.creatorId, CREATOR_PROFILE_ID));
+  const [followersCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(creatorFollowers)
+    .where(eq(creatorFollowers.creatorId, CREATOR_PROFILE_ID));
+  const [contentCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(creatorContent)
+    .where(
+      and(eq(creatorContent.creatorId, CREATOR_PROFILE_ID), eq(creatorContent.isPublished, true)),
+    );
+  const [studentsCountRow] = await db
+    .select({
+      sum: sql<number>`coalesce(sum(${classrooms.studentCount}), 0)::int`,
+    })
+    .from(classrooms)
+    .where(eq(classrooms.creatorId, CREATOR_PROFILE_ID));
+
+  const availableSum = Number(availableSumRow?.sum ?? 0);
+  const pendingSum = Number(pendingSumRow?.sum ?? 0);
+  const paidOutSum = Number(paidOutSumRow?.sum ?? 0);
+  const lifetimeSum = availableSum + paidOutSum;
+  const totalViewsCount = Number(viewsCountRow?.count ?? 0);
+
+  await db
+    .update(creatorWallets)
+    .set({
+      balanceInr: availableSum,
+      pendingInr: pendingSum,
+      lifetimeEarnedInr: lifetimeSum,
+    })
+    .where(eq(creatorWallets.creatorId, CREATOR_PROFILE_ID));
+
+  await db
+    .update(creatorContent)
+    .set({ viewCount: totalViewsCount })
+    .where(eq(creatorContent.id, ANALYTICS_IDS.content));
+
+  await db
+    .update(creatorProfiles)
+    .set({
+      followerCount: Number(followersCountRow?.count ?? 0),
+      contentCount: Number(contentCountRow?.count ?? 0),
+      totalViews: totalViewsCount,
+      totalStudents: Number(studentsCountRow?.sum ?? 0),
+      totalSales: Number(salesCountRow?.count ?? 0),
+      totalRevenueEarned: lifetimeSum,
+      averageRating: 4.5,
+      totalRatings: 12,
+    })
+    .where(eq(creatorProfiles.id, CREATOR_PROFILE_ID));
+
+  console.log(
+    `    wallet: ₹${(availableSum / 100).toFixed(0)} balance / ₹${(pendingSum / 100).toFixed(0)} pending / ${totalViewsCount} views`,
+  );
+
+  // ─── Subscription-pool fixtures ────────────────────────────────────────
+  // Lets a developer flow the worker end-to-end:
+  //   1) flip creators.subscription_pool_enabled -> true in /admin/settings
+  //   2) visit /admin/subscription-pool
+  //   3) click "Run for [last month]" — pool computed from these rows.
+  console.log("  Seeding subscription-pool fixtures...");
+
+  // Use the previous calendar month so the worker's "previous month" default
+  // matches what we seed. Anchor in the middle of the month to dodge
+  // timezone edge cases at month boundaries.
+  const seedNow = new Date();
+  const lastMonth = new Date(
+    Date.UTC(seedNow.getUTCFullYear(), seedNow.getUTCMonth() - 1, 15, 12, 0, 0),
+  );
+
+  const POOL_FIXTURE_IDS = {
+    content: "f1000000-0000-0000-0000-000000000010",
+    payment: "f5000000-0000-0000-0000-000000000001",
+  };
+
+  // 1) One published piece of content for views to attach to.
+  await db
+    .insert(creatorContent)
+    .values({
+      id: POOL_FIXTURE_IDS.content,
+      creatorId: CREATOR_PROFILE_ID,
+      contentType: "article",
+      title: "Free pharmacology revision (subscription-pool fixture)",
+      description: "Seeded so subscription-pool worker has views to score.",
+      body: "Stub body for subscription-pool fixture content.",
+      isPublished: true,
+      publishedAt: lastMonth,
+      uploadStatus: "completed",
+      reviewStatus: "approved",
+    })
+    .onConflictDoNothing();
+
+  // 2) One completed subscription order from last month → ₹1,000 of revenue
+  // (100,000 paisa). Pool = 70% = 70,000 paisa = ₹700.
+  await db
+    .insert(paymentOrders)
+    .values({
+      id: POOL_FIXTURE_IDS.payment,
+      userId: STUDENT_ID,
+      orderType: "subscription",
+      amountInr: 100_000, // paisa
+      status: "completed",
+      planId: PLAN_IDS.pro,
+      billingCycle: "monthly",
+      createdAt: lastMonth,
+      updatedAt: lastMonth,
+    })
+    .onConflictDoNothing();
+
+  // 3) 20 free views by the student last month so the creator scores.
+  // Skip if any rows already exist for this content+last-month — keeps the
+  // fixture idempotent without needing per-view UUIDs.
+  const [{ existingViews }] = (await db
+    .select({
+      existingViews: sql<number>`count(*)::int`,
+    })
+    .from(contentViews)
+    .where(
+      and(
+        eq(contentViews.contentId, POOL_FIXTURE_IDS.content),
+        gte(
+          contentViews.createdAt,
+          new Date(Date.UTC(lastMonth.getUTCFullYear(), lastMonth.getUTCMonth(), 1)),
+        ),
+      ),
+    )) as { existingViews: number }[];
+
+  if (Number(existingViews ?? 0) === 0) {
+    const viewRows = Array.from({ length: 20 }).map((_, i) => ({
+      contentId: POOL_FIXTURE_IDS.content,
+      creatorId: CREATOR_PROFILE_ID,
+      userId: STUDENT_ID,
+      watchedSeconds: 90 + (i % 5) * 30, // 90-210s of watch time
+      completed: i % 4 === 0,
+      creditCost: 0, // free views drive the pool score
+      createdAt: new Date(lastMonth.getTime() + i * 60_000),
+    }));
+    await db.insert(contentViews).values(viewRows);
+  }
+
+  console.log(
+    `    pool fixture: 1 subscription order (₹1,000), 20 free views attributed to Test Creator`,
+  );
+
   console.log("\nSeed complete!");
   console.log("──────────────────────────────────────");
-  console.log("  Admin:    admin@examforge.dev / password123");
-  console.log("  Student:  student@examforge.dev / student123");
-  console.log("  Creator:  creator@examforge.dev / creator123");
-  console.log("  Exams:    10 seeded");
-  console.log("  Sources:  3 seeded");
-  console.log("  Plans:    3 seeded (free, pro, premium)");
-  console.log("  Flags:    45 seeded");
+  console.log("  Admin:     admin@examforge.dev / password123");
+  console.log("  Student:   student@examforge.dev / student123");
+  console.log("  Creator:   creator@examforge.dev / creator123");
+  console.log("  Exams:     10 seeded");
+  console.log("  Sources:   3 seeded");
+  console.log("  Plans:     3 seeded (free, pro, premium)");
+  console.log("  Flags:     45 seeded");
+  console.log("  Promotions: 4 seeded (pending, active, rejected, expired)");
+  console.log("  Analytics: 1 content, ~200 views, 10 earnings,");
+  console.log("             5 followers, 1 classroom + 2 members,");
+  console.log("             3 doubts + 2 responses");
+  console.log("  Pool:      1 subscription order (₹1,000) + 20 free views (last month)");
   console.log("──────────────────────────────────────");
 
   process.exit(0);

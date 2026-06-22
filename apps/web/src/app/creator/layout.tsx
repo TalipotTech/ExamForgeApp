@@ -28,6 +28,8 @@ import {
   FileStack,
   Plug,
   Radio,
+  BarChart3,
+  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -49,7 +51,9 @@ const CREATOR_NAV: NavItem[] = [
   { href: "/creator/live-sessions", label: "Live Sessions", icon: Radio },
   { href: "/creator/doubts", label: "Doubt Inbox", icon: Inbox },
   { href: "/creator/integrations", label: "Integrations", icon: Plug },
+  { href: "/creator/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/creator/wallet", label: "Wallet", icon: Wallet },
+  { href: "/creator/subscription-pool", label: "Subscription Pool", icon: Coins },
 ];
 
 function isLinkActive(pathname: string, href: string): boolean {

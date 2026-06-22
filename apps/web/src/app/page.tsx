@@ -17,6 +17,7 @@ import { ExaminationList } from "@/components/home/examination-list";
 import { TopicExplorer } from "@/components/home/topic-explorer";
 import { PopularTags } from "@/components/home/popular-tags";
 import { SiteStats } from "@/components/home/site-stats";
+import { FeaturedCreators } from "@/components/home/featured-creators";
 
 const FEATURES = [
   {
@@ -72,6 +73,12 @@ export default function HomePage(): React.ReactElement {
               className="text-foreground/80 hover:text-foreground text-sm transition-colors"
             >
               Exams
+            </Link>
+            <Link
+              href="/creators"
+              className="text-foreground/80 hover:text-foreground text-sm transition-colors"
+            >
+              Creators
             </Link>
             <Link
               href="/marketplace"
@@ -149,6 +156,9 @@ export default function HomePage(): React.ReactElement {
 
       {/* Popular Topics */}
       <PopularTags />
+
+      {/* Featured creators — directory teaser + search */}
+      <FeaturedCreators />
 
       {/* Features */}
       <section className="bg-muted/30 border-t px-4 py-20">

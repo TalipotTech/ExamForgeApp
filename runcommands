@@ -11,3 +11,5 @@ Redis	Running in Docker (examforge-redis) on port 6379
 You're all set for scraping. Both testScrape (inline, no Redis needed) and startScrape (queued via BullMQ) should work now. Navigate to the scrape page in the app to start scraping.
 
 Note: the Redis container (examforge-redis) will persist across restarts. If you reboot, start it again with docker start examforge-redis.
+
+pnmp dev
