@@ -35,7 +35,8 @@ export type AITask =
   | "parse_portal_page"
   | "verify_question"
   | "align_syllabus"
-  | "generate_topic_seeded";
+  | "generate_topic_seeded"
+  | "derive_image_brief";
 
 export type ProviderMapping = {
   primary: AiProvider;

@@ -162,6 +162,9 @@ export const doubtRouter = router({
       });
     }
 
+    // TODO: image-gen — for AI doubt answers that need a visual, generate a
+    // diagram via generateImage({ purpose: 'doubt_visualization' }) and
+    // attach its cdnUrl to the response.
     await ctx.db.insert(doubtResponses).values({
       doubtId: input.doubtId,
       responderId: ctx.userId,

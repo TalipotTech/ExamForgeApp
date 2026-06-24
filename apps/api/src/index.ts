@@ -110,6 +110,43 @@ async function main(): Promise<void> {
     }
   });
 
+  // Serving for AI-generated images (local storage driver). Rooted at
+  // IMAGE_STORAGE_DIR so it works both under <cwd>/storage/images locally
+  // and on a Railway Volume (e.g. /data/images) in production. Isolated
+  // from /api/files/* so neither route affects the other.
+  app.get("/api/images/*", async (request, reply) => {
+    const { promises: fs } = await import("node:fs");
+    const { join, resolve } = await import("node:path");
+    const { IMAGE_STORAGE_DIR } = await import("./services/image-storage.js");
+
+    const url = request.url.replace("/api/images/", "");
+    const safePath = url.split("?")[0]!.replace(/\.\./g, "");
+    const filePath = resolve(join(IMAGE_STORAGE_DIR, safePath));
+    if (!filePath.startsWith(IMAGE_STORAGE_DIR)) {
+      return reply.status(403).send({ error: "Forbidden" });
+    }
+
+    try {
+      const stat = await fs.stat(filePath);
+      const content = await fs.readFile(filePath);
+      const ext = filePath.split(".").pop()?.toLowerCase();
+      const mimeTypes: Record<string, string> = {
+        png: "image/png",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        webp: "image/webp",
+        gif: "image/gif",
+      };
+      return reply
+        .header("Content-Type", mimeTypes[ext ?? ""] ?? "application/octet-stream")
+        .header("Content-Length", stat.size)
+        .header("Cache-Control", "public, max-age=31536000, immutable")
+        .send(content);
+    } catch {
+      return reply.status(404).send({ error: "Image not found" });
+    }
+  });
+
   // Razorpay webhook — single endpoint for subscription + marketplace events.
   // The HMAC-SHA256 signature is verified against the raw request body using
   // RAZORPAY_WEBHOOK_SECRET. Any signature mismatch returns 401 before we

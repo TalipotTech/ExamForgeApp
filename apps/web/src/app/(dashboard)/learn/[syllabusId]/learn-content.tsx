@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { LearnChat } from "./learn-chat";
 import { LearnNotes } from "./learn-notes";
 import { SelectionTooltip } from "./selection-tooltip";
+import { ImageLightbox } from "@/components/image-lightbox";
 
 type TutorialSection = {
   id: string;
@@ -17,6 +18,15 @@ type TutorialSection = {
   plainText: string;
   order: number;
 };
+
+// Topic images are served from the API origin (/api/images/* for the local
+// storage driver); prefix relative URLs so they load from the web app.
+function resolveImageUrl(url: string | null): string {
+  if (!url) return "";
+  if (/^https?:\/\//.test(url)) return url;
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4100").replace(/\/$/, "");
+  return `${base}${url}`;
+}
 
 interface LearnContentProps {
   tutorial: {
@@ -31,6 +41,7 @@ interface LearnContentProps {
     hasTables: boolean | null;
     hasMnemonics: boolean | null;
     keyTerms: string[] | null;
+    imageUrl: string | null;
     progress: {
       sectionsRead: string[];
       completionPercent: number;
@@ -51,6 +62,7 @@ export function LearnContent({
   const utils = trpc.useUtils();
   const isComplete = tutorial.progress.completionPercent >= 100;
   const [askAiText, setAskAiText] = useState("");
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const sectionsContainerRef = useRef<HTMLDivElement>(null);
 
   const markReadMutation = trpc.learn.markSectionRead.useMutation({
@@ -165,6 +177,31 @@ export function LearnContent({
           </Button>
         </div>
       </header>
+
+      {/* AI-generated topic image (hero) */}
+      {tutorial.imageUrl && (
+        <figure className="mb-6">
+          <button type="button" onClick={() => setImageViewerOpen(true)} className="block w-full">
+            <img
+              src={resolveImageUrl(tutorial.imageUrl)}
+              alt={tutorial.title}
+              loading="lazy"
+              className="w-full cursor-zoom-in rounded-lg border"
+            />
+          </button>
+          <figcaption className="text-muted-foreground mt-2 text-center text-xs">
+            Fig: {tutorial.title}
+          </figcaption>
+        </figure>
+      )}
+
+      <ImageLightbox
+        open={imageViewerOpen && !!tutorial.imageUrl}
+        src={tutorial.imageUrl ? resolveImageUrl(tutorial.imageUrl) : ""}
+        alt={tutorial.title}
+        caption={tutorial.title}
+        onClose={() => setImageViewerOpen(false)}
+      />
 
       {/* Sections */}
       <div ref={sectionsContainerRef}>

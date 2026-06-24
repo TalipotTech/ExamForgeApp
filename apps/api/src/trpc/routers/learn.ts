@@ -198,6 +198,13 @@ export const learnRouter = router({
         });
       }
 
+      // AI-generated topic image (if any) — surfaced as a hero on the reader.
+      const [node] = await ctx.db
+        .select({ imageUrl: syllabusNodes.imageUrl })
+        .from(syllabusNodes)
+        .where(eq(syllabusNodes.id, syllabusNodeId))
+        .limit(1);
+
       // Get user progress
       const [progress] = await ctx.db
         .select({
@@ -216,6 +223,7 @@ export const learnRouter = router({
 
       return {
         ...tutorial,
+        imageUrl: node?.imageUrl ?? null,
         sections: tutorial.sections ?? [],
         progress: {
           sectionsRead: progress?.sectionsRead ?? [],

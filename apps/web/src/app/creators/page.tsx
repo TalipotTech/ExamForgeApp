@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -25,7 +25,18 @@ const STALE_TIME = 5 * 60 * 1000;
 
 type SortValue = "featured" | "rating" | "newest";
 
+// useSearchParams() requires a Suspense boundary during static rendering,
+// so the directory body lives in an inner component and the page export
+// wraps it in <Suspense>.
 export default function CreatorsDirectoryPage(): React.ReactElement {
+  return (
+    <Suspense fallback={<CreatorsDirectoryFallback />}>
+      <CreatorsDirectoryContent />
+    </Suspense>
+  );
+}
+
+function CreatorsDirectoryContent(): React.ReactElement {
   const router = useRouter();
   const search = useSearchParams();
 
@@ -200,6 +211,22 @@ export default function CreatorsDirectoryPage(): React.ReactElement {
               </>
             )}
           </section>
+        </div>
+      </main>
+      <PublicFooter />
+    </div>
+  );
+}
+
+function CreatorsDirectoryFallback(): React.ReactElement {
+  return (
+    <div className="bg-background min-h-screen">
+      <Header />
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-64 w-full" />
+          ))}
         </div>
       </main>
       <PublicFooter />

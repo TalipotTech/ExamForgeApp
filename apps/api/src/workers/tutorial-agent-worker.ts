@@ -25,6 +25,7 @@ import {
 } from "../services/tutorial-html-generator.js";
 import { parseHtmlToSections } from "../services/tutorial-html-parser.js";
 import { getTutorialStorage } from "../services/tutorial-storage.js";
+import { generateImage } from "../ai/image-router.js";
 import { TUTORIAL_AGENT_QUEUE_NAME } from "../queues/tutorial-agent-queue.js";
 import type { AIProviderId } from "../ai/types.js";
 import { PROVIDER_ID_TO_AI_PROVIDER } from "../ai/types.js";
@@ -237,9 +238,13 @@ async function processTutorialAgentJob(
         const fileKey = `${examId}/${syllabusId}/${unitSlug}/${topicSlug}.html`;
         const previewFileKey = `${examId}/${syllabusId}/${unitSlug}/${topicSlug}-preview.html`;
 
+        // Optionally enrich with an AI-generated diagram (gated by env flag;
+        // non-fatal — falls back to the original fragment on any failure).
+        const enrichedFragment = await enrichWithDiagram(fragment, node, exam.name, db);
+
         // Assemble full HTML
         const fullHtml = assembleTutorial({
-          fragment,
+          fragment: enrichedFragment,
           title: node.title,
           subject: exam.name,
           unitName: parentNode?.title ?? "General",
@@ -426,6 +431,72 @@ function slugify(text: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .substring(0, 60);
+}
+
+// ─── Diagram enrichment (image generation) ───
+
+type DiagramNode = {
+  // syllabus_nodes.id is a numeric bigserial, not a UUID — so it cannot be
+  // stored in image_generations.content_id (uuid). We attribute via
+  // contentType only (see enrichWithDiagram).
+  id: number;
+  title: string;
+  description: string | null;
+};
+
+// Heuristic gate. Generating a diagram costs image-budget per tutorial,
+// so it's opt-in via TUTORIAL_DIAGRAM_GENERATION=true. When enabled, only
+// nodes with enough descriptive context to seed a useful prompt qualify.
+function shouldGenerateDiagram(node: DiagramNode): boolean {
+  if (process.env.TUTORIAL_DIAGRAM_GENERATION !== "true") return false;
+  return (node.description?.trim().length ?? 0) > 20;
+}
+
+// Generate a diagram for diagram-worthy topics and inject it into the
+// tutorial HTML after the first <h2>. Fully non-fatal: on any failure the
+// tutorial is still produced without the diagram.
+async function enrichWithDiagram(
+  html: string,
+  node: DiagramNode,
+  examName: string,
+  db: Database,
+): Promise<string> {
+  if (!shouldGenerateDiagram(node)) return html;
+
+  try {
+    const image = await generateImage(
+      {
+        purpose: "tutorial_diagram",
+        prompt: `${node.title} for ${examName}. ${node.description ?? ""}`,
+        aspectRatio: "16:9",
+        style: "diagram",
+        platform: "examforge",
+        contentType: "tutorial",
+        syllabusNodeId: node.id,
+      },
+      db,
+    );
+    // Persist onto the topic so it's a first-class, queryable attachment
+    // (not just embedded in HTML). Best-effort.
+    await db
+      .update(syllabusNodes)
+      .set({
+        imageUrl: image.cdnUrl,
+        imageKey: image.key,
+        imageStatus: "ready",
+        updatedAt: new Date(),
+      })
+      .where(eq(syllabusNodes.id, node.id));
+    const diagramHtml = `<div class="diagram"><img src="${image.cdnUrl}" alt="${node.title}" loading="lazy" /><figcaption>Fig: ${node.title}</figcaption></div>`;
+    return html.replace(/(<\/h2>)/, `$1\n${diagramHtml}`);
+  } catch (e) {
+    console.warn(
+      `[tutorial-agent] Diagram generation skipped for "${node.title}": ${
+        e instanceof Error ? e.message : String(e)
+      }`,
+    );
+    return html;
+  }
 }
 
 function extractRelevantText(rawText: string, topicTitle: string): string {

@@ -222,6 +222,18 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     fallback: "openai",
     fallbackModel: "gpt-4o",
   },
+  derive_image_brief: {
+    // Image-gen context step: read a topic's content and decide whether it
+    // needs a diagram + write a precise visual brief. GPT-4o is primary —
+    // it's fast and reliable for this small structured task, and keeping it
+    // first avoids slow retries when Claude is rate-limited/out of credits
+    // (the brief sits on the synchronous single-topic request path). Claude
+    // is the fallback; image-brief.ts adds a deterministic last resort.
+    primary: "openai",
+    model: "gpt-4o",
+    fallback: "anthropic",
+    fallbackModel: "claude-sonnet-4-20250514",
+  },
 };
 
 // ─── Provider → Default Model mapping ───
@@ -274,6 +286,7 @@ function taskToFeature(task: AITask): string {
     verify_question: "verification",
     align_syllabus: "verification",
     generate_topic_seeded: "verification",
+    derive_image_brief: "image",
   };
   return map[task];
 }
