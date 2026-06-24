@@ -197,6 +197,9 @@ export const creatorContentRouter = router({
   /** Remove one media item by its `order` index and rewrite the media
    *  items array + contentType. The file stays on disk; garbage
    *  collection is out of scope for this pass. */
+  // TODO: image-gen — when content has no image media (thumbnailUrl null),
+  // auto-generate a thumbnail via generateImage({ purpose: 'topic_thumbnail',
+  // contentId: content.id }) on publish.
   removeMedia: protectedProcedure.input(removeMediaSchema).mutation(async ({ ctx, input }) => {
     await assertCreatorsFeature(ctx.db, "creators.enabled");
     const { content } = await requireOwnedContent(ctx.db, input.contentId, ctx.userId);

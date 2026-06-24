@@ -142,6 +142,8 @@ export const marketplaceRouter = router({
           isPublished: false,
         })
         .returning({ id: marketplaceListings.id, slug: marketplaceListings.slug });
+      // TODO: image-gen — if !input.coverImageUrl, auto-generate a cover via
+      // generateImage({ purpose: 'marketplace_cover', contentId: listing.id }).
       if (!listing) {
         throw new Error("Failed to create listing");
       }

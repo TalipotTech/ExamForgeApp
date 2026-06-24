@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, Users, Wallet as WalletIcon, Hourglass, Star, TrendingUp } from "lucide-react";
@@ -39,7 +39,16 @@ function compactNumber(value: number | null | undefined): string {
   return value.toLocaleString("en-IN");
 }
 
+// useSearchParams() requires a Suspense boundary during static rendering.
 export default function CreatorAnalyticsPage(): React.ReactElement {
+  return (
+    <Suspense fallback={<KpiSkeleton />}>
+      <CreatorAnalyticsContent />
+    </Suspense>
+  );
+}
+
+function CreatorAnalyticsContent(): React.ReactElement {
   const router = useRouter();
   const search = useSearchParams();
 

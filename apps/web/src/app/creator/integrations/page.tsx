@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Plug, ShieldAlert, Video, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -20,7 +20,16 @@ const ZOOM_ERROR_MESSAGES: Record<string, string> = {
   not_a_creator: "Only registered creators can connect Zoom.",
 };
 
+// useSearchParams() requires a Suspense boundary during static rendering.
 export default function IntegrationsPage(): React.ReactElement {
+  return (
+    <Suspense fallback={null}>
+      <IntegrationsContent />
+    </Suspense>
+  );
+}
+
+function IntegrationsContent(): React.ReactElement {
   const router = useRouter();
   const searchParams = useSearchParams();
   const utils = trpc.useUtils();

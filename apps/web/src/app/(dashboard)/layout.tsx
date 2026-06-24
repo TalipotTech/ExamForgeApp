@@ -56,6 +56,7 @@ import {
   Radio,
   Megaphone,
   Coins,
+  Images,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -103,6 +104,13 @@ const ADMIN_NAV: NavItem[] = [
     group: "content",
   },
   { href: "/learn", label: "Learn", icon: Library, group: "content" },
+  {
+    href: "/admin/images",
+    label: "Image Gen",
+    icon: Images,
+    adminOnly: true,
+    group: "content",
+  },
   { href: "/dashboard/find", label: "Find", icon: Search, adminOnly: true, group: "content" },
   { href: "/dashboard/saved", label: "Saved", icon: Bookmark, adminOnly: true, group: "content" },
   // Creators ecosystem (only when master flag is on).

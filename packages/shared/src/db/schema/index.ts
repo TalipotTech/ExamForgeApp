@@ -102,3 +102,6 @@ export { contentEmbeddings } from "./content-embeddings";
 export { aiTutorConversations } from "./ai-tutor-conversations";
 export { aiTutorMessages } from "./ai-tutor-messages";
 export type { AiTutorCitation } from "./ai-tutor-messages";
+
+// AI Image Generation (multi-model routing, shared examforge | padvik)
+export { imageGenerations } from "./image-generations";

@@ -472,6 +472,10 @@ async function analyzePattern(
 
   const fingerprint = result.data;
 
+  // TODO: image-gen — generate a subject-weightage / difficulty chart from
+  // the fingerprint via generateImage({ purpose: 'pattern_chart' }) and store
+  // its cdnUrl on the pattern for the user-facing summary.
+
   // Insert new pattern
   await db.insert(examPatterns).values({
     examId: data.examId,

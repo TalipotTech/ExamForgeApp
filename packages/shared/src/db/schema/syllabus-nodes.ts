@@ -36,6 +36,13 @@ export const syllabusNodes = pgTable(
     tutorialStatus: varchar("tutorial_status", { length: 20 }).default("none"),
     mcqStatus: varchar("mcq_status", { length: 20 }).default("none"),
     mcqCount: integer("mcq_count").default(0),
+    // AI-generated topic image (context-derived). imageContentHash is the
+    // hash of the source signal used to generate it, for idempotent sync —
+    // unchanged topics are skipped on re-run. See image-sync-worker.ts.
+    imageUrl: varchar("image_url", { length: 1000 }),
+    imageKey: varchar("image_key", { length: 500 }),
+    imageStatus: varchar("image_status", { length: 20 }).default("none"), // none|queued|ready|skipped|error
+    imageContentHash: varchar("image_content_hash", { length: 64 }),
     slug: varchar("slug", { length: 200 }),
     publicSummaryAvailable: boolean("public_summary_available").default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
