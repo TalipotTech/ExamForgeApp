@@ -79,19 +79,28 @@ wrapped in **`Promise.race` with `IMAGE_BRIEF_TIMEOUT_MS`** and a
 code from `visualType` + keyword hints.
 
 **STEP 6 — Topic sync service + worker.**
-`services/topic-image-sync.ts`: `syncTopicImage({syllabusNodeId,userId,force,examName?}, db)`
+`services/topic-image-sync.ts`:
+`syncTopicImage({syllabusNodeId,userId,force,examName?,additionalPrompt?,aspectRatio?,size?,purposeOverride?,styleOverride?}, db)`
 — load node + exam + current tutorial text, compute
-`sha256(title|desc|keyTerms|tutorialText)`, **skip if hash unchanged**, derive
-brief, skip if `!needsImage`, else `generateImage` and persist
-`image_url`/`image_key`/`image_status='ready'`/`image_content_hash`.
+`sha256(title|desc|keyTerms|tutorialText | additionalPrompt | overrideKey)`,
+**skip if hash unchanged**, derive brief (pass `additionalPrompt`; an explicit
+additional prompt also forces `needsImage`), skip if `!needsImage`, else
+`generateImage` (apply `purposeOverride`/`styleOverride`/`aspectRatio`/`size`,
+defaulting to content-derived purpose/style + 16:9 + standard) and persist
+`image_url`/`image_key`/`image_status='ready'`/`image_content_hash`. Each call
+inserts a new `image_generations` row, so a topic accumulates multiple images.
 `queues/image-sync-queue.ts` + `workers/image-sync-worker.ts` (whole-syllabus
 batch, eligible = non unit/root, per-topic non-fatal, **break on budget
 error**); register the worker in `workers/index.ts`.
 
 **STEP 7 — tRPC router.** `trpc/routers/image-generation.ts` with: `generate`,
-`getStats`, `getHistory`, `getRecent`, `listSyllabi`, `listTopics`,
-`syncTopic` (inline single topic via the service), `syncSyllabus` (enqueue),
-`getSyncStatus`. Register in `trpc/index.ts`.
+`getStats`, `getHistory`, **`listImages`** (search + pagination; left-join the
+topic node for its title; derive provider from model; return full metadata),
+**`listTopicImages`** (all images for one node), `listSyllabi`, `listTopics`
+(also return **`hasTutorial`** per node), `syncTopic` (inline single topic via
+the service; accept `additionalPrompt` + optional `aspectRatio`/`size`/
+`purpose`/`style`), `syncSyllabus` (enqueue), `getSyncStatus`. Register in
+`trpc/index.ts`.
 
 **STEP 8 — Image viewer.** `components/image-lightbox.tsx` — full-screen
 overlay: zoom (buttons + wheel, 25–600%), rotate ±90°, **drag-to-pan when
@@ -102,15 +111,30 @@ the repo doesn't define (it errors the build).
 
 **STEP 9 — Admin page + nav.** Dedicated `app/(dashboard)/admin/images/page.tsx`
 with **Tabs** (Single image / Topic sync / Usage & cost) + a **Help dialog**.
-Components: `image-gen-test-panel`, `image-gen-gallery` (Recent Images,
-opens lightbox), `image-sync-panel` (syllabus+topic pickers + whole-syllabus
-toggle + force), `image-gen-stats`. Add an **"Image Gen" nav item below
-"Learn"** in the dashboard layout (admin-only). Resolve relative
-`/api/images/*` URLs with `NEXT_PUBLIC_API_URL`.
+Components:
 
-**STEP 10 — Reader hero.** Return the node's `image_url` from the content
-reader's tutorial query and render it as a **clickable hero** (opens the
-lightbox) above the content.
+- `image-gen-test-panel` (manual generate).
+- `image-gen-gallery` (**Generated Images** via `listImages`): **Grid/Table
+  toggle**, **search box**, **pagination**, full metadata per row incl. the
+  **prompt**; click opens the lightbox.
+- `image-sync-panel` (syllabus + topic pickers + whole-syllabus toggle +
+  force). On topic select: show **existing images on that topic**
+  (`listTopicImages`, with metadata), an **additional-prompt** textarea, and an
+  **overrides** row (purpose/aspect/size/style, default _Auto_). Make
+  single-topic generation **resilient**: record the topic's image count, poll
+  `listTopicImages` while generating, treat transport/non-JSON errors as
+  non-fatal (the proxy may drop the long response), clear on new image or a
+  2-min safety timeout; flag topics where `!hasTutorial` ("no reader page").
+- `image-gen-stats`.
+  Add an **"Image Gen" nav item below "Learn"** in the dashboard layout
+  (admin-only). Resolve relative `/api/images/*` URLs with `NEXT_PUBLIC_API_URL`.
+
+**STEP 10 — Reader images.** Have the content reader's tutorial query return an
+**`images[]`** array, resolved as **self → nearest ancestor with images**
+(section nodes have no page of their own), each `{ id, cdnUrl, prompt }`. Render
+**all** of them as clickable figures above the content, each with its **full
+prompt as a caption** (opens the lightbox). A leaf's own images take precedence
+over an ancestor's.
 
 **STEP 11 — Verify.** `pnpm type-check && pnpm lint && pnpm build`. Update
 `CLAUDE.md`. Optional: gated `enrichWithDiagram` tutorial hook +

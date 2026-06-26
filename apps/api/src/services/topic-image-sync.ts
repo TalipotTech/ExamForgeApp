@@ -9,6 +9,7 @@ import type { Database } from "@examforge/shared/db";
 import { syllabusNodes, tutorialFiles, syllabi, exams } from "@examforge/shared/db/schema";
 import { deriveImageBrief } from "../ai/image-prompts/image-brief.js";
 import { generateImage } from "../ai/image-router.js";
+import type { ImageAspectRatio, ImageSize, ImagePurpose, ImageStyle } from "../ai/image-router.js";
 
 export type SyncTopicResult =
   | { status: "ready"; imageUrl: string }
@@ -22,18 +23,35 @@ export function topicSourceHash(parts: {
   description: string | null;
   keyTerms: string[];
   tutorialText: string;
+  additionalPrompt?: string;
 }): string {
   return createHash("sha256")
     .update(
-      [parts.title, parts.description ?? "", parts.keyTerms.join("|"), parts.tutorialText].join(
-        " ",
-      ),
+      [
+        parts.title,
+        parts.description ?? "",
+        parts.keyTerms.join("|"),
+        parts.tutorialText,
+        parts.additionalPrompt ?? "",
+      ].join(" "),
     )
     .digest("hex");
 }
 
 export async function syncTopicImage(
-  opts: { syllabusNodeId: number; userId: string; force?: boolean; examName?: string },
+  opts: {
+    syllabusNodeId: number;
+    userId: string;
+    force?: boolean;
+    examName?: string;
+    additionalPrompt?: string;
+    // Optional overrides — when unset, purpose/style are content-derived and
+    // aspect ratio defaults to 16:9, size to standard.
+    aspectRatio?: ImageAspectRatio;
+    size?: ImageSize;
+    purposeOverride?: ImagePurpose;
+    styleOverride?: ImageStyle;
+  },
   db: Database,
 ): Promise<SyncTopicResult> {
   const [node] = await db
@@ -71,11 +89,21 @@ export async function syncTopicImage(
   const tutorialText = tutorial?.plainText ?? "";
 
   const keyTerms = (node.keyTerms as string[]) ?? [];
+  const additionalPrompt = opts.additionalPrompt?.trim();
+  // Fold overrides into the idempotency key so changing aspect/size/purpose/
+  // style yields a new image while an identical request is still skipped.
+  const overrideKey = [
+    opts.aspectRatio ?? "",
+    opts.size ?? "",
+    opts.purposeOverride ?? "",
+    opts.styleOverride ?? "",
+  ].join("|");
   const hash = topicSourceHash({
     title: node.title,
     description: node.description,
     keyTerms,
     tutorialText,
+    additionalPrompt: [additionalPrompt ?? "", overrideKey].join("§"),
   });
 
   if (
@@ -93,12 +121,15 @@ export async function syncTopicImage(
       keyTerms,
       examName,
       tutorialText,
+      additionalPrompt,
       userId: opts.userId,
     },
     db,
   );
 
-  if (!brief.needsImage || !brief.brief.trim()) {
+  // An explicit additional prompt is a clear intent to produce an image —
+  // don't let the model's needsImage=false skip it.
+  if ((!brief.needsImage && !additionalPrompt) || !brief.brief.trim()) {
     await db
       .update(syllabusNodes)
       .set({ imageStatus: "skipped", imageContentHash: hash, updatedAt: new Date() })
@@ -112,10 +143,11 @@ export async function syncTopicImage(
 
   const image = await generateImage(
     {
-      purpose: brief.purpose,
+      purpose: opts.purposeOverride ?? brief.purpose,
       prompt: promptText,
-      aspectRatio: "16:9",
-      style: brief.style,
+      aspectRatio: opts.aspectRatio ?? "16:9",
+      size: opts.size,
+      style: opts.styleOverride ?? brief.style,
       platform: "examforge",
       userId: opts.userId,
       syllabusNodeId: node.id,

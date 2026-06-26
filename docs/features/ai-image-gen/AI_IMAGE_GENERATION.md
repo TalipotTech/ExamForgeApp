@@ -75,9 +75,16 @@ exam/audience — and returns structured JSON:
   bigint node id.
 - **`services/topic-image-sync.ts`** — `syncTopicImage(nodeId, …, db)` is the
   single source of truth (brief → route → generate → persist on node).
-  **Idempotent:** `image_content_hash = sha256(title|description|keyTerms|tutorialText)`.
-  Unchanged content → skip (no LLM, no image cost). Re-extracted syllabus /
-  regenerated tutorial → hash changes → image refreshes.
+  **Idempotent:** the content hash =
+  `sha256(title|description|keyTerms|tutorialText | additionalPrompt | overrideKey)`.
+  Unchanged inputs → skip (no LLM, no image cost). Re-extracted syllabus /
+  regenerated tutorial / **a new additional-prompt or override** → hash
+  changes → a new image is generated.
+- **Multiple images per topic:** every generation inserts a row in
+  `image_generations` (keyed by `syllabus_node_id`) — nothing is overwritten.
+  `syllabus_nodes.image_url` just tracks the latest. So a topic accumulates a
+  gallery of images; the reader shows all of them (§0.7). "Generate another
+  image" + an additional prompt is the intended way to add variations.
 - **Two ways to run it:**
   - **Single topic (MVP default):** `imageGeneration.syncTopic` admin
     mutation runs `syncTopicImage` **inline** (no worker needed) and returns
@@ -91,10 +98,15 @@ exam/audience — and returns structured JSON:
 ### 0.4 tRPC surface (`trpc/routers/image-generation.ts`)
 
 `generate` (protected) · `getStats` (admin, monthly aggregates) ·
-`getHistory` (protected) · `getRecent` (admin, gallery) ·
-`listSyllabi` (admin, picker) · `listTopics` (admin, picker) ·
-`syncTopic` (admin, inline single-topic) · `syncSyllabus` (admin, enqueue) ·
-`getSyncStatus` (admin, counts by `image_status`).
+`getHistory` (protected) · `listImages` (admin — **searchable + paginated**
+gallery; joins topic title, derives provider from model; full metadata) ·
+`listTopicImages` (admin — all images for one topic) ·
+`listSyllabi` (admin, picker) · `listTopics` (admin, picker; returns
+`hasTutorial` so the UI can flag section nodes with no reader page) ·
+`syncTopic` (admin, inline single-topic; accepts `additionalPrompt` + optional
+`aspectRatio`/`size`/`purpose`/`style` overrides) ·
+`syncSyllabus` (admin, enqueue) · `getSyncStatus` (admin, counts by
+`image_status`).
 
 ### 0.5 Admin UI
 
@@ -102,11 +114,21 @@ exam/audience — and returns structured JSON:
   **"Image Gen"** placed **below "Learn"** (admin-only).
 - The page uses **Tabs** (one thing at a time — avoids confusion):
   1. **Single image** — manual prompt tester (`image-gen-test-panel.tsx`) +
-     **Recent Images** gallery (`image-gen-gallery.tsx`, `getRecent`).
+     **Generated Images** gallery (`image-gen-gallery.tsx`, `listImages`) with
+     a **Grid/Table toggle**, **server-side search** (topic, prompt, purpose,
+     model), **pagination**, and full metadata per image (topic/context,
+     prompt, provider/model, size, cost, generation time, timestamp). The
+     table exists so an admin can find an existing image and avoid
+     regenerating one (wasting tokens).
   2. **Topic sync** — `image-sync-panel.tsx`: syllabus dropdown
      (`listSyllabi`) → topic dropdown (`listTopics`) for single-topic, plus a
-     **"whole syllabus (background worker)" toggle**. Force-regenerate
-     checkbox. Live status row.
+     **"whole syllabus (background worker)" toggle**. On selecting a topic it
+     shows **all images already on that topic** (with metadata), an optional
+     **additional-prompt** box, and an optional **overrides** row
+     (purpose/aspect/size/style, each defaulting to _Auto_). Force-regenerate
+     checkbox + live status row. Single-topic generation is **resilient**: it
+     polls `listTopicImages` so the new image surfaces even when the dev/prod
+     rewrite proxy drops the long synchronous response (see §0.7 note).
   3. **Usage & cost** — `image-gen-stats.tsx`.
 - A **Help dialog** (button top-right) documents prerequisites + per-tab
   steps + budget thresholds.
@@ -130,11 +152,30 @@ topic-sync result preview, and the **student tutorial reader hero**.
 
 ### 0.7 Reader integration
 
-`learn.getTutorialContent` returns the topic node's `imageUrl`; the reader
-(`learn-content.tsx`) renders it as a **clickable hero figure** under the
-title (relative `/api/images/*` URLs are prefixed with
-`NEXT_PUBLIC_API_URL`). Clicking opens the lightbox. PadVik: do the same on
-its content reader.
+`learn.getTutorialContent` returns an **`images[]`** array (each
+`{ id, cdnUrl, prompt }`); the reader (`learn-content.tsx`) renders **all** of
+them as clickable figures under the title, each with its **full prompt as a
+visible caption** (relative `/api/images/*` URLs are prefixed with
+`NEXT_PUBLIC_API_URL`). Clicking opens the lightbox. PadVik: do the same on its
+content reader.
+
+**Section/ancestor fallback (important):** a node can be a _section_
+(e.g. "Organic chemistry") whose content lives in its children and which has
+no reader page of its own. So `getTutorialContent` resolves images by walking
+**self → nearest ancestor** that has any image, and returns **all** images of
+that node. Net effect: an image generated on a section appears (with its
+description) on every sub-topic page; a leaf's own image always wins over an
+ancestor's. (`image_url` on the node is just the latest single image / cheap
+"has-images" marker; the full set lives in `image_generations` by
+`syllabus_node_id`.)
+
+**Why single-topic generation polls (proxy timeout):** the web calls the API
+through a same-origin rewrite proxy (so HttpOnly cookies forward). A long
+synchronous generation (~30s+) can exceed that proxy's timeout — the response
+is dropped (`socket hang up` / non-JSON) **even though the backend finished
+and saved the image**. The UI therefore treats transport errors as
+non-fatal and polls `listTopicImages` until the image appears (with a 2-min
+safety cap). Keep this behaviour in PadVik.
 
 ### 0.8 Tutorial-agent hook (optional, opt-in)
 

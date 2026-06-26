@@ -42,6 +42,7 @@ interface LearnContentProps {
     hasMnemonics: boolean | null;
     keyTerms: string[] | null;
     imageUrl: string | null;
+    images: { id: string; cdnUrl: string | null; prompt: string }[];
     progress: {
       sectionsRead: string[];
       completionPercent: number;
@@ -62,7 +63,7 @@ export function LearnContent({
   const utils = trpc.useUtils();
   const isComplete = tutorial.progress.completionPercent >= 100;
   const [askAiText, setAskAiText] = useState("");
-  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [viewer, setViewer] = useState<{ src: string; caption: string } | null>(null);
   const sectionsContainerRef = useRef<HTMLDivElement>(null);
 
   const markReadMutation = trpc.learn.markSectionRead.useMutation({
@@ -178,29 +179,42 @@ export function LearnContent({
         </div>
       </header>
 
-      {/* AI-generated topic image (hero) */}
-      {tutorial.imageUrl && (
-        <figure className="mb-6">
-          <button type="button" onClick={() => setImageViewerOpen(true)} className="block w-full">
-            <img
-              src={resolveImageUrl(tutorial.imageUrl)}
-              alt={tutorial.title}
-              loading="lazy"
-              className="w-full cursor-zoom-in rounded-lg border"
-            />
-          </button>
-          <figcaption className="text-muted-foreground mt-2 text-center text-xs">
-            Fig: {tutorial.title}
-          </figcaption>
-        </figure>
+      {/* AI-generated images for this topic (or its section). Each shows its
+          full description below. Click to open the zoom/rotate/pan viewer. */}
+      {tutorial.images.length > 0 && (
+        <div className="mb-6 space-y-5">
+          {tutorial.images.map((img, i) =>
+            img.cdnUrl ? (
+              <figure key={img.id}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setViewer({ src: resolveImageUrl(img.cdnUrl), caption: img.prompt })
+                  }
+                  className="block w-full"
+                >
+                  <img
+                    src={resolveImageUrl(img.cdnUrl)}
+                    alt={img.prompt || tutorial.title}
+                    loading="lazy"
+                    className="w-full cursor-zoom-in rounded-lg border"
+                  />
+                </button>
+                <figcaption className="text-muted-foreground mt-2 text-sm">
+                  <span className="font-medium">Fig {i + 1}:</span> {img.prompt}
+                </figcaption>
+              </figure>
+            ) : null,
+          )}
+        </div>
       )}
 
       <ImageLightbox
-        open={imageViewerOpen && !!tutorial.imageUrl}
-        src={tutorial.imageUrl ? resolveImageUrl(tutorial.imageUrl) : ""}
-        alt={tutorial.title}
-        caption={tutorial.title}
-        onClose={() => setImageViewerOpen(false)}
+        open={!!viewer}
+        src={viewer?.src ?? ""}
+        alt={viewer?.caption}
+        caption={viewer?.caption}
+        onClose={() => setViewer(null)}
       />
 
       {/* Sections */}

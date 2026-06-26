@@ -109,6 +109,12 @@ function HelpDialog(): React.ReactElement {
                 Click <strong>Generate</strong> — the image renders inline with model, cost, and
                 time. Errors (e.g. missing key) appear in red.
               </li>
+              <li>
+                The <strong>Generated Images</strong> list below shows every image with its topic,
+                provider/model, size, cost and timestamp. Toggle <strong>Grid/Table</strong> and{" "}
+                <strong>search</strong> (topic, prompt, purpose, model) to find an existing image
+                before regenerating one and wasting tokens. Click any image to zoom/rotate/pan.
+              </li>
             </ol>
           </section>
 
@@ -120,9 +126,12 @@ function HelpDialog(): React.ReactElement {
             </p>
             <ol className="text-muted-foreground list-decimal space-y-1 pl-5">
               <li>
-                <strong>Single topic (default):</strong> pick a syllabus, then a topic, and click{" "}
-                <strong>Generate for topic</strong>. It runs immediately (no worker needed) and
-                shows the image inline. Best for testing without spending many credits.
+                <strong>Single topic (default):</strong> pick a syllabus, then a topic. Any images
+                already on that topic are shown so you don&apos;t duplicate them. Optionally add an{" "}
+                <strong>additional prompt</strong> to steer the image, then click{" "}
+                <strong>Generate</strong>. It runs immediately (no worker needed) and shows the
+                image inline. A new additional prompt produces a different image and <em>adds</em>{" "}
+                to the topic (you can have several images per topic).
               </li>
               <li>
                 <strong>Whole syllabus:</strong> tick <em>Generate for the whole syllabus</em> and
