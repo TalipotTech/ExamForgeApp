@@ -1,9 +1,16 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
-import { imageGenerations, syllabi, syllabusNodes, exams } from "@examforge/shared/db/schema";
+import { and, desc, eq, gte, or, ilike, sql } from "drizzle-orm";
+import {
+  imageGenerations,
+  syllabi,
+  syllabusNodes,
+  exams,
+  tutorialFiles,
+} from "@examforge/shared/db/schema";
 import { router, protectedProcedure, adminProcedure } from "../trpc.js";
 import { generateImage } from "../../ai/image-router.js";
+import { modelToProvider } from "../../ai/image-providers/types.js";
 import { addImageSyncJob } from "../../queues/image-sync-queue.js";
 import { syncTopicImage } from "../../services/topic-image-sync.js";
 
@@ -144,11 +151,70 @@ export const imageGenerationRouter = router({
     }));
   }),
 
-  // ─── Admin: recent generated images (gallery) ───
-  getRecent: adminProcedure
-    .input(z.object({ limit: z.number().min(1).max(60).default(24) }))
+  // ─── Admin: searchable, paginated image list (gallery + table) ───
+  // Joins the topic node so each row carries the context it's attached to,
+  // and derives provider from the model. Searching helps avoid regenerating
+  // (and re-paying for) an image that already exists.
+  listImages: adminProcedure
+    .input(
+      z.object({
+        search: z.string().trim().max(200).optional(),
+        limit: z.number().min(1).max(100).default(24),
+        offset: z.number().min(0).default(0),
+      }),
+    )
     .query(async ({ input, ctx }) => {
-      return ctx.db
+      const where = input.search
+        ? or(
+            ilike(imageGenerations.prompt, `%${input.search}%`),
+            ilike(imageGenerations.purpose, `%${input.search}%`),
+            ilike(imageGenerations.model, `%${input.search}%`),
+            ilike(syllabusNodes.title, `%${input.search}%`),
+          )
+        : undefined;
+
+      const rows = await ctx.db
+        .select({
+          id: imageGenerations.id,
+          purpose: imageGenerations.purpose,
+          model: imageGenerations.model,
+          prompt: imageGenerations.prompt,
+          cdnUrl: imageGenerations.cdnUrl,
+          width: imageGenerations.width,
+          height: imageGenerations.height,
+          costUsd: imageGenerations.costUsd,
+          generationTimeMs: imageGenerations.generationTimeMs,
+          wasFallback: imageGenerations.wasFallback,
+          fallbackModel: imageGenerations.fallbackModel,
+          contentType: imageGenerations.contentType,
+          syllabusNodeId: imageGenerations.syllabusNodeId,
+          topicTitle: syllabusNodes.title,
+          createdAt: imageGenerations.createdAt,
+        })
+        .from(imageGenerations)
+        .leftJoin(syllabusNodes, eq(imageGenerations.syllabusNodeId, syllabusNodes.id))
+        .where(where)
+        .orderBy(desc(imageGenerations.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      const [{ total } = { total: 0 }] = await ctx.db
+        .select({ total: sql<number>`COUNT(*)` })
+        .from(imageGenerations)
+        .leftJoin(syllabusNodes, eq(imageGenerations.syllabusNodeId, syllabusNodes.id))
+        .where(where);
+
+      return {
+        items: rows.map((r) => ({ ...r, provider: modelToProvider(r.model) })),
+        total: Number(total),
+      };
+    }),
+
+  // ─── Admin: all images attached to a single topic ───
+  listTopicImages: adminProcedure
+    .input(z.object({ syllabusNodeId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const rows = await ctx.db
         .select({
           id: imageGenerations.id,
           purpose: imageGenerations.purpose,
@@ -161,8 +227,9 @@ export const imageGenerationRouter = router({
           createdAt: imageGenerations.createdAt,
         })
         .from(imageGenerations)
-        .orderBy(desc(imageGenerations.createdAt))
-        .limit(input.limit);
+        .where(eq(imageGenerations.syllabusNodeId, input.syllabusNodeId))
+        .orderBy(desc(imageGenerations.createdAt));
+      return rows.map((r) => ({ ...r, provider: modelToProvider(r.model) }));
     }),
 
   // ─── Admin: list topics in a syllabus (for the single-topic picker) ───
@@ -181,6 +248,17 @@ export const imageGenerationRouter = router({
         .where(eq(syllabusNodes.syllabusId, input.syllabusId))
         .orderBy(syllabusNodes.depth, syllabusNodes.sortOrder);
 
+      // Which nodes have a reader page (a current tutorial). Images only
+      // surface on the learn reader for these — parent/container nodes hold
+      // content in their children, so an image on them won't show.
+      const tutNodes = await ctx.db
+        .select({ nodeId: tutorialFiles.syllabusNodeId })
+        .from(tutorialFiles)
+        .where(
+          and(eq(tutorialFiles.syllabusId, input.syllabusId), eq(tutorialFiles.isCurrent, true)),
+        );
+      const hasTutorial = new Set(tutNodes.map((t) => Number(t.nodeId)));
+
       // Same eligibility filter the worker uses.
       return rows
         .filter((r) => r.nodeType !== "unit" && r.nodeType !== "root")
@@ -189,17 +267,36 @@ export const imageGenerationRouter = router({
           title: r.title,
           imageStatus: r.imageStatus ?? "none",
           imageUrl: r.imageUrl,
+          hasTutorial: hasTutorial.has(Number(r.id)),
         }));
     }),
 
   // ─── Admin: generate/sync a single topic's image (inline, no worker) ───
   syncTopic: adminProcedure
     .input(
-      z.object({ syllabusNodeId: z.number().int().positive(), force: z.boolean().default(false) }),
+      z.object({
+        syllabusNodeId: z.number().int().positive(),
+        force: z.boolean().default(false),
+        additionalPrompt: z.string().trim().max(1000).optional(),
+        // Optional overrides (omit for content-derived / defaults).
+        aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"]).optional(),
+        size: z.enum(["small", "standard", "hd"]).optional(),
+        purpose: imagePurposeEnum.optional(),
+        style: z.enum(["realistic", "illustration", "diagram", "flat", "watercolor"]).optional(),
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       const result = await syncTopicImage(
-        { syllabusNodeId: input.syllabusNodeId, userId: ctx.userId, force: input.force },
+        {
+          syllabusNodeId: input.syllabusNodeId,
+          userId: ctx.userId,
+          force: input.force,
+          additionalPrompt: input.additionalPrompt,
+          aspectRatio: input.aspectRatio,
+          size: input.size,
+          purposeOverride: input.purpose,
+          styleOverride: input.style,
+        },
         ctx.db,
       );
       return result;

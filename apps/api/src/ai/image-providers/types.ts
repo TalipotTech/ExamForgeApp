@@ -19,6 +19,15 @@ export const MODEL_COSTS: Record<string, number> = {
   "ideogram-3.0": 0.03,
 };
 
+// Maps a stored model id back to its provider — image_generations records
+// the model, not the provider, so we derive it for display.
+export function modelToProvider(model: string): string {
+  if (model.startsWith("gpt-image")) return "openai";
+  if (model.startsWith("imagen")) return "google";
+  if (model.startsWith("ideogram")) return "ideogram";
+  return "unknown";
+}
+
 // Maps an aspect-ratio string to pixel dimensions. Shared by the Google
 // and Ideogram providers (OpenAI takes an explicit "WxH" size instead).
 export function aspectRatioToDimensions(ar: string): { width: number; height: number } {

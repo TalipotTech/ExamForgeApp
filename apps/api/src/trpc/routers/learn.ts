@@ -1,4 +1,4 @@
-import { eq, and, sql, ilike, desc } from "drizzle-orm";
+import { eq, and, sql, ilike, desc, asc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure, subscriberProcedure } from "../trpc.js";
 import {
@@ -28,6 +28,7 @@ import {
   userGeneratedExams,
   userExams,
   users,
+  imageGenerations,
 } from "@examforge/shared/db/schema";
 import { routeTextRequest } from "../../ai/ai-router.js";
 import { PROVIDER_ID_TO_AI_PROVIDER } from "../../ai/types.js";
@@ -198,12 +199,49 @@ export const learnRouter = router({
         });
       }
 
-      // AI-generated topic image (if any) — surfaced as a hero on the reader.
+      // AI-generated images — surfaced on the reader. Section nodes (e.g.
+      // "Organic chemistry") have no reader page of their own, so images
+      // generated for them must surface on their leaf sub-topics. Find the
+      // nearest node (self, then ancestors) that has any image, then return
+      // ALL of that node's images (a topic can have several). image_url is
+      // set on every generation, so it's the cheap marker for "has images".
       const [node] = await ctx.db
-        .select({ imageUrl: syllabusNodes.imageUrl })
+        .select({ imageUrl: syllabusNodes.imageUrl, parentId: syllabusNodes.parentId })
         .from(syllabusNodes)
         .where(eq(syllabusNodes.id, syllabusNodeId))
         .limit(1);
+
+      let imageNodeId: number | null = node?.imageUrl ? syllabusNodeId : null;
+      let parentId = node?.parentId ?? null;
+      let hops = 0;
+      while (imageNodeId === null && parentId && hops < 12) {
+        const [ancestor] = await ctx.db
+          .select({
+            id: syllabusNodes.id,
+            imageUrl: syllabusNodes.imageUrl,
+            parentId: syllabusNodes.parentId,
+          })
+          .from(syllabusNodes)
+          .where(eq(syllabusNodes.id, parentId))
+          .limit(1);
+        if (!ancestor) break;
+        if (ancestor.imageUrl) imageNodeId = Number(ancestor.id);
+        parentId = ancestor.parentId ?? null;
+        hops += 1;
+      }
+
+      const images =
+        imageNodeId === null
+          ? []
+          : await ctx.db
+              .select({
+                id: imageGenerations.id,
+                cdnUrl: imageGenerations.cdnUrl,
+                prompt: imageGenerations.prompt,
+              })
+              .from(imageGenerations)
+              .where(eq(imageGenerations.syllabusNodeId, imageNodeId))
+              .orderBy(asc(imageGenerations.createdAt));
 
       // Get user progress
       const [progress] = await ctx.db
@@ -223,7 +261,8 @@ export const learnRouter = router({
 
       return {
         ...tutorial,
-        imageUrl: node?.imageUrl ?? null,
+        imageUrl: images[0]?.cdnUrl ?? null,
+        images,
         sections: tutorial.sections ?? [],
         progress: {
           sectionsRead: progress?.sectionsRead ?? [],

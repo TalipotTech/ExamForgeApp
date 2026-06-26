@@ -31,6 +31,8 @@ export interface DeriveImageBriefInput {
   keyTerms?: string[];
   examName: string;
   tutorialText?: string | null;
+  /** Optional extra guidance from the admin to steer this specific image. */
+  additionalPrompt?: string;
   userId: string;
   examId?: string;
 }
@@ -81,6 +83,9 @@ export async function deriveImageBrief(
     input.description ? `Description: ${input.description}` : "",
     input.keyTerms?.length ? `Key terms: ${input.keyTerms.join(", ")}` : "",
     tutorialExcerpt ? `\nStudy material (excerpt):\n${tutorialExcerpt}` : "",
+    input.additionalPrompt?.trim()
+      ? `\nAdditional guidance from the admin (prioritise this): ${input.additionalPrompt.trim()}`
+      : "",
     ``,
     `Decide: does a single static diagram/visual meaningfully aid understanding? Many topics (definitions, lists, history dates) do NOT — set needsImage=false for those.`,
     `If yes, write a concrete brief describing exactly what to draw (structures, flow, relationships) and the labels that must appear. Keep it factual and exam-appropriate; no decorative fluff.`,
@@ -137,12 +142,14 @@ export async function deriveImageBrief(
 // (single-topic) or opted into a full-syllabus run.
 function buildFallbackBrief(input: DeriveImageBriefInput): ImageBrief {
   const desc = input.description?.trim();
+  const extra = input.additionalPrompt?.trim();
   return {
     needsImage: true,
     visualType: "diagram",
     brief:
       `Clear, labeled educational diagram of "${input.title}" for ${input.examName}.` +
-      (desc ? ` ${desc}` : ""),
+      (desc ? ` ${desc}` : "") +
+      (extra ? ` ${extra}` : ""),
     labels: (input.keyTerms ?? []).slice(0, 6),
   };
 }

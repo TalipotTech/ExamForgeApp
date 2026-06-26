@@ -63,9 +63,9 @@ export function ImageGenTestPanel(): React.ReactElement {
 
   async function handleGenerate(): Promise<void> {
     await generate.mutateAsync({ prompt, purpose, aspectRatio, size, style });
-    // Refresh the stats card + recent-images gallery so the new image shows up.
+    // Refresh the stats card + image gallery so the new image shows up.
     void utils.imageGeneration.getStats.invalidate();
-    void utils.imageGeneration.getRecent.invalidate();
+    void utils.imageGeneration.listImages.invalidate();
   }
 
   const result = generate.data;
