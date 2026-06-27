@@ -313,6 +313,71 @@ export const topicSearchRouter = router({
         )
         .limit(1);
 
+      // If this node has no tutorial of its own (e.g. a module/section
+      // container like "MODULE: 06 - Pharmaceutical Chemistry"), surface the
+      // descendant topics that DO have a current tutorial so the user can
+      // drill in instead of hitting a "no tutorial" dead end.
+      let childTopics: { nodeId: number; title: string; path: string }[] = [];
+      if (!tutorial && nodeCtx.syllabusId != null) {
+        const allNodes = await ctx.db
+          .select({
+            id: syllabusNodes.id,
+            parentId: syllabusNodes.parentId,
+            title: syllabusNodes.title,
+            sortOrder: syllabusNodes.sortOrder,
+          })
+          .from(syllabusNodes)
+          .where(eq(syllabusNodes.syllabusId, nodeCtx.syllabusId));
+
+        const childrenMap = new Map<number, typeof allNodes>();
+        for (const n of allNodes) {
+          if (n.parentId == null) continue;
+          const arr = childrenMap.get(n.parentId) ?? [];
+          arr.push(n);
+          childrenMap.set(n.parentId, arr);
+        }
+        // DFS from this node, preserving tree order; remember each descendant's
+        // immediate-parent title for a light breadcrumb.
+        const titleById = new Map(allNodes.map((n) => [n.id, n.title]));
+        const descendants: { id: number; title: string; parentTitle: string }[] = [];
+        const walk = (pid: number): void => {
+          const kids = (childrenMap.get(pid) ?? [])
+            .slice()
+            .sort((a, b) => a.sortOrder - b.sortOrder);
+          for (const k of kids) {
+            descendants.push({
+              id: k.id,
+              title: k.title,
+              parentTitle: k.parentId != null ? (titleById.get(k.parentId) ?? "") : "",
+            });
+            walk(k.id);
+          }
+        };
+        walk(input.nodeId);
+
+        if (descendants.length > 0) {
+          const descIds = descendants.map((d) => d.id);
+          const tutNodes = await ctx.db
+            .select({ nodeId: tutorialFiles.syllabusNodeId })
+            .from(tutorialFiles)
+            .where(
+              and(
+                eq(tutorialFiles.isCurrent, true),
+                inArray(tutorialFiles.syllabusNodeId, descIds),
+              ),
+            );
+          const tutSet = new Set(tutNodes.map((t) => t.nodeId));
+          childTopics = descendants
+            .filter((d) => tutSet.has(d.id))
+            .slice(0, 40)
+            .map((d) => ({
+              nodeId: d.id,
+              title: d.title,
+              path: d.parentTitle && d.parentTitle !== d.title ? d.parentTitle : "",
+            }));
+        }
+      }
+
       // Questions for this node (direct or mapped), approved only.
       const APPROVED = ["auto_approved", "admin_approved"];
       const questionRows = await ctx.db
@@ -408,6 +473,7 @@ export const topicSearchRouter = router({
               estimatedReadMinutes: tutorial.estimatedReadMinutes,
             }
           : null,
+        childTopics,
         questions: nodeQuestions,
         related,
         images: imgNode?.imageUrl
