@@ -283,6 +283,38 @@ function LandingNode({ bundle }: { bundle: Bundle }): React.ReactElement {
             )}
           </CardContent>
         </Card>
+      ) : bundle.childTopics.length > 0 ? (
+        // Container node (e.g. a module) with no tutorial of its own — list the
+        // sub-topics that DO have content so the user can drill in.
+        <Card>
+          <CardContent className="py-4">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <BookOpen className="size-4" />
+              Topics in this module
+            </h3>
+            <div className="space-y-1">
+              {bundle.childTopics.map((t) => (
+                <button
+                  key={t.nodeId}
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/dashboard/search?q=${encodeURIComponent(t.title)}&nodeId=${t.nodeId}` as "/",
+                    )
+                  }
+                  className="hover:bg-accent/50 flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors"
+                >
+                  <span className="truncate">{t.title}</span>
+                  {t.path && (
+                    <span className="text-muted-foreground ml-2 hidden truncate text-xs sm:inline">
+                      {t.path}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       ) : (
         <Card>
           <CardContent className="text-muted-foreground py-5 text-sm">
