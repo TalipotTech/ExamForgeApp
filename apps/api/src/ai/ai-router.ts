@@ -234,6 +234,24 @@ const TASK_PROVIDER_MAP: Record<AITask, ProviderMapping> = {
     fallback: "anthropic",
     fallbackModel: "claude-sonnet-4-20250514",
   },
+  classify_search_scope: {
+    // Topic-search scope guardrail (Tier-2, ambiguous middle only). A tiny
+    // yes/no JSON verdict — use the cheapest fast model. Gemini Flash primary,
+    // gpt-4o-mini fallback. The caller fails OPEN if both error.
+    primary: "google",
+    model: "gemini-2.5-flash",
+    fallback: "openai",
+    fallbackModel: "gpt-4o-mini",
+  },
+  assess_learning_path: {
+    // Learning-path narration: the AI only phrases summary/reason/action
+    // text over a deterministically-ranked signal set. Cheap model; runs at
+    // most once per (user, exam, subject) per TTL.
+    primary: "google",
+    model: "gemini-2.5-flash",
+    fallback: "openai",
+    fallbackModel: "gpt-4o-mini",
+  },
 };
 
 // ─── Provider → Default Model mapping ───
@@ -287,6 +305,8 @@ function taskToFeature(task: AITask): string {
     align_syllabus: "verification",
     generate_topic_seeded: "verification",
     derive_image_brief: "image",
+    classify_search_scope: "search",
+    assess_learning_path: "learning_path",
   };
   return map[task];
 }

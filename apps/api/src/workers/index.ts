@@ -41,6 +41,8 @@ import {
 } from "../queues/subscription-pool-queue.js";
 import { createImageSyncWorker } from "./image-sync-worker.js";
 import { closeImageSyncQueue } from "../queues/image-sync-queue.js";
+import { createAutoContentScheduler } from "./auto-content-scheduler.js";
+import { closeAutoContentQueue, scheduleAutoContentJob } from "../queues/auto-content-queue.js";
 
 async function main(): Promise<void> {
   console.log("[workers] Starting ExamForge workers...");
@@ -62,6 +64,7 @@ async function main(): Promise<void> {
   const transcriptionWorker = createTranscriptionWorker();
   const subscriptionPoolWorker = createSubscriptionPoolWorker();
   const imageSyncWorker = createImageSyncWorker();
+  const autoContentScheduler = createAutoContentScheduler();
 
   // Schedule daily note summary generation
   await scheduleNoteSummaryJob();
@@ -69,6 +72,8 @@ async function main(): Promise<void> {
   await scheduleEarningsSettlementJob();
   // Schedule monthly subscription-pool distribution (1st of month, 02:00 IST)
   await scheduleSubscriptionPoolJob();
+  // Schedule daily demand-driven auto-content sweep (04:00)
+  await scheduleAutoContentJob();
 
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[workers] Received ${signal}, shutting down...`);
@@ -89,6 +94,7 @@ async function main(): Promise<void> {
     await transcriptionWorker.close();
     await subscriptionPoolWorker.close();
     await imageSyncWorker.close();
+    await autoContentScheduler.close();
     await closeScraperQueue();
     await closePortalIngestionQueue();
     await closePortalProcessingQueue();
@@ -106,6 +112,7 @@ async function main(): Promise<void> {
     await closeTranscriptionQueue();
     await closeSubscriptionPoolQueue();
     await closeImageSyncQueue();
+    await closeAutoContentQueue();
     console.log("[workers] Shutdown complete.");
     process.exit(0);
   };

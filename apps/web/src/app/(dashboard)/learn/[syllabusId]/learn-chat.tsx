@@ -53,6 +53,19 @@ interface LearnChatProps {
   prefillMessage?: string;
   onPrefillConsumed?: () => void;
   onDockChange?: (docked: boolean) => void;
+  /**
+   * Optional scope preamble prepended to the tutor's system prompt — used by
+   * the in-page scoped tutor on the search results page to keep answers on
+   * this topic. Additive + backward-compatible; undefined = normal behavior.
+   */
+  topicScopePreamble?: string;
+  /**
+   * When this topic has no prior conversation, resume the user's most recent
+   * chat from ANY topic (read-only preview) so the box is never empty —
+   * mirrors Padvik's persistent assistant. Sending a message then starts a
+   * fresh thread scoped to the CURRENT topic. Default off (reader behavior).
+   */
+  fallbackToLatestConversation?: boolean;
 }
 
 export function LearnChat({
@@ -64,6 +77,8 @@ export function LearnChat({
   prefillMessage,
   onPrefillConsumed,
   onDockChange,
+  topicScopePreamble,
+  fallbackToLatestConversation = false,
 }: LearnChatProps): React.ReactElement {
   const { data: session } = useSession();
   const isSubscriber =
@@ -80,6 +95,9 @@ export function LearnChat({
   const [activeConversationId, setActiveConversationId] = useState<string | undefined>();
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  // True while showing a resumed last chat from ANOTHER topic (read-only
+  // preview). Sending clears it and starts a fresh thread for this topic.
+  const [isFallbackPreview, setIsFallbackPreview] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -89,21 +107,48 @@ export function LearnChat({
     { enabled: !!syllabusNodeId, staleTime: 2 * 60 * 1000 },
   );
 
+  // The user's most recent chat across ALL topics — used as a fallback so the
+  // box isn't empty when this topic has no conversation yet.
+  const latestConversationQuery = trpc.learn.getLatestConversation.useQuery(undefined, {
+    enabled: fallbackToLatestConversation && canUseChat,
+    staleTime: 2 * 60 * 1000,
+  });
+
   // Reset state when topic changes
   useEffect(() => {
     setActiveConversationId(undefined);
     setLocalMessages([]);
     setShowHistory(false);
+    setIsFallbackPreview(false);
   }, [syllabusNodeId]);
 
-  // Auto-load latest conversation when data arrives for the new topic
+  // Auto-load latest conversation when data arrives for the new topic. Prefer
+  // this topic's last chat; else fall back to the user's last chat anywhere.
   useEffect(() => {
-    if (conversationsQuery.data && conversationsQuery.data.length > 0 && !activeConversationId) {
+    if (!conversationsQuery.data || activeConversationId) return;
+    if (conversationsQuery.data.length > 0) {
       const latest = conversationsQuery.data[0]!; // ordered by updatedAt DESC
       setActiveConversationId(latest.id);
       setLocalMessages((latest as unknown as Conversation).messages ?? []);
+      setIsFallbackPreview(false);
+    } else if (
+      fallbackToLatestConversation &&
+      !isFallbackPreview &&
+      latestConversationQuery.data?.messages?.length
+    ) {
+      // Different-topic last chat — show as a read-only preview. We do NOT set
+      // activeConversationId, so the first send starts a fresh thread scoped
+      // to the current topic instead of appending to the foreign one.
+      setLocalMessages(latestConversationQuery.data.messages as ChatMessage[]);
+      setIsFallbackPreview(true);
     }
-  }, [conversationsQuery.data, activeConversationId]);
+  }, [
+    conversationsQuery.data,
+    activeConversationId,
+    fallbackToLatestConversation,
+    isFallbackPreview,
+    latestConversationQuery.data,
+  ]);
 
   // Handle prefill message from text selection
   useEffect(() => {
@@ -190,16 +235,24 @@ export function LearnChat({
       content: message.trim(),
       timestamp: new Date().toISOString(),
     };
-    setLocalMessages((prev) => [...prev, userMsg]);
+    // If we're showing a resumed chat from another topic, drop that preview and
+    // start a clean thread scoped to the current topic on the first send.
+    if (isFallbackPreview) {
+      setLocalMessages([userMsg]);
+      setIsFallbackPreview(false);
+    } else {
+      setLocalMessages((prev) => [...prev, userMsg]);
+    }
     setMessage("");
 
     sendMutation.mutate({
       syllabusId,
       syllabusNodeId,
       tutorialFileId,
-      conversationId: activeConversationId,
+      conversationId: isFallbackPreview ? undefined : activeConversationId,
       message: userMsg.content,
       provider,
+      topicScopePreamble,
     });
   }, [
     message,
@@ -209,6 +262,8 @@ export function LearnChat({
     tutorialFileId,
     activeConversationId,
     provider,
+    topicScopePreamble,
+    isFallbackPreview,
   ]);
 
   const handleKeyDown = useCallback(
@@ -382,6 +437,15 @@ export function LearnChat({
 
       {/* Messages */}
       <div className={cn("overflow-y-auto p-4", messagesHeight)}>
+        {isFallbackPreview && localMessages.length > 0 && (
+          <div className="bg-muted/50 text-muted-foreground mb-3 rounded-md px-3 py-2 text-xs">
+            Resuming your last chat
+            {latestConversationQuery.data?.contextTitle
+              ? ` on “${latestConversationQuery.data.contextTitle}”`
+              : ""}
+            . Ask anything to start a new chat on this topic.
+          </div>
+        )}
         {localMessages.length === 0 && (
           <div className="flex h-full items-center justify-center text-center">
             <div>

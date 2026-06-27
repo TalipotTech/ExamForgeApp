@@ -105,3 +105,10 @@ export type { AiTutorCitation } from "./ai-tutor-messages";
 
 // AI Image Generation (multi-model routing, shared examforge | padvik)
 export { imageGenerations } from "./image-generations";
+
+// Topic Search + Learning Path (ported from Padvik)
+export { nodeUnderstanding } from "./node-understanding";
+export { topicSearchHistory } from "./topic-search-history";
+export { contentDemandSignals } from "./content-demand-signals";
+export { learningPathAssessments } from "./learning-path-assessments";
+export type { LearningPathStrength, LearningPathImprovement } from "./learning-path-assessments";

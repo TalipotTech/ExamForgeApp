@@ -542,6 +542,7 @@ export const learnRouter = router({
         message,
         keyword,
         provider,
+        topicScopePreamble,
       } = input;
 
       // Load tutorial plain text for context (first 20KB)
@@ -601,7 +602,8 @@ export const learnRouter = router({
         .map((m: ConvMessage) => `${m.role === "user" ? "Student" : "Tutor"}: ${m.content}`)
         .join("\n\n");
 
-      const systemPrompt = `You are an expert tutor helping a student learn about "${tutorial.title}".
+      const scopePrefix = topicScopePreamble ? `${topicScopePreamble.trim()}\n\n` : "";
+      const systemPrompt = `${scopePrefix}You are an expert tutor helping a student learn about "${tutorial.title}".
 You have the following tutorial content as context:
 
 ---TUTORIAL START---
@@ -688,6 +690,27 @@ At the end of your response, suggest 2-3 follow-up questions the student could a
         tokensUsed: aiResult.usage.totalTokens,
       };
     }),
+
+  // ─── Get Latest Conversation (across all topics) ───
+  // Used by the in-page scoped tutor to resume the user's last chat when the
+  // current topic has none — mirrors Padvik's persistent assistant panel.
+  getLatestConversation: protectedProcedure.query(async ({ ctx }) => {
+    const [conv] = await ctx.db
+      .select({
+        id: topicConversations.id,
+        contextTitle: topicConversations.contextTitle,
+        messages: topicConversations.messages,
+        messageCount: topicConversations.messageCount,
+        aiProvider: topicConversations.aiProvider,
+        syllabusNodeId: topicConversations.syllabusNodeId,
+        updatedAt: topicConversations.updatedAt,
+      })
+      .from(topicConversations)
+      .where(eq(topicConversations.userId, ctx.userId))
+      .orderBy(desc(topicConversations.updatedAt))
+      .limit(1);
+    return conv ?? null;
+  }),
 
   // ─── Get Conversations for Node ───
   getConversationsForNode: protectedProcedure

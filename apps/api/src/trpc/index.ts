@@ -37,6 +37,8 @@ import { aiTutorRouter } from "./routers/ai-tutor.js";
 import { usageRouter } from "./routers/usage.js";
 import { subscriptionPoolRouter } from "./routers/subscription-pool.js";
 import { imageGenerationRouter } from "./routers/image-generation.js";
+import { topicSearchRouter } from "./routers/topic-search.js";
+import { learningPathRouter } from "./routers/learning-path.js";
 
 export const appRouter = router({
   health: healthRouter,
@@ -77,6 +79,8 @@ export const appRouter = router({
   usage: usageRouter,
   subscriptionPool: subscriptionPoolRouter,
   imageGeneration: imageGenerationRouter,
+  topicSearch: topicSearchRouter,
+  learningPath: learningPathRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -36,7 +36,9 @@ export type AITask =
   | "verify_question"
   | "align_syllabus"
   | "generate_topic_seeded"
-  | "derive_image_brief";
+  | "derive_image_brief"
+  | "classify_search_scope"
+  | "assess_learning_path";
 
 export type ProviderMapping = {
   primary: AiProvider;
