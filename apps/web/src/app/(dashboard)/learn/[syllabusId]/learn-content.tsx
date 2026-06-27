@@ -242,6 +242,7 @@ export function LearnContent({
         syllabusNodeId={syllabusNodeId}
         tutorialFileId={tutorial.id}
         tutorialTitle={tutorial.title}
+        fallbackToLatestConversation
         onNoteSaved={() => utils.learn.getNotesForNode.invalidate({ syllabusNodeId })}
         prefillMessage={askAiText}
         onPrefillConsumed={() => setAskAiText("")}

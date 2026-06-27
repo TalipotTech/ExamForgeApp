@@ -57,6 +57,7 @@ import {
   Megaphone,
   Coins,
   Images,
+  Route,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -157,6 +158,8 @@ const ADMIN_NAV: NavItem[] = [
 
 const STUDENT_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
+  { href: "/dashboard/search", label: "Search", icon: Search },
+  { href: "/dashboard/learning-path", label: "Learning Path", icon: Route },
   { href: "/learn", label: "Learn", icon: Library },
   { href: "/exams/start", label: "Start Exam", icon: Play },
   { href: "/dashboard/my-exams", label: "My Exams", icon: FileQuestion },

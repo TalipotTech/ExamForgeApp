@@ -27,11 +27,13 @@ import {
   Mic,
   FileStack,
   ExternalLink,
+  Route,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrowseExamsDialog } from "@/components/exam/browse-exams-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ContentCard } from "@/components/content/content-card";
+import { TopicSearchBox } from "@/components/search/topic-search-box";
 
 function getDeviceInfo(): string {
   if (typeof navigator === "undefined") return "Unknown";
@@ -59,6 +61,10 @@ export default function DashboardPage(): React.ReactElement {
   const dashboardQuery = trpc.learn.getDashboardData.useQuery(undefined, {
     staleTime: 2 * 60 * 1000,
   });
+  const recentSearchesQuery = trpc.topicSearch.history.useQuery(
+    { limit: 5 },
+    { staleTime: 60 * 1000 },
+  );
   const quotaQuery = trpc.tutorialAgent.getExamQuota.useQuery(undefined, {
     staleTime: 60_000,
   });
@@ -107,6 +113,27 @@ export default function DashboardPage(): React.ReactElement {
         <p className="text-muted-foreground mt-1">
           Here&apos;s an overview of your learning progress.
         </p>
+      </div>
+
+      {/* Topic search */}
+      <div className="space-y-2">
+        <TopicSearchBox />
+        {recentSearchesQuery.data && recentSearchesQuery.data.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-muted-foreground text-xs">Recent:</span>
+            {recentSearchesQuery.data.map((h, i) => (
+              <Link
+                key={`${h.query}-${i}`}
+                href={
+                  `/dashboard/search?q=${encodeURIComponent(h.nodeTitle ?? h.query)}${h.nodeId ? `&nodeId=${h.nodeId}` : ""}` as "/"
+                }
+                className="border-border hover:bg-accent/50 rounded-full border px-2.5 py-0.5 text-xs transition-colors"
+              >
+                {h.nodeTitle ?? h.query}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}
@@ -209,6 +236,19 @@ export default function DashboardPage(): React.ReactElement {
               <div>
                 <p className="font-medium">Voice Tutor</p>
                 <p className="text-muted-foreground text-xs">Speak your answers</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/dashboard/learning-path">
+          <Card className="hover:border-primary/50 cursor-pointer transition-all hover:shadow-md">
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className="rounded-lg bg-indigo-100 p-2 dark:bg-indigo-900/30">
+                <Route className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <p className="font-medium">Learning Path</p>
+                <p className="text-muted-foreground text-xs">What to study next</p>
               </div>
             </CardContent>
           </Card>

@@ -64,6 +64,10 @@ export const sendChatMessageSchema = z.object({
   message: z.string().min(1).max(4000),
   keyword: z.string().max(200).optional(),
   provider: z.enum(["claude", "gemini", "openai", "mistral"]).default("claude"),
+  // Optional scope preamble — prepended to the tutor's system prompt to keep
+  // answers on this topic (used by the in-page scoped tutor on the search
+  // results page). Additive + backward-compatible.
+  topicScopePreamble: z.string().max(600).optional(),
 });
 
 export type SendChatMessage = z.infer<typeof sendChatMessageSchema>;

@@ -211,6 +211,13 @@
       "when": 1782195112530,
       "tag": "0029_careless_black_bird",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1782493624149,
+      "tag": "0030_certain_makkari",
+      "breakpoints": true
     }
   ]
 }
